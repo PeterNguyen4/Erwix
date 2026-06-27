@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Claude
+config/.claude/
+/.claude
+CLAUDE.md
+.env
+.env.local
+.env.example
