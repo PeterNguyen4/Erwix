@@ -1,0 +1,6 @@
+<svg viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
+  <!-- Blue upper wing shape -->
+  <path d="M 150 250 Q 200 150 400 100 Q 650 50 900 150 Q 950 200 920 400 Q 900 480 700 520 Q 350 550 150 400 Z" fill="#0066FF"/>
+  <!-- Purple lower wave shape -->
+  <path d="M 100 500 Q 200 450 450 480 Q 700 520 850 650 Q 920 750 850 820 Q 650 900 350 850 Q 150 800 100 650 Z" fill="#7C3AED"/>
+</svg>

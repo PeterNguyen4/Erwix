@@ -5,6 +5,7 @@ trade-update event with status 'fill' / 'partial_fill' it persists a Trade row,
 which is the data the Phase-2 analyst agent reviews over a window.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -73,5 +74,9 @@ async def run_execution_logger() -> None:
     stream = make_trading_stream()
     stream.subscribe_trade_updates(_handle_trade_update)
     logger.info("Execution logger connected to Alpaca trade-update stream")
-    # _run_forever is the async entry point on alpaca's stream
-    await stream._run_forever()
+    try:
+        await stream._run_forever()
+    except asyncio.CancelledError:
+        logger.info("Execution logger shutting down")
+        await stream.close()
+        raise
