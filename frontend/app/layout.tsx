@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import Sidebar from "@/components/Sidebar";
 
 export const metadata: Metadata = {
   title: "Entro",
@@ -20,7 +21,12 @@ export default function RootLayout({
       <head>
         <link rel="icon" href="/entro.svg" />
       </head>
-      <body>{children}</body>
+      <body className="flex h-screen" suppressHydrationWarning>
+        <Sidebar />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          {children}
+        </div>
+      </body>
     </html>
   );
 }

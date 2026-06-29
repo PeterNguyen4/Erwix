@@ -10,6 +10,28 @@ from app.schemas import Candle, Quote
 logger = logging.getLogger("entro.market")
 router = APIRouter(prefix="/api/market", tags=["market"])
 
+# Module-level reference so the lifespan can cancel the stream on shutdown.
+_stream_task: asyncio.Task | None = None
+
+
+def cancel_stream_task() -> None:
+    global _stream_task
+    alpaca_client.stop_data_stream()  # unblocks any waiting recv()
+    if _stream_task and not _stream_task.done():
+        _stream_task.cancel()
+    _stream_task = None
+
+
+@router.get("/search")
+async def search(q: str = Query(..., min_length=1)) -> list[dict]:
+    try:
+        return await alpaca_client.search_assets(q)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:  # noqa: BLE001
+        logger.exception("search failed")
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
 
 @router.get("/candles", response_model=list[Candle])
 def candles(
@@ -40,17 +62,18 @@ def quote(symbol: str = Query(..., min_length=1)) -> Quote:
 
 @router.websocket("/stream/{symbol}")
 async def stream(websocket: WebSocket, symbol: str) -> None:
-    """Relay live bar updates for `symbol` from Alpaca to the browser.
-
-    Uses a per-connection StockDataStream. The Alpaca SDK stream runs its own
-    asyncio loop method; we bridge bar callbacks into the websocket via a queue.
-    """
+    """Relay live bar updates for `symbol` from Alpaca to the browser."""
     await websocket.accept()
     symbol = symbol.upper()
     queue: asyncio.Queue = asyncio.Queue()
 
+    if not alpaca_client.is_stream_available():
+        await websocket.send_json({"type": "error", "detail": "live stream unavailable"})
+        await websocket.close()
+        return
+
     try:
-        data_stream = alpaca_client.make_data_stream()
+        data_stream = alpaca_client.get_data_stream()
     except RuntimeError as e:
         await websocket.send_json({"type": "error", "detail": str(e)})
         await websocket.close()
@@ -71,20 +94,35 @@ async def stream(websocket: WebSocket, symbol: str) -> None:
             }
         )
 
+    async def run_stream() -> None:
+        try:
+            await data_stream._run_forever()
+        except asyncio.CancelledError:
+            raise  # propagate so the task actually terminates on shutdown
+        except Exception as e:
+            await queue.put({"type": "error", "detail": str(e)})
+        finally:
+            alpaca_client.reset_data_stream()
+
     data_stream.subscribe_bars(on_bar, symbol)
-    stream_task = asyncio.create_task(data_stream._run_forever())
+    global _stream_task
+    if not data_stream._running:
+        _stream_task = asyncio.create_task(run_stream())
+        stream_task = _stream_task
+    else:
+        stream_task = None
 
     try:
         while True:
             msg = await queue.get()
             await websocket.send_json(msg)
+            if msg.get("type") == "error":
+                break
     except WebSocketDisconnect:
         pass
     except Exception:  # noqa: BLE001
         logger.exception("stream error for %s", symbol)
     finally:
-        stream_task.cancel()
-        try:
-            await data_stream.stop_ws()
-        except Exception:  # noqa: BLE001
-            pass
+        data_stream.unsubscribe_bars(symbol)
+        if stream_task:
+            stream_task.cancel()

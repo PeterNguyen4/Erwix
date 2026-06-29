@@ -5,16 +5,10 @@ import { api, OrderRequest } from "@/lib/api";
 
 interface OrderPanelProps {
   symbol: string;
-  onSymbolChange: (s: string) => void;
   onOrderPlaced?: () => void;
 }
 
-export default function OrderPanel({
-  symbol,
-  onSymbolChange,
-  onOrderPlaced,
-}: OrderPanelProps) {
-  const [symbolInput, setSymbolInput] = useState(symbol);
+export default function OrderPanel({ symbol, onOrderPlaced }: OrderPanelProps) {
   const [qty, setQty] = useState(1);
   const [type, setType] = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice] = useState<number>(0);
@@ -26,7 +20,7 @@ export default function OrderPanel({
     setStatus(null);
     try {
       const order: OrderRequest = {
-        symbol: symbolInput.toUpperCase(),
+        symbol: symbol.toUpperCase(),
         qty,
         side,
         type,
@@ -45,24 +39,6 @@ export default function OrderPanel({
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
       <h2 className="mb-3 text-sm font-semibold text-muted">Order (paper)</h2>
-
-      <label className="mb-1 block text-xs text-muted">Symbol</label>
-      <div className="mb-3 flex gap-2">
-        <input
-          className="w-full rounded border border-border bg-bg px-2 py-1.5 text-sm uppercase outline-none focus:border-accent"
-          value={symbolInput}
-          onChange={(e) => setSymbolInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") onSymbolChange(symbolInput.toUpperCase());
-          }}
-        />
-        <button
-          className="rounded bg-border px-3 text-xs hover:bg-accent/30"
-          onClick={() => onSymbolChange(symbolInput.toUpperCase())}
-        >
-          Load
-        </button>
-      </div>
 
       <label className="mb-1 block text-xs text-muted">Quantity</label>
       <input

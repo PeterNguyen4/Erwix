@@ -1,0 +1,69 @@
+"use client";
+
+import { usePathname, useRouter } from "next/navigation";
+
+function IconChart() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <polyline points="2,14 7,8 11,11 16,4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <line x1="2" y1="17" x2="18" y2="17" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconJournal() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="4" y="2" width="12" height="16" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="7" y1="7" x2="13" y2="7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="7" y1="10" x2="13" y2="10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="7" y1="13" x2="11" y2="13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M4.22 15.78l1.42-1.42M14.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+const NAV_ITEMS = [
+  { label: "Chart",    href: "/chart",    Icon: IconChart },
+  { label: "Journal",  href: "/journal",  Icon: IconJournal },
+  { label: "Settings", href: "/settings", Icon: IconSettings },
+];
+
+export default function Sidebar() {
+  const router = useRouter();
+  const pathname = usePathname();
+
+  return (
+    <nav className="flex flex-col items-center gap-1 border-r border-border bg-panel w-16 py-4 z-30 shrink-0">
+      <div className="mb-3 px-2">
+        <img src="/entro.svg" alt="Entro" className="w-8 h-8" />
+      </div>
+      {NAV_ITEMS.map(({ label, href, Icon }) => {
+        const active = pathname === href;
+        return (
+          <button
+            key={href}
+            onClick={() => router.push(href)}
+            title={label}
+            className={`flex flex-col items-center gap-1 w-full py-2 px-1 transition-colors ${
+              active
+                ? "text-accent bg-accent/20"
+                : "text-muted hover:text-white hover:bg-accent/10"
+            }`}
+          >
+            <Icon />
+            <span className="text-[10px] font-medium">{label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}

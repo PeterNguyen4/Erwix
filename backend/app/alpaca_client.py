@@ -3,7 +3,12 @@
 Credentials come from environment via Settings — never hardcode keys.
 """
 
+import logging
 from datetime import datetime, timedelta, timezone
+
+# Suppress all Alpaca websocket noise — auth failures and retries are handled by
+# _guarded_start_ws and surfaced once through entro.market instead.
+logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
 
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.live import StockDataStream
@@ -63,6 +68,27 @@ def _trading_client() -> TradingClient:
     )
 
 
+async def search_assets(q: str, limit: int = 10) -> list[dict]:
+    """Search tickers via Yahoo Finance's public suggest API — no API key required."""
+    import httpx
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://query1.finance.yahoo.com/v1/finance/search",
+            params={"q": q, "quotesCount": limit, "newsCount": 0, "enableFuzzyQuery": "true"},
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    results = []
+    for item in data.get("quotes", [])[:limit]:
+        symbol = item.get("symbol", "")
+        name = item.get("shortname") or item.get("longname") or ""
+        if symbol:
+            results.append({"symbol": symbol, "name": name})
+    return results
+
+
 def get_candles(
     symbol: str,
     timeframe: str = "1Day",
@@ -71,7 +97,14 @@ def get_candles(
 ) -> list[Candle]:
     tf = _TIMEFRAMES.get(timeframe, _TIMEFRAMES["1Day"])
     if start is None:
-        start = datetime.now(timezone.utc) - timedelta(days=180)
+        _lookback = {
+            "1Min":  timedelta(days=3),
+            "5Min":  timedelta(days=7),
+            "15Min": timedelta(days=14),
+            "1Hour": timedelta(days=30),
+            "1Day":  timedelta(days=180),
+        }
+        start = datetime.now(timezone.utc) - _lookback.get(timeframe, timedelta(days=180))
     req = StockBarsRequest(
         symbol_or_symbols=symbol.upper(),
         timeframe=tf,
@@ -183,7 +216,62 @@ def make_trading_stream() -> TradingStream:
     )
 
 
-def make_data_stream() -> StockDataStream:
-    """Live market-data stream (bars) relayed to the browser."""
+_data_stream: StockDataStream | None = None
+_stream_permanently_failed: bool = False
+
+
+def is_stream_available() -> bool:
+    return not _stream_permanently_failed
+
+
+def get_data_stream() -> StockDataStream:
+    """Return a singleton StockDataStream, creating it on first call.
+
+    Patches _start_ws so that unrecoverable auth errors set _should_run=False,
+    breaking the SDK's internal retry loop, and mark the stream as permanently
+    unavailable so future callers skip the attempt entirely.
+    """
+    global _data_stream, _stream_permanently_failed
     _require_creds()
-    return StockDataStream(_settings.alpaca_api_key, _settings.alpaca_secret_key)
+    if _data_stream is None:
+        stream = StockDataStream(_settings.alpaca_api_key, _settings.alpaca_secret_key)
+        original_start_ws = stream._start_ws
+
+        async def _guarded_start_ws() -> None:
+            global _stream_permanently_failed
+            try:
+                await original_start_ws()
+            except ValueError as e:
+                stream._should_run = False
+                _stream_permanently_failed = True
+                logging.getLogger("entro.market").warning(
+                    "Alpaca stream auth failed (%s) — live bars unavailable for this session", e
+                )
+
+        stream._start_ws = _guarded_start_ws
+        _data_stream = stream
+    return _data_stream
+
+
+def reset_data_stream() -> None:
+    """Discard the singleton so the next call to get_data_stream creates a fresh one."""
+    global _data_stream
+    _data_stream = None
+
+
+def stop_data_stream() -> None:
+    """Signal the stream to exit its loop and forcibly close the websocket."""
+    global _data_stream
+    if _data_stream is not None:
+        _data_stream._should_run = False
+        # Close the underlying websocket so any blocked recv() unblocks immediately.
+        ws = getattr(_data_stream, "_ws", None)
+        if ws is not None:
+            import asyncio
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.ensure_future(ws.close())
+            except Exception:  # noqa: BLE001
+                pass
+    _data_stream = None

@@ -1,32 +1,87 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { api, Account, Candle, Position } from "@/lib/api";
+import { api, Candle, Position, SymbolResult } from "@/lib/api";
 import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
-import TradeJournal from "@/components/TradeJournal";
+import QuoteCard from "@/components/QuoteCard";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
-const TIMEFRAMES = ["1Min", "5Min", "15Min", "1Hour", "1Day"];
-const COMMON_SYMBOLS = ["AAPL", "MSFT", "GOOGL", "TSLA", "AMZN", "NVDA"];
+const TIMEFRAMES = [
+  { value: "1Min",  label: "1m" },
+  { value: "5Min",  label: "5m" },
+  { value: "15Min", label: "15m" },
+  { value: "1Hour", label: "1H" },
+  { value: "1Day",  label: "1D" },
+];
 
-export default function ChartPage() {
+const DEFAULT_RESULTS: SymbolResult[] = [
+  { symbol: "AAPL",  name: "Apple Inc." },
+  { symbol: "MSFT",  name: "Microsoft Corp." },
+  { symbol: "GOOGL", name: "Alphabet Inc." },
+  { symbol: "AMZN",  name: "Amazon.com Inc." },
+  { symbol: "NVDA",  name: "NVIDIA Corp." },
+  { symbol: "TSLA",  name: "Tesla Inc." },
+  { symbol: "META",  name: "Meta Platforms Inc." },
+  { symbol: "SPY",   name: "SPDR S&P 500 ETF" },
+  { symbol: "QQQ",   name: "Invesco QQQ Trust" },
+  { symbol: "AMD",   name: "Advanced Micro Devices" },
+];
+
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const idx = text.toUpperCase().indexOf(query.toUpperCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="font-bold text-blue-400">{text.slice(idx, idx + query.length)}</span>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
+
+function IconSearch() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0">
+      <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+      <line x1="10" y1="10" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export default function ChartPageWrapper() {
+  return (
+    <Suspense>
+      <ChartPage />
+    </Suspense>
+  );
+}
+
+function ChartPage() {
   const router = useRouter();
-  const [symbol, setSymbol] = useState("AAPL");
-  const [timeframe, setTimeframe] = useState("1Day");
+  const searchParams = useSearchParams();
+
+  const [symbol, setSymbol] = useState(() => searchParams.get("symbol") ?? "AAPL");
+  const [symbolName, setSymbolName] = useState(() => {
+    const sym = searchParams.get("symbol");
+    return DEFAULT_RESULTS.find((r) => r.symbol === sym)?.name ?? "Apple Inc.";
+  });
+  const [timeframe, setTimeframe] = useState(() => searchParams.get("tf") ?? "1Day");
   const [candles, setCandles] = useState<Candle[]>([]);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
-  const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [symbolSearch, setSymbolSearch] = useState(symbol);
+  const [symbolSearch, setSymbolSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadCandles = useCallback(() => {
     setError(null);
@@ -38,12 +93,9 @@ export default function ChartPage() {
 
   const loadAccount = useCallback(() => {
     api.positions().then(setPositions).catch(() => {});
-    api.account().then(setAccount).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    loadCandles();
-  }, [loadCandles]);
+  useEffect(() => { loadCandles(); }, [loadCandles]);
 
   useEffect(() => {
     loadAccount();
@@ -52,14 +104,20 @@ export default function ChartPage() {
   }, [loadAccount]);
 
   useEffect(() => {
-    wsRef.current?.close();
+    let cancelled = false;
     const ws = new WebSocket(api.streamUrl(symbol));
+    ws.onopen = () => { if (cancelled) ws.close(); };
     ws.onmessage = (ev) => {
+      if (cancelled) return;
       const msg = JSON.parse(ev.data);
       if (msg.type === "bar") setLiveCandle(msg.candle as Candle);
+      // "error" type (e.g. auth failure) — stream unavailable, historical data still works
     };
     wsRef.current = ws;
-    return () => ws.close();
+    return () => {
+      cancelled = true;
+      if (ws.readyState === WebSocket.OPEN) ws.close();
+    };
   }, [symbol]);
 
   const onOrderPlaced = () => {
@@ -67,177 +125,117 @@ export default function ChartPage() {
     setTimeout(() => setRefreshKey((k) => k + 1), 1500);
   };
 
-  const handleSymbolSelect = (sym: string) => {
-    setSymbol(sym.toUpperCase());
-    setSymbolSearch(sym.toUpperCase());
+  const handleSymbolSelect = (sym: string, name = "") => {
+    const upper = sym.toUpperCase();
+    setSymbol(upper);
+    setSymbolName(name);
+    setSymbolSearch("");
     setShowSymbolDropdown(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("symbol", upper);
+    router.replace(`/chart?${params.toString()}`);
   };
 
-  useEffect(() => {
-    setSymbolSearch(symbol);
-  }, [symbol]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (showMenu && !(e.target as HTMLElement).closest("button")) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener("click", handleClickOutside);
-    return () => document.removeEventListener("click", handleClickOutside);
-  }, [showMenu]);
-
-  const filteredSymbols = symbolSearch
-    ? COMMON_SYMBOLS.filter((s) =>
-        s.toUpperCase().includes(symbolSearch.toUpperCase())
-      )
-    : COMMON_SYMBOLS;
+  const handleSearchChange = (value: string) => {
+    setSymbolSearch(value);
+    setShowSymbolDropdown(true);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (!value.trim()) {
+      setSearchResults(DEFAULT_RESULTS);
+      setSearchLoading(false);
+      return;
+    }
+    setSearchLoading(true);
+    searchDebounceRef.current = setTimeout(() => {
+      api.searchSymbols(value)
+        .then((results) => { setSearchResults(results); setSearchLoading(false); })
+        .catch(() => { setSearchLoading(false); });
+    }, 200);
+  };
 
   return (
-    <main className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 gap-4">
-        {/* Left: Hamburger + Search */}
+    <main className="flex h-full flex-col">
+      <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 gap-4 shrink-0">
+        {/* Left: Timeframe selector */}
         <div className="flex items-center gap-3">
-          {/* Hamburger Menu */}
-          <div className="relative">
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="flex flex-col gap-1.5 p-2 hover:bg-accent/20 rounded transition-colors"
-            >
-              <div className="w-6 h-0.5 bg-white rounded"></div>
-              <div className="w-6 h-0.5 bg-white rounded"></div>
-              <div className="w-6 h-0.5 bg-white rounded"></div>
-            </button>
-
-            {/* Dropdown Menu */}
-            {showMenu && (
-              <div className="absolute top-full left-0 mt-2 bg-panel border border-border rounded shadow-lg z-50 w-48">
-                <button
-                  onClick={() => {
-                    router.push("/chart");
-                    setShowMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 hover:bg-accent/20 border-b border-border text-white"
-                >
-                  📈 Chart
-                </button>
-                <button
-                  onClick={() => {
-                    router.push("/journal");
-                    setShowMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 hover:bg-accent/20 border-b border-border text-white"
-                >
-                  📋 Journal
-                </button>
-                <button
-                  onClick={() => {
-                    router.push("/settings");
-                    setShowMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-3 hover:bg-accent/20 text-white"
-                >
-                  ⚙️ Settings
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Ticker Search Bar */}
-          <div className="relative w-56">
-            <input
-              type="text"
-              placeholder="Search ticker..."
-              value={symbolSearch}
-              onChange={(e) => {
-                setSymbolSearch(e.target.value);
-                setShowSymbolDropdown(true);
-              }}
-              onFocus={() => setShowSymbolDropdown(true)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && symbolSearch) {
-                  handleSymbolSelect(symbolSearch);
-                }
-              }}
-              className="w-full rounded border border-border bg-bg px-3 py-2 text-sm outline-none focus:border-accent"
-            />
-            {showSymbolDropdown && (symbolSearch || filteredSymbols.length > 0) && (
-              <div className="absolute top-full left-0 right-0 mt-1 rounded border border-border bg-panel shadow-lg z-30">
-                {(symbolSearch ? filteredSymbols : COMMON_SYMBOLS).map((sym) => (
-                  <button
-                    key={sym}
-                    onClick={() => handleSymbolSelect(sym)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-accent/20 border-b border-border last:border-b-0"
-                  >
-                    {sym}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <select
+            value={timeframe}
+            onChange={(e) => {
+              setTimeframe(e.target.value);
+              const params = new URLSearchParams(searchParams.toString());
+              params.set("tf", e.target.value);
+              router.replace(`/chart?${params.toString()}`);
+            }}
+            className="rounded border border-border bg-bg px-2 py-2 text-sm text-white outline-none focus:border-accent cursor-pointer"
+          >
+            {TIMEFRAMES.map((tf) => (
+              <option key={tf.value} value={tf.value}>{tf.label}</option>
+            ))}
+          </select>
         </div>
 
-        {/* Account Info */}
-        {account && (
-          <div className="flex gap-8 text-xs">
-            <div>
-              <div className="text-muted">Equity</div>
-              <div className="text-white font-semibold">
-                ${account.equity.toLocaleString()}
-              </div>
-            </div>
-            <div>
-              <div className="text-muted">Buying power</div>
-              <div className="text-white font-semibold">
-                ${account.buying_power.toLocaleString()}
-              </div>
-            </div>
+        {/* Right: Ticker Search */}
+        <div className="relative w-72">
+          <div className="flex items-center gap-2 rounded border border-border bg-bg px-3 py-2 focus-within:border-accent">
+            <span className="text-muted">
+              <IconSearch />
+            </span>
+            <input
+              type="text"
+              placeholder="Search symbol/name"
+              value={symbolSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => {
+                setShowSymbolDropdown(true);
+                if (!symbolSearch.trim()) setSearchResults(DEFAULT_RESULTS);
+              }}
+              onBlur={() => setTimeout(() => setShowSymbolDropdown(false), 150)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && symbolSearch.trim()) handleSymbolSelect(symbolSearch.trim());
+                if (e.key === "Escape") setShowSymbolDropdown(false);
+              }}
+              className="flex-1 bg-transparent text-sm outline-none text-white placeholder:text-muted"
+            />
           </div>
-        )}
-      </header>
-
-      <div className="grid flex-1 grid-cols-[1fr_320px] gap-3 overflow-hidden p-3">
-        {/* Left: controls + content */}
-        <div className="flex flex-col gap-3 overflow-hidden">
-          {/* Timeframe controls */}
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-lg font-semibold text-white">{symbol}</span>
-            <div className="flex gap-1">
-              {TIMEFRAMES.map((tf) => (
+          {showSymbolDropdown && (searchResults.length > 0 || searchLoading) && (
+            <div className="absolute top-full left-0 right-0 mt-1 rounded border border-border bg-panel shadow-lg z-30 max-h-72 overflow-y-auto">
+              {searchLoading && (
+                <div className="px-3 py-2 text-xs text-muted">Searching…</div>
+              )}
+              {!searchLoading && searchResults.map((r) => (
                 <button
-                  key={tf}
-                  onClick={() => setTimeframe(tf)}
-                  className={`rounded px-2 py-1 text-xs font-semibold ${
-                    timeframe === tf
-                      ? "bg-accent text-white"
-                      : "bg-border text-muted hover:bg-accent/30"
-                  }`}
+                  key={r.symbol}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleSymbolSelect(r.symbol, r.name)}
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent/20 border-b border-border last:border-b-0 flex items-baseline gap-2"
                 >
-                  {tf}
+                  <span className="font-mono text-white min-w-[3.5rem]">
+                    <HighlightMatch text={r.symbol} query={symbolSearch} />
+                  </span>
+                  <span className="text-xs text-muted truncate">{r.name}</span>
                 </button>
               ))}
             </div>
-          </div>
+          )}
+        </div>
+      </header>
 
-          {/* Chart Content */}
+      <div className="grid flex-1 grid-rows-1 grid-cols-[1fr_320px] gap-3 overflow-hidden p-3">
+        {/* Left: chart */}
+        <div className="flex flex-col overflow-hidden">
           <div className="relative flex-1 rounded-lg border border-border bg-bg overflow-hidden">
             {error ? (
-              <div className="flex h-full items-center justify-center text-sm text-down">
-                {error}
-              </div>
+              <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
             ) : (
-              <Chart candles={candles} liveCandle={liveCandle} />
+              <Chart candles={candles} liveCandle={liveCandle} symbol={symbol} />
             )}
           </div>
         </div>
 
-        {/* Right: order panel + positions */}
+        {/* Right: quote + order panel + positions */}
         <div className="flex flex-col gap-3 overflow-auto">
-          <OrderPanel
-            symbol={symbol}
-            onSymbolChange={setSymbol}
-            onOrderPlaced={onOrderPlaced}
-          />
+          <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} />
+          <OrderPanel symbol={symbol} onOrderPlaced={onOrderPlaced} />
           <PositionsTable positions={positions} />
         </div>
       </div>

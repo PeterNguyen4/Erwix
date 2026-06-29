@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import journal, market, trading
+from app.routers.market import cancel_stream_task
 from app.services.execution_logger import run_execution_logger
 
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +30,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        cancel_stream_task()
         if task:
             task.cancel()
             try:

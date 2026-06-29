@@ -217,6 +217,9 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# Windows / Git Bash crash dumps
+*.stackdump
+
 # Claude
 config/.claude/
 /.claude
