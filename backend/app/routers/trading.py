@@ -1,12 +1,13 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app import alpaca_client
+from app.auth import require_auth
 from app.schemas import Account, OrderRequest, OrderResponse, Position
 
 logger = logging.getLogger("entro.trading")
-router = APIRouter(prefix="/api/trading", tags=["trading"])
+router = APIRouter(prefix="/api/trading", tags=["trading"], dependencies=[Depends(require_auth)])
 
 
 @router.post("/orders", response_model=OrderResponse)

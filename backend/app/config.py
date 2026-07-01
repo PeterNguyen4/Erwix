@@ -1,13 +1,16 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ENV_FILE = Path(__file__).parent.parent / ".env"
 
 
 class Settings(BaseSettings):
     """Application settings, loaded from environment / .env."""
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore"
     )
 
     alpaca_api_key: str = ""
@@ -18,6 +21,9 @@ class Settings(BaseSettings):
 
     # CORS origins for the Next.js dev server
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # Clerk JWT verification
+    clerk_jwks_url: str = ""
 
     @property
     def has_alpaca_creds(self) -> bool:

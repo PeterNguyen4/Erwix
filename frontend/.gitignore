@@ -4,3 +4,6 @@ out/
 .env*.local
 *.tsbuildinfo
 next-env.d.ts.timestamp
+
+# clerk configuration (can include secrets)
+/.clerk/

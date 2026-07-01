@@ -2,9 +2,10 @@ import asyncio
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 
 from app import alpaca_client
+from app.auth import require_auth, require_ws_auth
 from app.schemas import Candle, Quote
 
 logger = logging.getLogger("entro.market")
@@ -23,7 +24,7 @@ def cancel_stream_task() -> None:
 
 
 @router.get("/search")
-async def search(q: str = Query(..., min_length=1)) -> list[dict]:
+async def search(q: str = Query(..., min_length=1), _uid: str = Depends(require_auth)) -> list[dict]:
     try:
         return await alpaca_client.search_assets(q)
     except RuntimeError as e:
@@ -39,6 +40,7 @@ def candles(
     timeframe: str = Query("1Day"),
     start: datetime | None = None,
     end: datetime | None = None,
+    _uid: str = Depends(require_auth),
 ) -> list[Candle]:
     try:
         return alpaca_client.get_candles(symbol, timeframe, start, end)
@@ -50,7 +52,7 @@ def candles(
 
 
 @router.get("/quote", response_model=Quote)
-def quote(symbol: str = Query(..., min_length=1)) -> Quote:
+def quote(symbol: str = Query(..., min_length=1), _uid: str = Depends(require_auth)) -> Quote:
     try:
         return alpaca_client.get_quote(symbol)
     except RuntimeError as e:
@@ -61,7 +63,7 @@ def quote(symbol: str = Query(..., min_length=1)) -> Quote:
 
 
 @router.websocket("/stream/{symbol}")
-async def stream(websocket: WebSocket, symbol: str) -> None:
+async def stream(websocket: WebSocket, symbol: str, _uid: str = Depends(require_ws_auth)) -> None:
     """Relay live bar updates for `symbol` from Alpaca to the browser."""
     await websocket.accept()
     symbol = symbol.upper()

@@ -75,6 +75,7 @@ function ChartPage() {
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
   const [symbolSearch, setSymbolSearch] = useState("");
   const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
@@ -85,10 +86,11 @@ function ChartPage() {
 
   const loadCandles = useCallback(() => {
     setError(null);
+    setLoading(true);
     api
       .candles(symbol, timeframe)
-      .then(setCandles)
-      .catch((e) => setError((e as Error).message));
+      .then((data) => { setCandles(data); setLoading(false); })
+      .catch((e) => { setError((e as Error).message); setLoading(false); });
   }, [symbol, timeframe]);
 
   const loadAccount = useCallback(() => {
@@ -105,18 +107,21 @@ function ChartPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const ws = new WebSocket(api.streamUrl(symbol));
-    ws.onopen = () => { if (cancelled) ws.close(); };
-    ws.onmessage = (ev) => {
+    let ws: WebSocket;
+    api.streamUrl(symbol).then((url) => {
       if (cancelled) return;
-      const msg = JSON.parse(ev.data);
-      if (msg.type === "bar") setLiveCandle(msg.candle as Candle);
-      // "error" type (e.g. auth failure) — stream unavailable, historical data still works
-    };
-    wsRef.current = ws;
+      ws = new WebSocket(url);
+      ws.onopen = () => { if (cancelled) ws.close(); };
+      ws.onmessage = (ev) => {
+        if (cancelled) return;
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "bar") setLiveCandle(msg.candle as Candle);
+      };
+      wsRef.current = ws;
+    });
     return () => {
       cancelled = true;
-      if (ws.readyState === WebSocket.OPEN) ws.close();
+      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
     };
   }, [symbol]);
 
@@ -226,6 +231,10 @@ function ChartPage() {
           <div className="relative flex-1 rounded-lg border border-border bg-bg overflow-hidden">
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
+            ) : loading ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="w-6 h-6 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+              </div>
             ) : (
               <Chart candles={candles} liveCandle={liveCandle} symbol={symbol} />
             )}

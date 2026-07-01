@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from app.auth import require_auth
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,7 +9,7 @@ from app.db import get_db
 from app.models import Trade
 from app.schemas import TradeOut
 
-router = APIRouter(prefix="/api/journal", tags=["journal"])
+router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(require_auth)])
 
 
 @router.get("/trades", response_model=list[TradeOut])

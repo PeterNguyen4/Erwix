@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
+import { UserButton } from "@clerk/nextjs";
 
 function IconChart() {
   return (
@@ -64,6 +65,10 @@ export default function Sidebar() {
           </button>
         );
       })}
+      <div className="flex-1" />
+      <div className="mb-2">
+        <UserButton afterSignOutUrl="/login" />
+      </div>
     </nav>
   );
 }
