@@ -41,6 +41,8 @@ _TIMEFRAMES: dict[str, TimeFrame] = {
     "15Min": TimeFrame(15, TimeFrameUnit.Minute),
     "1Hour": TimeFrame(1, TimeFrameUnit.Hour),
     "1Day": TimeFrame(1, TimeFrameUnit.Day),
+    "1Week": TimeFrame(1, TimeFrameUnit.Week),
+    "1Month": TimeFrame(1, TimeFrameUnit.Month),
 }
 
 
@@ -103,6 +105,8 @@ def get_candles(
             "15Min": timedelta(days=14),
             "1Hour": timedelta(days=30),
             "1Day":  timedelta(days=180),
+            "1Week": timedelta(days=730),
+            "1Month": timedelta(days=1825),
         }
         start = datetime.now(timezone.utc) - _lookback.get(timeframe, timedelta(days=180))
     req = StockBarsRequest(

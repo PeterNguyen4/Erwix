@@ -3,7 +3,8 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { api, Candle, Position, SymbolResult } from "@/lib/api";
+import { api, Candle, Position, SymbolResult, UserPreference } from "@/lib/api";
+import { getCached, setCached } from "@/lib/candleCache";
 import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
@@ -16,6 +17,8 @@ const TIMEFRAMES = [
   { value: "15Min", label: "15m" },
   { value: "1Hour", label: "1H" },
   { value: "1Day",  label: "1D" },
+  { value: "1Week", label: "1W" },
+  { value: "1Month", label: "1M" },
 ];
 
 const DEFAULT_RESULTS: SymbolResult[] = [
@@ -71,31 +74,81 @@ function ChartPage() {
     return DEFAULT_RESULTS.find((r) => r.symbol === sym)?.name ?? "Apple Inc.";
   });
   const [timeframe, setTimeframe] = useState(() => searchParams.get("tf") ?? "1Day");
-  const [candles, setCandles] = useState<Candle[]>([]);
+  const [candles, setCandles] = useState<Candle[]>(() => getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day") ?? []);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day"));
+  const [prefsResolved, setPrefsResolved] = useState(() => !!searchParams.get("symbol"));
   const [refreshKey, setRefreshKey] = useState(0);
   const [symbolSearch, setSymbolSearch] = useState("");
   const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const candleRequestIdRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savePrefDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadCandles = useCallback(() => {
     setError(null);
-    setLoading(true);
+    if (!getCached(symbol, timeframe)) setLoading(true);
+    const requestId = ++candleRequestIdRef.current;
+    const requestedSymbol = symbol;
+    const requestedTimeframe = timeframe;
     api
-      .candles(symbol, timeframe)
-      .then((data) => { setCandles(data); setLoading(false); })
-      .catch((e) => { setError((e as Error).message); setLoading(false); });
+      .candles(requestedSymbol, requestedTimeframe)
+      .then((data) => {
+        if (candleRequestIdRef.current !== requestId) return; // superseded by a newer request
+        setCached(requestedSymbol, requestedTimeframe, data);
+        setCandles(data);
+        setLoading(false);
+      })
+      .catch((e) => {
+        if (candleRequestIdRef.current !== requestId) return;
+        setError((e as Error).message);
+        setLoading(false);
+      });
   }, [symbol, timeframe]);
 
   const loadAccount = useCallback(() => {
     api.positions().then(setPositions).catch(() => {});
   }, []);
+
+  // Load saved symbol/timeframe from DB on first mount
+  useEffect(() => {
+    api.getPreferences().then((prefs: UserPreference) => {
+      const urlSymbol = searchParams.get("symbol");
+      const urlTf = searchParams.get("tf");
+      const resolvedSymbol = urlSymbol ?? prefs.last_symbol;
+      const resolvedTf = urlTf ?? prefs.last_timeframe;
+      if (!urlSymbol) {
+        setSymbol(resolvedSymbol);
+        setSymbolName(
+          prefs.last_symbol_name ??
+          DEFAULT_RESULTS.find((r) => r.symbol === resolvedSymbol)?.name ??
+          ""
+        );
+      }
+      if (!urlTf) setTimeframe(resolvedTf);
+      // Re-derive candles/loading for the resolved symbol so we don't render
+      // a stale frame (old symbol's candles paired with the new label).
+      if (!urlSymbol || !urlTf) {
+        const cached = getCached(resolvedSymbol, resolvedTf);
+        setCandles(cached ?? []);
+        setLoading(!cached);
+      }
+    }).catch(() => {}).finally(() => setPrefsResolved(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Debounce-save symbol/name/timeframe changes to DB
+  useEffect(() => {
+    if (savePrefDebounceRef.current) clearTimeout(savePrefDebounceRef.current);
+    savePrefDebounceRef.current = setTimeout(() => {
+      api.savePreferences({ last_symbol: symbol, last_symbol_name: symbolName, last_timeframe: timeframe }).catch(() => {});
+    }, 1000);
+  }, [symbol, symbolName, timeframe]);
 
   useEffect(() => { loadCandles(); }, [loadCandles]);
 
@@ -196,7 +249,11 @@ function ChartPage() {
               }}
               onBlur={() => setTimeout(() => setShowSymbolDropdown(false), 150)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && symbolSearch.trim()) handleSymbolSelect(symbolSearch.trim());
+                if (e.key === "Enter" && symbolSearch.trim()) {
+                  const typed = symbolSearch.trim();
+                  const match = searchResults.find((r) => r.symbol.toUpperCase() === typed.toUpperCase());
+                  handleSymbolSelect(match?.symbol ?? typed, match?.name ?? "");
+                }
                 if (e.key === "Escape") setShowSymbolDropdown(false);
               }}
               className="flex-1 bg-transparent text-sm outline-none text-white placeholder:text-muted"
@@ -231,7 +288,7 @@ function ChartPage() {
           <div className="relative flex-1 rounded-lg border border-border bg-bg overflow-hidden">
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
-            ) : loading ? (
+            ) : loading || !prefsResolved ? (
               <div className="flex h-full items-center justify-center">
                 <div className="w-6 h-6 rounded-full border-2 border-accent border-t-transparent animate-spin" />
               </div>
@@ -243,7 +300,7 @@ function ChartPage() {
 
         {/* Right: quote + order panel + positions */}
         <div className="flex flex-col gap-3 overflow-auto">
-          <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} />
+          {prefsResolved && <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} />}
           <OrderPanel symbol={symbol} onOrderPlaced={onOrderPlaced} />
           <PositionsTable positions={positions} />
         </div>

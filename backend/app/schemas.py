@@ -71,3 +71,18 @@ class TradeOut(BaseModel):
     broker_order_id: str | None
 
     model_config = {"from_attributes": True}
+
+
+# ---- User preferences ----
+class UserPreferenceOut(BaseModel):
+    last_symbol: str = "AAPL"
+    last_symbol_name: str | None = "Apple Inc."
+    last_timeframe: str = "1Day"
+
+    model_config = {"from_attributes": True}
+
+
+class UserPreferenceUpdate(BaseModel):
+    last_symbol: str | None = None
+    last_symbol_name: str | None = None
+    last_timeframe: str | None = None

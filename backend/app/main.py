@@ -6,7 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import journal, market, trading
+from app.db import Base, engine
+from app.routers import journal, market, trading, user
 from app.routers.market import cancel_stream_task
 from app.services.execution_logger import run_execution_logger
 
@@ -18,6 +19,8 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import app.models  # noqa: F401 — ensure all models are registered before create_all
+    Base.metadata.create_all(bind=engine)
     task: asyncio.Task | None = None
     if settings.has_alpaca_creds:
         task = asyncio.create_task(run_execution_logger())
@@ -35,7 +38,7 @@ async def lifespan(app: FastAPI):
             task.cancel()
             try:
                 await task
-            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+            except (asyncio.CancelledError, Exception):
                 pass
 
 
@@ -52,6 +55,7 @@ app.add_middleware(
 app.include_router(market.router)
 app.include_router(trading.router)
 app.include_router(journal.router)
+app.include_router(user.router)
 
 
 @app.get("/api/health")

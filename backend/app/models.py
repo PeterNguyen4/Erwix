@@ -6,6 +6,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db import Base
 
 
+class UserPreference(Base):
+    __tablename__ = "user_preferences"
+
+    user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    last_symbol: Mapped[str] = mapped_column(String(16), default="AAPL")
+    last_symbol_name: Mapped[str | None] = mapped_column(String(128), default="Apple Inc.")
+    last_timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
+
+
 class Trade(Base):
     """
     An auto-logged execution (fill). Written by the execution_logger whenever
