@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { api, Candle, Position, SymbolResult, UserPreference } from "@/lib/api";
+import { api, Candle, Position, Quote, SymbolResult, UserPreference } from "@/lib/api";
 import { getCached, setCached } from "@/lib/candleCache";
 import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
@@ -76,6 +76,7 @@ function ChartPage() {
   const [timeframe, setTimeframe] = useState(() => searchParams.get("tf") ?? "1Day");
   const [candles, setCandles] = useState<Candle[]>(() => getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day") ?? []);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
+  const [liveQuote, setLiveQuote] = useState<Quote | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day"));
@@ -159,6 +160,7 @@ function ChartPage() {
   }, [loadAccount]);
 
   useEffect(() => {
+    setLiveQuote(null);
     let cancelled = false;
     let ws: WebSocket;
     api.streamUrl(symbol).then((url) => {
@@ -169,6 +171,7 @@ function ChartPage() {
         if (cancelled) return;
         const msg = JSON.parse(ev.data);
         if (msg.type === "bar") setLiveCandle(msg.candle as Candle);
+        if (msg.type === "quote") setLiveQuote(msg.quote as Quote);
       };
       wsRef.current = ws;
     });
@@ -300,7 +303,7 @@ function ChartPage() {
 
         {/* Right: quote + order panel + positions */}
         <div className="flex flex-col gap-3 overflow-auto">
-          {prefsResolved && <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} />}
+          {prefsResolved && <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} liveQuote={liveQuote} />}
           <OrderPanel symbol={symbol} onOrderPlaced={onOrderPlaced} />
           <PositionsTable positions={positions} />
         </div>

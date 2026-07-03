@@ -6,7 +6,8 @@ export default clerkMiddleware(async (auth, req) => {
   if (!isPublicRoute(req)) {
     const authObject = await auth();
     if (!authObject.userId) {
-      return authObject.redirectToSignIn({ returnBackUrl: req.url });
+      const returnBackUrl = new URL(req.url).pathname === "/" ? new URL("/chart", req.url) : req.url;
+      return authObject.redirectToSignIn({ returnBackUrl });
     }
   }
 });

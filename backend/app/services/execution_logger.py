@@ -10,7 +10,7 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from app.alpaca_client import make_trading_stream
+from app.alpaca_client import make_trading_stream, user_id_from_client_order_id
 from app.db import SessionLocal
 from app.models import Trade
 
@@ -40,9 +40,11 @@ async def _handle_trade_update(data) -> None:
     price = getattr(data, "price", None) or getattr(order, "filled_avg_price", None)
     qty = getattr(data, "qty", None) or getattr(order, "filled_qty", None)
 
+    client_order_id = getattr(order, "client_order_id", None)
     trade = Trade(
         broker_order_id=str(getattr(order, "id", "") or "") or None,
-        client_order_id=getattr(order, "client_order_id", None),
+        client_order_id=client_order_id,
+        user_id=user_id_from_client_order_id(client_order_id),
         symbol=getattr(order, "symbol", ""),
         side=getattr(getattr(order, "side", None), "value", str(getattr(order, "side", ""))),
         order_type=getattr(

@@ -1,6 +1,5 @@
-"""Thin wrapper around alpaca-py for data, paper trading, and live streaming.
-
-Credentials come from environment via Settings — never hardcode keys.
+"""
+Wrapper around alpaca-py for data, paper trading, and live streaming.
 """
 
 import logging
@@ -149,10 +148,25 @@ def get_quote(symbol: str) -> Quote:
     )
 
 
-def submit_order(order: OrderRequest) -> OrderResponse:
+# `client_order_id` is how we attribute an Alpaca fill back to the Entro user
+# who placed it, since all users currently share one Alpaca account. Format:
+# "<user_id>:<uuid4>" — parsed by `user_id_from_client_order_id` below.
+_CLIENT_ORDER_ID_SEP = ":"
+
+
+def user_id_from_client_order_id(client_order_id: str | None) -> str | None:
+    if not client_order_id or _CLIENT_ORDER_ID_SEP not in client_order_id:
+        return None
+    return client_order_id.split(_CLIENT_ORDER_ID_SEP, 1)[0]
+
+
+def submit_order(order: OrderRequest, user_id: str) -> OrderResponse:
+    import uuid
+
     client = _trading_client()
     side = OrderSide.BUY if order.side == "buy" else OrderSide.SELL
     tif = TimeInForce.DAY if order.time_in_force == "day" else TimeInForce.GTC
+    client_order_id = f"{user_id}{_CLIENT_ORDER_ID_SEP}{uuid.uuid4()}"
 
     if order.type == "limit":
         if order.limit_price is None:
@@ -163,6 +177,7 @@ def submit_order(order: OrderRequest) -> OrderResponse:
             side=side,
             time_in_force=tif,
             limit_price=order.limit_price,
+            client_order_id=client_order_id,
         )
     else:
         req = MarketOrderRequest(
@@ -170,6 +185,7 @@ def submit_order(order: OrderRequest) -> OrderResponse:
             qty=order.qty,
             side=side,
             time_in_force=tif,
+            client_order_id=client_order_id,
         )
     o = client.submit_order(req)
     return OrderResponse(

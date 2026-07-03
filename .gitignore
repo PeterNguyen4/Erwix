@@ -226,4 +226,3 @@ config/.claude/
 CLAUDE.md
 .env
 .env.local
-.env.example

@@ -1,26 +1,28 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV_FILE = Path(__file__).parent.parent / ".env"
 
 
 class Settings(BaseSettings):
-    """Application settings, loaded from environment / .env."""
+    """Application settings loaded from environment variables"""
 
     model_config = SettingsConfigDict(
-        env_file=_ENV_FILE, env_file_encoding="utf-8", extra="ignore"
+        env_file=_ENV_FILE,
+        env_file_encoding="utf-8",
     )
 
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""
     alpaca_paper: bool = True
 
-    database_url: str = "postgresql+psycopg://entro:entro@localhost:5432/entro"
+    database_url: str
 
     # CORS origins for the Next.js dev server
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str]
 
     # Clerk JWT verification
     clerk_jwks_url: str = ""

@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
                 await task
             except (asyncio.CancelledError, Exception):
                 pass
+        engine.dispose()
 
 
 app = FastAPI(title="Entro API", version="0.1.0", lifespan=lifespan)

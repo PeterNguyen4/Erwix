@@ -96,6 +96,23 @@ async def stream(websocket: WebSocket, symbol: str, _uid: str = Depends(require_
             }
         )
 
+    async def on_quote(q) -> None:
+        mid = None
+        if q.bid_price and q.ask_price:
+            mid = (q.bid_price + q.ask_price) / 2
+        await queue.put(
+            {
+                "type": "quote",
+                "quote": {
+                    "symbol": symbol,
+                    "bid": q.bid_price,
+                    "ask": q.ask_price,
+                    "price": mid,
+                    "timestamp": q.timestamp.isoformat() if q.timestamp else None,
+                },
+            }
+        )
+
     async def run_stream() -> None:
         try:
             await data_stream._run_forever()
@@ -107,6 +124,7 @@ async def stream(websocket: WebSocket, symbol: str, _uid: str = Depends(require_
             alpaca_client.reset_data_stream()
 
     data_stream.subscribe_bars(on_bar, symbol)
+    data_stream.subscribe_quotes(on_quote, symbol)
     global _stream_task
     if not data_stream._running:
         _stream_task = asyncio.create_task(run_stream())
@@ -126,5 +144,6 @@ async def stream(websocket: WebSocket, symbol: str, _uid: str = Depends(require_
         logger.exception("stream error for %s", symbol)
     finally:
         data_stream.unsubscribe_bars(symbol)
+        data_stream.unsubscribe_quotes(symbol)
         if stream_task:
             stream_task.cancel()

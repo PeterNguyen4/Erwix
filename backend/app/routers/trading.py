@@ -11,9 +11,9 @@ router = APIRouter(prefix="/api/trading", tags=["trading"], dependencies=[Depend
 
 
 @router.post("/orders", response_model=OrderResponse)
-def create_order(order: OrderRequest) -> OrderResponse:
+def create_order(order: OrderRequest, user_id: str = Depends(require_auth)) -> OrderResponse:
     try:
-        return alpaca_client.submit_order(order)
+        return alpaca_client.submit_order(order, user_id)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e)) from e
     except ValueError as e:

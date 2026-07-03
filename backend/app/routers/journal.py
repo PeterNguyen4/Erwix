@@ -15,13 +15,14 @@ router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depend
 @router.get("/trades", response_model=list[TradeOut])
 def list_trades(
     db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
     symbol: str | None = None,
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = None,
     limit: int = Query(500, le=2000),
 ) -> list[Trade]:
     """Windowed query over auto-logged fills — the analyst's review window."""
-    stmt = select(Trade).order_by(Trade.filled_at.desc())
+    stmt = select(Trade).where(Trade.user_id == user_id).order_by(Trade.filled_at.desc())
     if symbol:
         stmt = stmt.where(Trade.symbol == symbol.upper())
     if from_:
@@ -33,8 +34,8 @@ def list_trades(
 
 
 @router.get("/trades/{trade_id}", response_model=TradeOut)
-def get_trade(trade_id: int, db: Session = Depends(get_db)) -> Trade:
+def get_trade(trade_id: int, db: Session = Depends(get_db), user_id: str = Depends(require_auth)) -> Trade:
     trade = db.get(Trade, trade_id)
-    if trade is None:
+    if trade is None or trade.user_id != user_id:
         raise HTTPException(status_code=404, detail="Trade not found")
     return trade

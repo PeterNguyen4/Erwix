@@ -29,6 +29,13 @@ class Trade(Base):
     broker_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
     client_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
 
+    # Clerk user_id of whoever submitted the order. Resolved from the
+    # `client_order_id` prefix (see trading.py/execution_logger.py) since all
+    # users currently share one Alpaca account — Alpaca itself has no concept
+    # of our users. Nullable: fills we can't attribute (e.g. orders placed
+    # directly in the Alpaca dashboard) still get logged, just unowned.
+    user_id: Mapped[str | None] = mapped_column(String(128), index=True)
+
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(8))  # buy | sell
     order_type: Mapped[str | None] = mapped_column(String(16))  # market | limit

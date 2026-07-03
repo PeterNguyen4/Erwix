@@ -1,27 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, Candle, Quote } from "@/lib/api";
 
 interface QuoteCardProps {
   symbol: string;
   symbolName: string;
   candles: Candle[];
+  liveQuote?: Quote | null;
 }
 
-export default function QuoteCard({ symbol, symbolName, candles }: QuoteCardProps) {
-  const [quote, setQuote] = useState<Quote | null>(null);
+export default function QuoteCard({ symbol, symbolName, candles, liveQuote }: QuoteCardProps) {
+  const [polledQuote, setPolledQuote] = useState<Quote | null>(null);
+  const liveQuoteRef = useRef(liveQuote);
+  liveQuoteRef.current = liveQuote;
 
+  // Initial snapshot + fallback polling for when the live stream is unavailable
+  // (e.g. missing/expired Alpaca stream auth). Skipped once liveQuote is arriving.
   useEffect(() => {
-    setQuote(null);
+    setPolledQuote(null);
     let cancelled = false;
     const load = () => {
-      api.quote(symbol).then((q) => { if (!cancelled) setQuote(q); }).catch(() => {});
+      if (liveQuoteRef.current) return;
+      api.quote(symbol).then((q) => { if (!cancelled) setPolledQuote(q); }).catch(() => {});
     };
     load();
     const id = setInterval(load, 10000);
     return () => { cancelled = true; clearInterval(id); };
   }, [symbol]);
+
+  const quote = liveQuote ?? polledQuote;
 
   const price = quote?.price ?? candles[candles.length - 1]?.close ?? null;
   const prevClose = candles[candles.length - 2]?.close ?? null;
