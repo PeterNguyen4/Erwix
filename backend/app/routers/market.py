@@ -2,10 +2,11 @@ import asyncio
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
 from app import alpaca_client
 from app.auth import require_auth, require_ws_auth
+from app.error_handling import alpaca_errors
 from app.schemas import Candle, Quote
 
 logger = logging.getLogger("entro.market")
@@ -24,17 +25,13 @@ def cancel_stream_task() -> None:
 
 
 @router.get("/search")
+@alpaca_errors(logger)
 async def search(q: str = Query(..., min_length=1), _uid: str = Depends(require_auth)) -> list[dict]:
-    try:
-        return await alpaca_client.search_assets(q)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:  # noqa: BLE001
-        logger.exception("search failed")
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    return await alpaca_client.search_assets(q)
 
 
 @router.get("/candles", response_model=list[Candle])
+@alpaca_errors(logger)
 def candles(
     symbol: str = Query(..., min_length=1),
     timeframe: str = Query("1Day"),
@@ -42,24 +39,13 @@ def candles(
     end: datetime | None = None,
     _uid: str = Depends(require_auth),
 ) -> list[Candle]:
-    try:
-        return alpaca_client.get_candles(symbol, timeframe, start, end)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:  # noqa: BLE001
-        logger.exception("candles failed")
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    return alpaca_client.get_candles(symbol, timeframe, start, end)
 
 
 @router.get("/quote", response_model=Quote)
+@alpaca_errors(logger)
 def quote(symbol: str = Query(..., min_length=1), _uid: str = Depends(require_auth)) -> Quote:
-    try:
-        return alpaca_client.get_quote(symbol)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:  # noqa: BLE001
-        logger.exception("quote failed")
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    return alpaca_client.get_quote(symbol)
 
 
 @router.websocket("/stream/{symbol}")

@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from app import alpaca_client
 from app.auth import require_auth
+from app.error_handling import alpaca_errors
 from app.schemas import Account, OrderRequest, OrderResponse, Position
 
 logger = logging.getLogger("entro.trading")
@@ -11,35 +12,18 @@ router = APIRouter(prefix="/api/trading", tags=["trading"], dependencies=[Depend
 
 
 @router.post("/orders", response_model=OrderResponse)
+@alpaca_errors(logger)
 def create_order(order: OrderRequest, user_id: str = Depends(require_auth)) -> OrderResponse:
-    try:
-        return alpaca_client.submit_order(order, user_id)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except Exception as e:  # noqa: BLE001
-        logger.exception("submit_order failed")
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    return alpaca_client.submit_order(order, user_id)
 
 
 @router.get("/positions", response_model=list[Position])
+@alpaca_errors(logger)
 def positions() -> list[Position]:
-    try:
-        return alpaca_client.get_positions()
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:  # noqa: BLE001
-        logger.exception("positions failed")
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    return alpaca_client.get_positions()
 
 
 @router.get("/account", response_model=Account)
+@alpaca_errors(logger)
 def account() -> Account:
-    try:
-        return alpaca_client.get_account()
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:  # noqa: BLE001
-        logger.exception("account failed")
-        raise HTTPException(status_code=502, detail=str(e)) from e
+    return alpaca_client.get_account()

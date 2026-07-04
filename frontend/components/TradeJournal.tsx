@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, Trade } from "@/lib/api";
 
 const WINDOWS = [
@@ -11,6 +12,7 @@ const WINDOWS = [
 ];
 
 export default function TradeJournal({ refreshKey }: { refreshKey: number }) {
+  const router = useRouter();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [days, setDays] = useState(7);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,15 @@ export default function TradeJournal({ refreshKey }: { refreshKey: number }) {
 
       {error && <p className="text-xs text-down">{error}</p>}
       {trades.length === 0 && !error ? (
-        <p className="text-xs text-muted">No trades logged in this window.</p>
+        <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+          <p className="text-sm text-muted">No trades logged in this window.</p>
+          <button
+            onClick={() => router.push("/chart")}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/80"
+          >
+            Execute Trade
+          </button>
+        </div>
       ) : (
         <div className="max-h-64 overflow-auto">
           <table className="w-full text-sm">

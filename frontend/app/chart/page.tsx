@@ -295,6 +295,13 @@ function ChartPage() {
               <div className="flex h-full items-center justify-center">
                 <div className="w-6 h-6 rounded-full border-2 border-accent border-t-transparent animate-spin" />
               </div>
+            ) : candles.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-4">
+                <div className="text-sm font-medium text-white">No chart data for {symbol}</div>
+                <p className="max-w-xs text-xs text-muted">
+                  We couldn&apos;t find any candles for this symbol/timeframe. Try a different symbol or timeframe.
+                </p>
+              </div>
             ) : (
               <Chart candles={candles} liveCandle={liveCandle} symbol={symbol} />
             )}
