@@ -6,14 +6,24 @@ import { api, OrderRequest } from "@/lib/api";
 interface OrderPanelProps {
   symbol: string;
   onOrderPlaced?: () => void;
+  buyingPower?: number | null;
+  price?: number | null;
 }
 
-export default function OrderPanel({ symbol, onOrderPlaced }: OrderPanelProps) {
+const fmtUsd = (v: number) =>
+  v.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+
+export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price }: OrderPanelProps) {
   const [qty, setQty] = useState(1);
   const [type, setType] = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice] = useState<number>(0);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const estPrice = type === "limit" && limitPrice > 0 ? limitPrice : price ?? null;
+  const estCost = estPrice != null ? estPrice * qty : null;
+  const insufficient =
+    buyingPower != null && estCost != null && estCost > buyingPower;
 
   async function submit(side: "buy" | "sell") {
     setBusy(true);
@@ -39,6 +49,13 @@ export default function OrderPanel({ symbol, onOrderPlaced }: OrderPanelProps) {
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
       <h2 className="mb-3 text-sm font-semibold text-muted">Order (paper)</h2>
+
+      <div className="mb-3 flex items-center justify-between rounded border border-border bg-bg px-3 py-2">
+        <span className="text-xs text-muted">Available to trade</span>
+        <span className="text-sm font-semibold tabular-nums text-white">
+          {buyingPower != null ? fmtUsd(buyingPower) : "—"}
+        </span>
+      </div>
 
       <label className="mb-1 block text-xs text-muted">Quantity</label>
       <input
@@ -71,9 +88,18 @@ export default function OrderPanel({ symbol, onOrderPlaced }: OrderPanelProps) {
         </>
       )}
 
+      {estCost != null && (
+        <div className="mb-3 flex items-center justify-between text-xs">
+          <span className="text-muted">Est. {type === "limit" ? "cost" : "cost @ mkt"}</span>
+          <span className={`tabular-nums font-medium ${insufficient ? "text-down" : "text-white"}`}>
+            {fmtUsd(estCost)}
+          </span>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button
-          disabled={busy}
+          disabled={busy || insufficient}
           onClick={() => submit("buy")}
           className="flex-1 rounded bg-up/90 py-2 text-sm font-semibold text-white hover:bg-up disabled:opacity-50"
         >
@@ -88,6 +114,9 @@ export default function OrderPanel({ symbol, onOrderPlaced }: OrderPanelProps) {
         </button>
       </div>
 
+      {insufficient && (
+        <p className="mt-2 text-xs text-down">Estimated cost exceeds available buying power.</p>
+      )}
       {status && <p className="mt-3 text-xs text-muted">{status}</p>}
     </div>
   );

@@ -1,11 +1,11 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app import alpaca_client
 from app.auth import require_auth
 from app.error_handling import alpaca_errors
-from app.schemas import Account, OrderRequest, OrderResponse, Position
+from app.schemas import Account, OrderRequest, OrderResponse, PortfolioHistory, Position
 
 logger = logging.getLogger("entro.trading")
 router = APIRouter(prefix="/api/trading", tags=["trading"], dependencies=[Depends(require_auth)])
@@ -27,3 +27,12 @@ def positions() -> list[Position]:
 @alpaca_errors(logger)
 def account() -> Account:
     return alpaca_client.get_account()
+
+
+@router.get("/portfolio/history", response_model=PortfolioHistory)
+@alpaca_errors(logger)
+def portfolio_history(
+    period: str = Query("1M", description="1D, 1W, 1M, 3M, 1A, all"),
+    timeframe: str | None = Query(None, description="1Min, 5Min, 15Min, 1H, 1D"),
+) -> PortfolioHistory:
+    return alpaca_client.get_portfolio_history(period, timeframe)

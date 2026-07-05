@@ -23,6 +23,16 @@ function IconJournal() {
   );
 }
 
+function IconPortfolio() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <rect x="2.5" y="5" width="15" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M6 5V4a1.5 1.5 0 0 1 1.5-1.5h5A1.5 1.5 0 0 1 14 4v1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <circle cx="14" cy="10.5" r="1.25" fill="currentColor" />
+    </svg>
+  );
+}
+
 function IconSettings() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -33,9 +43,10 @@ function IconSettings() {
 }
 
 const NAV_ITEMS = [
-  { label: "Chart",    href: "/chart",    Icon: IconChart },
-  { label: "Journal",  href: "/journal",  Icon: IconJournal },
-  { label: "Settings", href: "/settings", Icon: IconSettings },
+  { label: "Chart",     href: "/chart",     Icon: IconChart },
+  { label: "Portfolio", href: "/portfolio", Icon: IconPortfolio },
+  { label: "Journal",   href: "/journal",   Icon: IconJournal },
+  { label: "Settings",  href: "/settings",  Icon: IconSettings },
 ];
 
 export default function Sidebar() {

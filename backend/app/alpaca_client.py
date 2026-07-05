@@ -27,6 +27,8 @@ from app.schemas import (
     Candle,
     OrderRequest,
     OrderResponse,
+    PortfolioHistory,
+    PortfolioPoint,
     Position,
     Quote,
 )
@@ -223,7 +225,36 @@ def get_account() -> Account:
         cash=float(a.cash),
         portfolio_value=float(a.portfolio_value),
         equity=float(a.equity),
+        long_market_value=float(a.long_market_value or 0.0),
+        last_equity=float(a.last_equity or 0.0),
     )
+
+
+def get_portfolio_history(period: str = "1M", timeframe: str | None = None) -> PortfolioHistory:
+    """Equity curve for the (shared paper) account over `period`.
+
+    `timeframe` defaults to a resolution Alpaca picks for the period when None.
+    """
+    from alpaca.trading.requests import GetPortfolioHistoryRequest
+
+    req = GetPortfolioHistoryRequest(period=period, timeframe=timeframe)
+    h = _trading_client().get_portfolio_history(req)
+    timestamps = h.timestamp or []
+    equities = h.equity or []
+    pls = h.profit_loss or []
+    points: list[PortfolioPoint] = []
+    for i, ts in enumerate(timestamps):
+        eq = equities[i] if i < len(equities) else None
+        if eq is None:
+            continue  # Alpaca emits null equity for gaps (e.g. pre-market)
+        points.append(
+            PortfolioPoint(
+                time=int(ts),
+                equity=float(eq),
+                profit_loss=float(pls[i]) if i < len(pls) and pls[i] is not None else 0.0,
+            )
+        )
+    return PortfolioHistory(base_value=float(h.base_value or 0.0), points=points)
 
 
 def make_trading_stream() -> TradingStream:
