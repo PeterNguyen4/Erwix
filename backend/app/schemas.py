@@ -56,6 +56,19 @@ class Account(BaseModel):
     cash: float
     portfolio_value: float
     equity: float
+    long_market_value: float = 0.0
+    last_equity: float = 0.0
+
+
+class PortfolioPoint(BaseModel):
+    time: int  # unix seconds
+    equity: float
+    profit_loss: float
+
+
+class PortfolioHistory(BaseModel):
+    base_value: float
+    points: list[PortfolioPoint]
 
 
 # ---- Journal ----

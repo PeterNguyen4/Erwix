@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { api, Candle, Position, Quote, SymbolResult, UserPreference } from "@/lib/api";
+import { api, Account, Candle, Position, Quote, SymbolResult, UserPreference } from "@/lib/api";
 import { getCached, setCached } from "@/lib/candleCache";
 import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
@@ -78,6 +78,7 @@ function ChartPage() {
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [liveQuote, setLiveQuote] = useState<Quote | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day"));
   const [prefsResolved, setPrefsResolved] = useState(() => !!searchParams.get("symbol"));
@@ -114,6 +115,7 @@ function ChartPage() {
 
   const loadAccount = useCallback(() => {
     api.positions().then(setPositions).catch(() => {});
+    api.account().then(setAccount).catch(() => {});
   }, []);
 
   // Load saved symbol/timeframe from DB on first mount
@@ -311,7 +313,12 @@ function ChartPage() {
         {/* Right: quote + order panel + positions */}
         <div className="flex flex-col gap-3 overflow-auto">
           {prefsResolved && <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} liveQuote={liveQuote} />}
-          <OrderPanel symbol={symbol} onOrderPlaced={onOrderPlaced} />
+          <OrderPanel
+            symbol={symbol}
+            onOrderPlaced={onOrderPlaced}
+            buyingPower={account?.buying_power ?? null}
+            price={liveQuote?.price ?? candles[candles.length - 1]?.close ?? null}
+          />
           <PositionsTable positions={positions} />
         </div>
       </div>
