@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, Trade } from "@/lib/api";
 
@@ -11,14 +11,7 @@ const WINDOWS = [
   { label: "All", days: 0 },
 ];
 
-// Notes have no backend yet (Trade has no notes column); persist locally so the
-// user's reflections survive reloads until the Phase-2 endpoint lands.
-const noteKey = (id: number) => `journal:note:${id}`;
-
-function loadNote(id: number): string {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(noteKey(id)) ?? "";
-}
+const NOTE_SAVE_DEBOUNCE_MS = 600;
 
 export default function JournalEntries({ refreshKey }: { refreshKey: number }) {
   const router = useRouter();
@@ -27,6 +20,7 @@ export default function JournalEntries({ refreshKey }: { refreshKey: number }) {
   const [expanded, setExpanded] = useState<number | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [error, setError] = useState<string | null>(null);
+  const saveTimers = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
 
   useEffect(() => {
     const from = days > 0 ? new Date(Date.now() - days * 86400000).toISOString() : undefined;
@@ -34,14 +28,17 @@ export default function JournalEntries({ refreshKey }: { refreshKey: number }) {
       .trades({ from })
       .then((t) => {
         setTrades(t);
-        setNotes(Object.fromEntries(t.map((x) => [x.id, loadNote(x.id)])));
+        setNotes(Object.fromEntries(t.map((x) => [x.id, x.notes ?? ""])));
       })
       .catch((e) => setError((e as Error).message));
   }, [days, refreshKey]);
 
   const saveNote = (id: number, value: string) => {
     setNotes((n) => ({ ...n, [id]: value }));
-    if (typeof window !== "undefined") window.localStorage.setItem(noteKey(id), value);
+    clearTimeout(saveTimers.current[id]);
+    saveTimers.current[id] = setTimeout(() => {
+      api.saveTradeNote(id, value).catch((e) => setError((e as Error).message));
+    }, NOTE_SAVE_DEBOUNCE_MS);
   };
 
   return (

@@ -8,15 +8,21 @@ which is the data the Phase-2 analyst agent reviews over a window.
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from app.alpaca_client import make_trading_stream, user_id_from_client_order_id
+from app.alpaca_client import (
+    get_recent_filled_orders,
+    make_trading_stream,
+    user_id_from_client_order_id,
+)
 from app.db import SessionLocal
 from app.models import Trade
+from sqlalchemy import select
 
 logger = logging.getLogger("entro.execution_logger")
 
 _FILL_EVENTS = {"fill", "partial_fill"}
+_RECONCILE_LOOKBACK = timedelta(days=7)
 
 
 def _to_float(value, default: float = 0.0) -> float:
@@ -67,6 +73,53 @@ async def _handle_trade_update(data) -> None:
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.exception("Failed to log trade fill")
+    finally:
+        db.close()
+
+
+def reconcile_recent_fills() -> None:
+    """Backfill any fills Alpaca reports that we don't already have a Trade row
+    for. Covers gaps where the live stream missed an event (e.g. backend was
+    down or reconnecting when the fill happened)."""
+    since = datetime.now(timezone.utc) - _RECONCILE_LOOKBACK
+    db = SessionLocal()
+    try:
+        orders = get_recent_filled_orders(since)
+        if not orders:
+            return
+        existing_ids = set(
+            db.scalars(
+                select(Trade.broker_order_id).where(
+                    Trade.broker_order_id.in_([str(o.id) for o in orders])
+                )
+            ).all()
+        )
+        added = 0
+        for o in orders:
+            broker_order_id = str(o.id)
+            if broker_order_id in existing_ids:
+                continue
+            trade = Trade(
+                broker_order_id=broker_order_id,
+                client_order_id=o.client_order_id,
+                user_id=user_id_from_client_order_id(o.client_order_id),
+                symbol=o.symbol,
+                side=getattr(o.side, "value", str(o.side)),
+                order_type=getattr(o.order_type, "value", str(o.order_type)) if o.order_type else None,
+                qty=_to_float(o.filled_qty),
+                fill_price=_to_float(o.filled_avg_price),
+                fees=0.0,
+                filled_at=o.filled_at,
+                raw=json.dumps(o, default=str),
+            )
+            db.add(trade)
+            added += 1
+        if added:
+            db.commit()
+            logger.info("Reconciled %d missed fill(s) from Alpaca order history", added)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("Fill reconciliation failed")
     finally:
         db.close()
 

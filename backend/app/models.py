@@ -27,7 +27,7 @@ class Trade(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     # Alpaca identifiers (nullable so we can also insert manual/synthetic rows)
     broker_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
-    client_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    client_order_id: Mapped[str | None] = mapped_column(String(128), index=True)
 
     # Clerk user_id of whoever submitted the order. Resolved from the
     # `client_order_id` prefix (see trading.py/execution_logger.py) since all
@@ -42,6 +42,9 @@ class Trade(Base):
     qty: Mapped[float] = mapped_column(Float)
     fill_price: Mapped[float] = mapped_column(Float)
     fees: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # User's free-form reflection on this trade, edited from the journal UI.
+    notes: Mapped[str | None] = mapped_column(Text, default=None)
 
     # When the fill happened (from broker) and when we recorded it
     filled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)

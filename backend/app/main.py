@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.db import engine
 from app.routers import journal, market, trading, user
 from app.routers.market import cancel_stream_task
-from app.services.execution_logger import run_execution_logger
+from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("entro")
@@ -25,6 +25,7 @@ async def lifespan(app: FastAPI):
     # actually produce.
     task: asyncio.Task | None = None
     if settings.has_alpaca_creds:
+        reconcile_recent_fills()
         task = asyncio.create_task(run_execution_logger())
         logger.info("Started execution logger background task")
     else:
