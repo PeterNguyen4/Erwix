@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Trade
-from app.schemas import TradeOut
+from app.schemas import TradeNoteUpdate, TradeOut
 
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(require_auth)])
 
@@ -38,4 +38,20 @@ def get_trade(trade_id: int, db: Session = Depends(get_db), user_id: str = Depen
     trade = db.get(Trade, trade_id)
     if trade is None or trade.user_id != user_id:
         raise HTTPException(status_code=404, detail="Trade not found")
+    return trade
+
+
+@router.patch("/trades/{trade_id}/notes", response_model=TradeOut)
+def update_trade_notes(
+    trade_id: int,
+    body: TradeNoteUpdate,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> Trade:
+    trade = db.get(Trade, trade_id)
+    if trade is None or trade.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    trade.notes = body.notes
+    db.commit()
+    db.refresh(trade)
     return trade

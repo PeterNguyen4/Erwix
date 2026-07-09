@@ -218,6 +218,17 @@ def get_positions() -> list[Position]:
     return out
 
 
+def get_recent_filled_orders(after: datetime) -> list:
+    """Raw Alpaca orders with a fill, submitted after `after` (UTC). Used to
+    reconcile the trades table against fills the live stream may have missed."""
+    from alpaca.trading.requests import GetOrdersRequest
+    from alpaca.trading.enums import QueryOrderStatus
+
+    client = _trading_client()
+    req = GetOrdersRequest(status=QueryOrderStatus.CLOSED, after=after, limit=500, nested=False)
+    return [o for o in client.get_orders(req) if o.filled_at is not None]
+
+
 def get_account() -> Account:
     a = _trading_client().get_account()
     return Account(

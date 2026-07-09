@@ -82,8 +82,13 @@ class TradeOut(BaseModel):
     fees: float
     filled_at: datetime
     broker_order_id: str | None
+    notes: str | None
 
     model_config = {"from_attributes": True}
+
+
+class TradeNoteUpdate(BaseModel):
+    notes: str
 
 
 # ---- User preferences ----
