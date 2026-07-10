@@ -1,9 +1,13 @@
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Float, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+
+# Must match app.services.embeddings.EMBEDDING_DIMENSIONS
+TRADE_EMBEDDING_DIM = 512
 
 
 class UserPreference(Base):
@@ -17,23 +21,18 @@ class UserPreference(Base):
 
 class Trade(Base):
     """
-    An auto-logged execution (fill). Written by the execution_logger whenever
-    Alpaca reports a fill. This is the substrate the Phase-2 analyst agent
-    reviews over a time window against the user's strategy.
+    An auto-logged fill. Written by the execution_logger whenever Alpaca
+    reports a fill.
     """
 
     __tablename__ = "trades"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Alpaca identifiers (nullable so we can also insert manual/synthetic rows)
+    # Alpaca identifiers
     broker_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
     client_order_id: Mapped[str | None] = mapped_column(String(128), index=True)
 
-    # Clerk user_id of whoever submitted the order. Resolved from the
-    # `client_order_id` prefix (see trading.py/execution_logger.py) since all
-    # users currently share one Alpaca account — Alpaca itself has no concept
-    # of our users. Nullable: fills we can't attribute (e.g. orders placed
-    # directly in the Alpaca dashboard) still get logged, just unowned.
+    # Clerk user_id
     user_id: Mapped[str | None] = mapped_column(String(128), index=True)
 
     symbol: Mapped[str] = mapped_column(String(16), index=True)
@@ -43,10 +42,10 @@ class Trade(Base):
     fill_price: Mapped[float] = mapped_column(Float)
     fees: Mapped[float] = mapped_column(Float, default=0.0)
 
-    # User's free-form reflection on this trade, edited from the journal UI.
+    # User's reflection on this trade
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    # When the fill happened (from broker) and when we recorded it
+    # Entry time
     filled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -54,10 +53,17 @@ class Trade(Base):
 
     raw: Mapped[str | None] = mapped_column(Text)  # original broker payload (JSON)
 
+    # Voyage embedding of build_trade_text(self), for semantic search
+    # (see app/services/trade_retrieval.py). embedding_model records which
+    # model produced it so a future model change can be detected and re-embedded.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(TRADE_EMBEDDING_DIM))
+    embedding_model: Mapped[str | None] = mapped_column(String(64))
+    embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
 
 class StrategyNote(Base):
     """
-    The user's stated strategy / rules. The Phase-2 analyst compares logged
+    The user's stated strategy / rules. Analyst Agent compares logged
     trades in a window against the active note.
     """
 

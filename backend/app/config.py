@@ -16,21 +16,26 @@ class Settings(BaseSettings):
         extra="ignore"
     )
 
+    database_url: str
+
+    cors_origins: list[str]
+
+    clerk_jwks_url: str = ""
+
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""
     alpaca_paper: bool = True
 
-    database_url: str
-
-    # CORS origins for the Next.js dev server
-    cors_origins: list[str]
-
-    # Clerk JWT verification
-    clerk_jwks_url: str = ""
+    # Embeddings for RAG
+    voyage_api_key: str = ""
 
     @property
     def has_alpaca_creds(self) -> bool:
         return bool(self.alpaca_api_key and self.alpaca_secret_key)
+
+    @property
+    def has_voyage_creds(self) -> bool:
+        return bool(self.voyage_api_key)
 
 
 @lru_cache

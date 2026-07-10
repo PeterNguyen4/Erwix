@@ -17,6 +17,7 @@ from app.alpaca_client import (
 )
 from app.db import SessionLocal
 from app.models import Trade
+from app.services.trade_retrieval import embed_trade
 from sqlalchemy import select
 
 logger = logging.getLogger("entro.execution_logger")
@@ -70,6 +71,11 @@ async def _handle_trade_update(data) -> None:
         db.add(trade)
         db.commit()
         logger.info("Logged fill: %s %s %s @ %s", trade.side, trade.qty, trade.symbol, trade.fill_price)
+        try:
+            embed_trade(db, trade)
+        except Exception:  # noqa: BLE001 — embedding is best-effort, never blocks fill logging
+            db.rollback()
+            logger.warning("Failed to embed trade %s", trade.id, exc_info=True)
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.exception("Failed to log trade fill")
