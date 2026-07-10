@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import journal, market, trading, user
+from app.routers import analysis, journal, market, trading, user
 from app.routers.market import cancel_stream_task
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
 
@@ -19,10 +19,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Schema is Alembic-managed (see backend/alembic/) — run `alembic upgrade head`
-    # before starting the app. We intentionally don't call Base.metadata.create_all()
-    # here: doing so let dev environments silently diverge from what migrations
-    # actually produce.
+    '''Alembic-managed schema — run `alembic upgrade head` to resolve migrations'''
     task: asyncio.Task | None = None
     if settings.has_alpaca_creds:
         reconcile_recent_fills()
@@ -60,6 +57,7 @@ app.include_router(market.router)
 app.include_router(trading.router)
 app.include_router(journal.router)
 app.include_router(user.router)
+app.include_router(analysis.router)
 
 
 @app.get("/api/health")
