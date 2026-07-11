@@ -18,6 +18,9 @@ class UserPreference(Base):
     last_symbol_name: Mapped[str | None] = mapped_column(String(128), default="Apple Inc.")
     last_timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
 
+    # Last Agent analysis
+    last_debrief_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
 
 class Trade(Base):
     """
@@ -53,9 +56,7 @@ class Trade(Base):
 
     raw: Mapped[str | None] = mapped_column(Text)  # original broker payload (JSON)
 
-    # Voyage embedding of build_trade_text(self), for semantic search
-    # (see app/services/trade_retrieval.py). embedding_model records which
-    # model produced it so a future model change can be detected and re-embedded.
+    # Embedding for semantic search
     embedding: Mapped[list[float] | None] = mapped_column(Vector(TRADE_EMBEDDING_DIM))
     embedding_model: Mapped[str | None] = mapped_column(String(64))
     embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { UserButton } from "@clerk/nextjs";
+import { useDebriefStatus } from "@/lib/useDebriefStatus";
 
 function IconChart() {
   return (
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { hasNewTrades } = useDebriefStatus();
 
   return (
     <nav className="flex flex-col items-center gap-1 border-r border-border bg-panel w-16 py-4 z-30 shrink-0">
@@ -60,18 +62,24 @@ export default function Sidebar() {
       </div>
       {NAV_ITEMS.map(({ label, href, Icon }) => {
         const active = pathname === href;
+        const showBadge = href === "/journal" && hasNewTrades;
         return (
           <button
             key={href}
             onClick={() => router.push(href)}
-            title={label}
-            className={`flex flex-col items-center gap-1 w-full py-2 px-1 transition-colors ${
+            title={showBadge ? `${label} — analyst debrief ready` : label}
+            className={`relative flex flex-col items-center gap-1 w-full py-2 px-1 transition-colors ${
               active
                 ? "text-accent bg-accent/20"
                 : "text-muted hover:text-white hover:bg-accent/10"
             }`}
           >
-            <Icon />
+            <span className="relative">
+              <Icon />
+              {showBadge && (
+                <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-accent animate-pulse" />
+              )}
+            </span>
             <span className="text-[10px] font-medium">{label}</span>
           </button>
         );

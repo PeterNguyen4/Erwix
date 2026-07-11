@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # Embeddings for RAG
     voyage_api_key: str = ""
 
+    # Analyst Agent
+    llm_provider: str = "ollama"  # "anthropic" | "ollama"
+    anthropic_api_key: str = ""
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.1"
+
     @property
     def has_alpaca_creds(self) -> bool:
         return bool(self.alpaca_api_key and self.alpaca_secret_key)
@@ -36,6 +42,10 @@ class Settings(BaseSettings):
     @property
     def has_voyage_creds(self) -> bool:
         return bool(self.voyage_api_key)
+
+    @property
+    def has_anthropic_creds(self) -> bool:
+        return bool(self.anthropic_api_key)
 
 
 @lru_cache

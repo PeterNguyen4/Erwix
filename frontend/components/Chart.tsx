@@ -126,6 +126,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const indicatorSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const annotationLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
   const [chartReady, setChartReady] = useState(false);
   const [drawingState, setDrawingState] = useState<DrawingState>({
     isDrawing: false,
@@ -138,7 +139,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
   const [indicators, setIndicators] = useState<"sma20" | null>(null);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
 
-  // Initialize chart once.
+  // Initialize chart
   useEffect(() => {
     if (!containerRef.current) return;
     const chart = createChart(containerRef.current, {
@@ -187,8 +188,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
     };
   }, []);
 
-  // Load historical candles — also depends on chartReady so it re-runs after
-  // dynamic-import init finishes, even if candles arrived first.
+  // Load historical candles
   useEffect(() => {
     if (!seriesRef.current) return;
     seriesRef.current.setData(candles.map(toSeriesData));
@@ -207,13 +207,27 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
     seriesRef.current.update(toSeriesData(liveCandle));
   }, [liveCandle]);
 
-  // Draw annotation overlays.
+  // Draw annotation overlays
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
     series.setMarkers(
       annotations.filter((a) => a.type !== "line").map(toMarker),
     );
+
+    for (const line of annotationLinesRef.current) series.removePriceLine(line);
+    annotationLinesRef.current = annotations
+      .filter((a) => a.type === "line")
+      .map((a) =>
+        series.createPriceLine({
+          price: a.price,
+          color: a.color ?? "#3b82f6",
+          lineWidth: 2,
+          lineStyle: 2, // dashed
+          axisLabelVisible: true,
+          title: a.label ?? "",
+        }),
+      );
   }, [annotations]);
 
   // Compute SMA.

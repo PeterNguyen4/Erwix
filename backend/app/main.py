@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import analysis, journal, market, trading, user
+from app.routers import agent, analysis, journal, market, trading, user
 from app.routers.market import cancel_stream_task
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
 
@@ -58,6 +58,7 @@ app.include_router(trading.router)
 app.include_router(journal.router)
 app.include_router(user.router)
 app.include_router(analysis.router)
+app.include_router(agent.router)
 
 
 @app.get("/api/health")

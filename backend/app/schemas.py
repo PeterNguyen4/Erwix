@@ -91,7 +91,36 @@ class TradeNoteUpdate(BaseModel):
     notes: str
 
 
-# ---- User preferences ----
+# ---- Analyst Agent ----
+class ChartAnnotation(BaseModel):
+    type: Literal["arrow", "circle", "marker", "line"]
+    time: int  # unix seconds
+    price: float
+    label: str | None = None
+    color: str | None = None
+
+
+class AgentReviewRequest(BaseModel):
+    from_: datetime = Field(alias="from")
+    to: datetime
+    symbol: str | None = None
+    query: str | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class AgentReviewResponse(BaseModel):
+    narrative: str
+    annotations: list[ChartAnnotation]
+
+
+class DebriefStatus(BaseModel):
+    has_new_trades: bool
+    new_trade_count: int
+    last_debrief_at: datetime | None
+
+
+# ---- User Preferences ----
 class UserPreferenceOut(BaseModel):
     last_symbol: str = "AAPL"
     last_symbol_name: str | None = "Apple Inc."
