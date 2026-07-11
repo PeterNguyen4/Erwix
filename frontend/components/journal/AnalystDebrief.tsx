@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { api, ChartAnnotation, Candle, DebriefEvent, DebriefRequest } from "@/lib/api";
+import { api, ChartAnnotation, Candle, DebriefEvent, DebriefRequest, ZoomRange } from "@/lib/api";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -53,6 +53,7 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
   const [annotations, setAnnotations] = useState<ChartAnnotation[]>([]);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [symbol, setSymbol] = useState(request.symbol ?? "");
+  const [visibleRange, setVisibleRange] = useState<ZoomRange | null>(null);
   const [connecting, setConnecting] = useState(true);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,6 +94,10 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
         } else if (msg.type === "spotlight") {
           const key = msg.day_keys[0];
           if (key) onSpotlight(`[data-daykey="${key}"]`);
+        } else if (msg.type === "zoom") {
+          setVisibleRange({ from: msg.from, to: msg.to });
+        } else if (msg.type === "symbol") {
+          setSymbol(msg.symbol);
         } else if (msg.type === "done") {
           setStreaming(false);
           setMessages((prev) => prev.map((m, i) => (i === prev.length - 1 ? { ...m, done: true } : m)));
@@ -130,7 +135,7 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
   }, [activeSymbol]);
 
   return (
-    <div className="fixed bottom-4 right-4 top-20 z-30 flex w-[420px] flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-2xl animate-fade-in-up">
+    <div className="fixed bottom-4 right-4 top-20 z-30 flex w-[720px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-2xl animate-fade-in-up">
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2">
@@ -152,9 +157,9 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
       </div>
 
       {/* Whiteboard */}
-      <div className="h-56 shrink-0 border-b border-border">
+      <div className="h-[440px] shrink-0 border-b border-border">
         {candles.length > 0 ? (
-          <Chart candles={candles} annotations={annotations} symbol={activeSymbol} />
+          <Chart candles={candles} annotations={annotations} symbol={activeSymbol} visibleRange={visibleRange} />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-muted">
             Whiteboard — waiting for a chart to discuss…

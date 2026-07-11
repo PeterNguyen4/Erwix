@@ -51,6 +51,20 @@ def debrief_status(
     return DebriefStatus(has_new_trades=count > 0, new_trade_count=count, last_debrief_at=last_debrief_at)
 
 
+@router.post("/debrief/reset", response_model=DebriefStatus)
+def reset_debrief(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> DebriefStatus:
+    """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
+    for new fills. Not linked from any production UI path."""
+    pref = db.get(UserPreference, user_id)
+    if pref:
+        pref.last_debrief_at = None
+        db.commit()
+    return debrief_status(db, user_id)
+
+
 @router.websocket("/debrief")
 async def debrief(
     websocket: WebSocket,

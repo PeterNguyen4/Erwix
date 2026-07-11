@@ -43,9 +43,11 @@ SYSTEM_PROMPT = (
 # as the entire response and skip the narrative text if both are requested at once.
 TOOL_FOLLOWUP_PROMPT = (
     "Based on the review you just gave, call draw_annotations for any trades worth "
-    "marking on the chart, and call spotlight_day for any specific calendar dates you "
-    "referenced (e.g. 'last Monday'). Call only the tools that are relevant — it's fine "
-    "to call neither, one, or both."
+    "marking on the chart, call spotlight_day for any specific calendar dates you "
+    "referenced (e.g. 'last Monday'), and call zoom_to_range if you want the whiteboard "
+    "chart to zoom/pan to a specific time range while you discuss it (e.g. the few days "
+    "around a trade you're walking through). Call only the tools that are relevant — it's "
+    "fine to call none, some, or all of them."
 )
 
 
@@ -77,6 +79,13 @@ def spotlight_day(day_keys: list[str], message: str | None = None) -> str:
     return f"spotlighted {len(day_keys)} day(s)"
 
 
+@tool
+def zoom_to_range(from_time: int, to_time: int) -> str:
+    """Zoom/pan the whiteboard chart to a specific time range (unix seconds) while
+    discussing it, e.g. the few days around a trade being walked through."""
+    return f"zoomed to {from_time}-{to_time}"
+
+
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     user_id: str
@@ -85,6 +94,7 @@ class AgentState(TypedDict):
     symbol: str | None
     query: str | None
     annotations: list[dict]
+    primary_symbol: str | None
 
 
 def _base_model() -> BaseChatModel:
@@ -107,7 +117,7 @@ def _base_model() -> BaseChatModel:
 
 
 def _tool_model() -> BaseChatModel:
-    return _base_model().bind_tools([draw_annotations, spotlight_day])
+    return _base_model().bind_tools([draw_annotations, spotlight_day, zoom_to_range])
 
 
 def _extract_tool_events(response) -> list[dict]:
@@ -123,7 +133,26 @@ def _extract_tool_events(response) -> list[dict]:
                     "message": call["args"].get("message"),
                 }
             )
+        elif call["name"] == "zoom_to_range":
+            events.append(
+                {
+                    "type": "zoom",
+                    "from": call["args"].get("from_time"),
+                    "to": call["args"].get("to_time"),
+                }
+            )
     return events
+
+
+def _primary_symbol(trades: list[Trade]) -> str | None:
+    """Most-traded symbol in the window, used to pick what the whiteboard charts
+    when the caller didn't pin a symbol (e.g. a multi-symbol window debrief)."""
+    if not trades:
+        return None
+    counts: dict[str, int] = {}
+    for t in trades:
+        counts[t.symbol] = counts.get(t.symbol, 0) + 1
+    return max(counts, key=counts.get)
 
 
 def _retrieve(state: AgentState, db: Session) -> dict:
@@ -141,7 +170,10 @@ def _retrieve(state: AgentState, db: Session) -> dict:
             context += "\n".join(f"- (trade_id={t.id}) {build_trade_text(t)}" for t in similar)
 
     prompt = f"Trade window {state['window_start']:%Y-%m-%d} to {state['window_end']:%Y-%m-%d}:\n{context}"
-    return {"messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)]}
+    return {
+        "messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)],
+        "primary_symbol": state["symbol"] or _primary_symbol(trades),
+    }
 
 
 def _analyze(state: AgentState) -> dict:
@@ -185,6 +217,7 @@ def run_review(
             "symbol": symbol,
             "query": query,
             "annotations": [],
+            "primary_symbol": None,
         }
     )
     narrative = result["messages"][-1].content
@@ -229,8 +262,14 @@ async def astream_review(
         "symbol": symbol,
         "query": query,
         "annotations": [],
+        "primary_symbol": None,
     }
-    messages = _retrieve(state, db)["messages"]
+    retrieved = _retrieve(state, db)
+    messages = retrieved["messages"]
+
+    # Emit symbol for whiteboard, or fall back to whatever was traded most
+    if not symbol and retrieved["primary_symbol"]:
+        yield {"type": "symbol", "symbol": retrieved["primary_symbol"]}
 
     # Phase 1: stream the narrative with no tools bound, so the model can't
     # short-circuit into a bare tool call and skip the text (see TOOL_FOLLOWUP_PROMPT).

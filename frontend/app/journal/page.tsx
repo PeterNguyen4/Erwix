@@ -32,7 +32,18 @@ export default function JournalPage() {
     <main className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 shrink-0">
         <div className="text-xl font-semibold text-white">Journal</div>
-        <div className="text-xs text-muted">Paper account</div>
+        <div className="flex items-center gap-3">
+          {process.env.NODE_ENV !== "production" && (
+            <button
+              onClick={() => api.resetDebrief().then(refresh)}
+              title="Dev: clear last_debrief_at so the debrief banner reappears and can be rerun"
+              className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:border-accent hover:text-white"
+            >
+              Dev: Clear Debrief
+            </button>
+          )}
+          <div className="text-xs text-muted">Paper account</div>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto p-4">
