@@ -7,8 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import analysis, journal, market, trading, user
+from app.routers import agent, analysis, journal, market, trading, user
 from app.routers.market import cancel_stream_task
+from app.services.debrief_jobs import start_scheduler, stop_scheduler
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
 
 logging.basicConfig(level=logging.INFO)
@@ -30,9 +31,11 @@ async def lifespan(app: FastAPI):
             "Alpaca credentials not set — execution logger disabled. "
             "Market/trading endpoints will return 503 until configured."
         )
+    start_scheduler()
     try:
         yield
     finally:
+        stop_scheduler()
         cancel_stream_task()
         if task:
             task.cancel()
@@ -58,6 +61,7 @@ app.include_router(trading.router)
 app.include_router(journal.router)
 app.include_router(user.router)
 app.include_router(analysis.router)
+app.include_router(agent.router)
 
 
 @app.get("/api/health")

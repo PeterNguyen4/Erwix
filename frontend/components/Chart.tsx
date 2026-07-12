@@ -11,7 +11,7 @@ import {
   UTCTimestamp,
   createChart,
 } from "lightweight-charts";
-import type { Candle, ChartAnnotation } from "@/lib/api";
+import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
 
 const COMPANY_NAMES: Record<string, string> = {
   AAPL: "Apple Inc.",
@@ -32,6 +32,7 @@ interface ChartProps {
   liveCandle?: Candle | null;
   annotations?: ChartAnnotation[];
   symbol?: string;
+  visibleRange?: ZoomRange | null;
 }
 
 interface HoveredCandle {
@@ -59,15 +60,30 @@ function toSeriesData(c: Candle): CandlestickData {
   };
 }
 
-function toMarker(a: ChartAnnotation): SeriesMarker<Time> {
+function toMarker(a: ChartAnnotation, snappedTime: UTCTimestamp): SeriesMarker<Time> {
   const isArrowUp = a.type === "arrow";
   return {
-    time: a.time as UTCTimestamp,
+    time: snappedTime,
     position: a.type === "circle" ? "inBar" : "aboveBar",
     color: a.color ?? "#3b82f6",
     shape: isArrowUp ? "arrowUp" : "circle",
     text: a.label ?? "",
   };
+}
+
+// Snap to the candle whose time is closest to the agent's annotation time.
+function nearestCandleTime(candles: Candle[], time: number): UTCTimestamp | null {
+  if (candles.length === 0) return null;
+  let closest = candles[0];
+  let bestDiff = Math.abs(candles[0].time - time);
+  for (const c of candles) {
+    const diff = Math.abs(c.time - time);
+    if (diff < bestDiff) {
+      closest = c;
+      bestDiff = diff;
+    }
+  }
+  return closest.time as UTCTimestamp;
 }
 
 function computeSMA(candles: Candle[], period: number) {
@@ -120,12 +136,13 @@ function IconDelete() {
   );
 }
 
-export default function Chart({ candles, liveCandle, annotations = [], symbol = "" }: ChartProps) {
+export default function Chart({ candles, liveCandle, annotations = [], symbol = "", visibleRange = null }: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const indicatorSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const annotationLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
   const [chartReady, setChartReady] = useState(false);
   const [drawingState, setDrawingState] = useState<DrawingState>({
     isDrawing: false,
@@ -138,7 +155,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
   const [indicators, setIndicators] = useState<"sma20" | null>(null);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
 
-  // Initialize chart once.
+  // Initialize chart
   useEffect(() => {
     if (!containerRef.current) return;
     const chart = createChart(containerRef.current, {
@@ -187,8 +204,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
     };
   }, []);
 
-  // Load historical candles — also depends on chartReady so it re-runs after
-  // dynamic-import init finishes, even if candles arrived first.
+  // Load historical candles
   useEffect(() => {
     if (!seriesRef.current) return;
     seriesRef.current.setData(candles.map(toSeriesData));
@@ -207,14 +223,44 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
     seriesRef.current.update(toSeriesData(liveCandle));
   }, [liveCandle]);
 
-  // Draw annotation overlays.
+  // Draw annotation overlays
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
-    series.setMarkers(
-      annotations.filter((a) => a.type !== "line").map(toMarker),
-    );
-  }, [annotations]);
+    const markers = annotations
+      .filter((a) => a.type !== "line")
+      .map((a) => {
+        const snapped = nearestCandleTime(candles, a.time);
+        return snapped === null ? null : toMarker(a, snapped);
+      })
+      .filter((m): m is SeriesMarker<Time> => m !== null)
+      .sort((a, b) => (a.time as number) - (b.time as number));
+    series.setMarkers(markers);
+
+    for (const line of annotationLinesRef.current) series.removePriceLine(line);
+    annotationLinesRef.current = annotations
+      .filter((a) => a.type === "line")
+      .map((a) =>
+        series.createPriceLine({
+          price: a.price,
+          color: a.color ?? "#3b82f6",
+          lineWidth: 2,
+          lineStyle: 2, // dashed
+          axisLabelVisible: true,
+          title: a.label ?? "",
+        }),
+      );
+  }, [annotations, candles]);
+
+  // Zoom/pan the visible time range when the agent calls zoom_to_range.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !visibleRange) return;
+    chart.timeScale().setVisibleRange({
+      from: visibleRange.from as UTCTimestamp,
+      to: visibleRange.to as UTCTimestamp,
+    });
+  }, [visibleRange]);
 
   // Compute SMA.
   useEffect(() => {

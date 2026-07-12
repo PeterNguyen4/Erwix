@@ -39,5 +39,11 @@ def update_preferences(
         pref.last_symbol_name = body.last_symbol_name
     if body.last_timeframe is not None:
         pref.last_timeframe = body.last_timeframe
+    if body.debrief_enabled is not None:
+        pref.debrief_enabled = body.debrief_enabled
+    if body.debrief_day_of_week is not None:
+        pref.debrief_day_of_week = body.debrief_day_of_week
+    if body.debrief_time is not None:
+        pref.debrief_time = body.debrief_time
     db.commit()
     return pref

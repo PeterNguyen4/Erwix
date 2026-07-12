@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, time
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Float, Integer, String, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, Time, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -17,6 +17,14 @@ class UserPreference(Base):
     last_symbol: Mapped[str] = mapped_column(String(16), default="AAPL")
     last_symbol_name: Mapped[str | None] = mapped_column(String(128), default="Apple Inc.")
     last_timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
+
+    # Last Agent analysis
+    last_debrief_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # Scheduled background debrief (see app.services.debrief_jobs)
+    debrief_enabled: Mapped[bool] = mapped_column(default=True)
+    debrief_day_of_week: Mapped[int | None] = mapped_column(Integer)  # 0=Mon .. 6=Sun
+    debrief_time: Mapped[time | None] = mapped_column(Time)
 
 
 class Trade(Base):
@@ -53,12 +61,59 @@ class Trade(Base):
 
     raw: Mapped[str | None] = mapped_column(Text)  # original broker payload (JSON)
 
-    # Voyage embedding of build_trade_text(self), for semantic search
-    # (see app/services/trade_retrieval.py). embedding_model records which
-    # model produced it so a future model change can be detected and re-embedded.
+    # Embedding for semantic search
     embedding: Mapped[list[float] | None] = mapped_column(Vector(TRADE_EMBEDDING_DIM))
     embedding_model: Mapped[str | None] = mapped_column(String(64))
     embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DebriefReport(Base):
+    """
+    A background-generated, navigable analyst debrief for a trade window.
+    Populated incrementally (one step per trade) by app.services.debrief_jobs
+    so a partially-run report is still readable and an ETA can be computed
+    from current_step/total_steps.
+    """
+
+    __tablename__ = "debrief_reports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), index=True)
+
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    symbol: Mapped[str | None] = mapped_column(String(16))
+    query: Mapped[str | None] = mapped_column(Text)
+
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|running|ready|error
+    scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    total_steps: Mapped[int | None] = mapped_column(Integer)
+    current_step: Mapped[int] = mapped_column(Integer, default=0)
+    # Ordered list of {trade_id, narrative, annotations, spotlight, zoom, note_quote} dicts,
+    # one per trade, appended as generation progresses.
+    steps: Mapped[list] = mapped_column(JSON, default=list)
+
+    error_detail: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class DebriefMessage(Base):
+    """A persisted follow-up chat turn tied to a completed DebriefReport."""
+
+    __tablename__ = "debrief_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    report_id: Mapped[int] = mapped_column(ForeignKey("debrief_reports.id"), index=True)
+    role: Mapped[str] = mapped_column(String(16))  # user | assistant
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class StrategyNote(Base):

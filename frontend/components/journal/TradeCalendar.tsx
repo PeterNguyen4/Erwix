@@ -88,6 +88,7 @@ export default function TradeCalendar({ points }: { points: PortfolioPoint[] }) 
           return (
             <div
               key={i}
+              data-daykey={k}
               title={hasData ? `${up ? "+" : ""}${fmtUsd(pl!)}` : undefined}
               className={`flex aspect-square flex-col items-center justify-center rounded text-xs tabular-nums ${
                 hasData

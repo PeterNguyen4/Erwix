@@ -1,0 +1,240 @@
+import asyncio
+import logging
+from datetime import datetime, timedelta, timezone
+
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.auth import require_auth, require_ws_auth
+from app.db import get_db
+from app.models import DebriefMessage, DebriefReport, UserPreference
+from app.schemas import (
+    AgentReviewRequest,
+    AgentReviewResponse,
+    DebriefMessageIn,
+    DebriefMessageOut,
+    DebriefReportOut,
+    DebriefStatus,
+)
+from app.config import get_settings
+from app.services.agent_graph import arun_followup, astream_review, run_review
+from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
+from app.services.trade_retrieval import count_trades_since
+
+logger = logging.getLogger("entro.agent")
+
+router = APIRouter(prefix="/api/agent", tags=["agent"])
+
+DEFAULT_LOOKBACK = timedelta(days=30)
+
+
+def _report_out(report: DebriefReport) -> DebriefReportOut:
+    eta = None
+    if report.status in ("pending", "running") and report.total_steps:
+        remaining = max(report.total_steps - report.current_step, 0)
+        eta = remaining * get_settings().debrief_step_estimate_seconds
+    return DebriefReportOut(
+        id=report.id,
+        status=report.status,
+        window_start=report.window_start,
+        window_end=report.window_end,
+        symbol=report.symbol,
+        scheduled_for=report.scheduled_for,
+        started_at=report.started_at,
+        completed_at=report.completed_at,
+        total_steps=report.total_steps,
+        current_step=report.current_step,
+        eta_seconds=eta,
+        steps=report.steps,
+        error_detail=report.error_detail,
+    )
+
+
+@router.post("/review", response_model=AgentReviewResponse)
+def review_trades(
+    body: AgentReviewRequest,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> AgentReviewResponse:
+    """Run the LangGraph analyst over a trade window and return a narrative
+    plus chart annotations. Pass `query` to also pull semantically similar
+    past trades into context (e.g. 'trades where I panicked')."""
+    try:
+        narrative, annotations = run_review(
+            db, user_id, body.from_, body.to, symbol=body.symbol, query=body.query
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return AgentReviewResponse(narrative=narrative, annotations=annotations)
+
+
+@router.get("/status", response_model=DebriefStatus)
+def debrief_status(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> DebriefStatus:
+    """Whether the user has fills since their last debrief, for the sidebar badge."""
+    pref = db.get(UserPreference, user_id)
+    last_debrief_at = pref.last_debrief_at if pref else None
+    since = last_debrief_at or (datetime.now(timezone.utc) - DEFAULT_LOOKBACK)
+    count = count_trades_since(db, user_id, since)
+    return DebriefStatus(has_new_trades=count > 0, new_trade_count=count, last_debrief_at=last_debrief_at)
+
+
+@router.post("/debrief/reset", response_model=DebriefStatus)
+def reset_debrief(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> DebriefStatus:
+    """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
+    for new fills. Not linked from any production UI path."""
+    pref = db.get(UserPreference, user_id)
+    if pref:
+        pref.last_debrief_at = None
+        db.commit()
+    return debrief_status(db, user_id)
+
+
+@router.websocket("/debrief")
+async def debrief(
+    websocket: WebSocket,
+    from_: datetime = Query(..., alias="from"),
+    to: datetime = Query(...),
+    symbol: str | None = Query(None),
+    query: str | None = Query(None),
+    user_id: str = Depends(require_ws_auth),
+    db: Session = Depends(get_db),
+) -> None:
+    """Stream the LangGraph analyst's debrief: token/annotations/spotlight/done events."""
+    await websocket.accept()
+    try:
+        async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
+            await websocket.send_json(event)
+
+        pref = db.get(UserPreference, user_id)
+        if pref is None:
+            pref = UserPreference(user_id=user_id)
+            db.add(pref)
+        pref.last_debrief_at = datetime.now(timezone.utc)
+        db.commit()
+    except RuntimeError as exc:
+        await websocket.send_json({"type": "error", "detail": str(exc)})
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001
+        logger.exception("debrief stream failed for user %s", user_id)
+        try:
+            await websocket.send_json({"type": "error", "detail": "debrief failed"})
+        except Exception:  # noqa: BLE001
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@router.post("/debrief/generate", response_model=DebriefReportOut)
+async def generate_debrief_now(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> DebriefReportOut:
+    """Dev/manual trigger: creates (or returns the already in-flight)
+    DebriefReport for the current window and starts generation immediately,
+    bypassing the day/time schedule. Generation continues in the background —
+    poll GET /api/agent/debrief/latest for progress/ETA, same as the scheduled path."""
+    report = create_pending_report(db, user_id)
+    if report.status == "pending":
+        asyncio.create_task(run_debrief_job_by_id(report.id))
+    return _report_out(report)
+
+
+@router.get("/debrief/latest", response_model=DebriefReportOut | None)
+def latest_debrief_report(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> DebriefReportOut | None:
+    """Most recent background-generated DebriefReport for the sidebar/banner:
+    pending/running (with an ETA) while cooking, ready once done."""
+    report = db.scalar(
+        select(DebriefReport)
+        .where(DebriefReport.user_id == user_id)
+        .order_by(DebriefReport.scheduled_for.desc())
+        .limit(1)
+    )
+    return _report_out(report) if report else None
+
+
+@router.get("/debrief/{report_id}", response_model=DebriefReportOut)
+def get_debrief_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> DebriefReportOut:
+    report = db.get(DebriefReport, report_id)
+    if report is None or report.user_id != user_id:
+        raise HTTPException(status_code=404, detail="report not found")
+    return _report_out(report)
+
+
+@router.get("/debrief/{report_id}/messages", response_model=list[DebriefMessageOut])
+def list_debrief_messages(
+    report_id: int,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> list[DebriefMessage]:
+    report = db.get(DebriefReport, report_id)
+    if report is None or report.user_id != user_id:
+        raise HTTPException(status_code=404, detail="report not found")
+    return list(
+        db.scalars(
+            select(DebriefMessage)
+            .where(DebriefMessage.report_id == report_id)
+            .order_by(DebriefMessage.created_at.asc())
+        ).all()
+    )
+
+
+@router.post("/debrief/{report_id}/messages", response_model=DebriefMessageOut)
+async def post_debrief_message(
+    report_id: int,
+    body: DebriefMessageIn,
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+) -> DebriefMessage:
+    """Ask a follow-up question about a completed DebriefReport. Grounded in the
+    same trade window/retrieval context used to generate the report (re-fetched,
+    not just the stored narrative) — see agent_graph.arun_followup."""
+    report = db.get(DebriefReport, report_id)
+    if report is None or report.user_id != user_id:
+        raise HTTPException(status_code=404, detail="report not found")
+    if report.status != "ready":
+        raise HTTPException(status_code=409, detail="report is not ready yet")
+
+    prior = list(
+        db.scalars(
+            select(DebriefMessage)
+            .where(DebriefMessage.report_id == report_id)
+            .order_by(DebriefMessage.created_at.asc())
+        ).all()
+    )
+    history = [(m.role, m.content) for m in prior]
+    narrative = "\n\n".join(step.get("narrative", "") for step in report.steps)
+
+    user_message = DebriefMessage(report_id=report_id, role="user", content=body.message)
+    db.add(user_message)
+    db.commit()
+
+    try:
+        reply, _events = await arun_followup(
+            db, user_id, report.window_start, report.window_end, narrative, history, body.message,
+            symbol=report.symbol, query=report.query,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    assistant_message = DebriefMessage(report_id=report_id, role="assistant", content=reply)
+    db.add(assistant_message)
+    db.commit()
+    return assistant_message

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, time
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -91,11 +91,83 @@ class TradeNoteUpdate(BaseModel):
     notes: str
 
 
-# ---- User preferences ----
+# ---- Analyst Agent ----
+class ChartAnnotation(BaseModel):
+    type: Literal["arrow", "circle", "marker", "line"]
+    time: int  # unix seconds
+    price: float
+    label: str | None = None
+    color: str | None = None
+
+
+class AgentReviewRequest(BaseModel):
+    from_: datetime = Field(alias="from")
+    to: datetime
+    symbol: str | None = None
+    query: str | None = None
+
+    model_config = {"populate_by_name": True}
+
+
+class AgentReviewResponse(BaseModel):
+    narrative: str
+    annotations: list[ChartAnnotation]
+
+
+class DebriefStatus(BaseModel):
+    has_new_trades: bool
+    new_trade_count: int
+    last_debrief_at: datetime | None
+
+
+class DebriefStep(BaseModel):
+    trade_id: int
+    narrative: str
+    annotations: list[ChartAnnotation] = []
+    spotlight: dict | None = None
+    zoom: dict | None = None
+    note_quote: dict | None = None
+
+
+class DebriefReportOut(BaseModel):
+    id: int
+    status: Literal["pending", "running", "ready", "error"]
+    window_start: datetime
+    window_end: datetime
+    symbol: str | None
+    scheduled_for: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+    total_steps: int | None
+    current_step: int
+    eta_seconds: int | None = None
+    steps: list[DebriefStep] = []
+    error_detail: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class DebriefMessageIn(BaseModel):
+    message: str
+
+
+class DebriefMessageOut(BaseModel):
+    id: int
+    role: Literal["user", "assistant"]
+    content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# ---- User Preferences ----
 class UserPreferenceOut(BaseModel):
     last_symbol: str = "AAPL"
     last_symbol_name: str | None = "Apple Inc."
     last_timeframe: str = "1Day"
+    debrief_enabled: bool = True
+    debrief_day_of_week: int | None = None
+    debrief_time: time | None = None
 
     model_config = {"from_attributes": True}
 
@@ -104,3 +176,6 @@ class UserPreferenceUpdate(BaseModel):
     last_symbol: str | None = None
     last_symbol_name: str | None = None
     last_timeframe: str | None = None
+    debrief_enabled: bool | None = None
+    debrief_day_of_week: int | None = None
+    debrief_time: time | None = None

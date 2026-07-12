@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, Trade } from "@/lib/api";
+import { api, DebriefRequest, Trade } from "@/lib/api";
 
 const WINDOWS = [
   { label: "1D", days: 1 },
@@ -13,7 +13,12 @@ const WINDOWS = [
 
 const NOTE_SAVE_DEBOUNCE_MS = 600;
 
-export default function JournalEntries({ refreshKey }: { refreshKey: number }) {
+interface JournalEntriesProps {
+  refreshKey: number;
+  onDebriefTrade?: (request: DebriefRequest) => void;
+}
+
+export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEntriesProps) {
   const router = useRouter();
   const [trades, setTrades] = useState<Trade[]>([]);
   const [days, setDays] = useState(30);
@@ -93,6 +98,7 @@ export default function JournalEntries({ refreshKey }: { refreshKey: number }) {
                 return (
                   <Fragment key={t.id}>
                     <tr
+                      data-tradeid={t.id}
                       onClick={() => setExpanded(open ? null : t.id)}
                       className="cursor-pointer border-t border-border hover:bg-accent/10"
                     >
@@ -133,19 +139,27 @@ export default function JournalEntries({ refreshKey }: { refreshKey: number }) {
                                 className="h-28 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-white placeholder:text-muted focus:border-accent focus:outline-none"
                               />
                             </div>
-                            {/* AI summary placeholder */}
+                            {/* AI reflection */}
                             <div>
                               <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted">
                                 AI Reflection
-                                <span className="rounded bg-accent/20 px-1.5 py-0.5 text-[10px] font-normal text-accent">
-                                  Coming soon
-                                </span>
                               </div>
-                              <div className="h-28 overflow-auto rounded-md border border-dashed border-border bg-panel/60 p-2 text-sm text-muted">
-                                Once wired up, Claude will read this execution alongside your notes and
-                                plan and give you a discipline-focused reflection — e.g. acknowledging
-                                that you followed every confluence and stuck to your plan even when the
-                                trade closed red.
+                              <div className="flex h-28 flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border bg-panel/60 p-2 text-center text-sm text-muted">
+                                <p>Ask uWick to walk through this trade with you on the whiteboard.</p>
+                                <button
+                                  onClick={() => {
+                                    const filled = new Date(t.filled_at);
+                                    onDebriefTrade?.({
+                                      from: new Date(filled.getTime() - 3 * 86400000).toISOString(),
+                                      to: new Date(filled.getTime() + 86400000).toISOString(),
+                                      symbol: t.symbol,
+                                      query: `Reflect specifically on my ${t.side} of ${t.symbol} filled at $${t.fill_price} on ${filled.toLocaleDateString()}.`,
+                                    });
+                                  }}
+                                  className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-accent/80"
+                                >
+                                  Debrief this trade
+                                </button>
                               </div>
                             </div>
                           </div>
