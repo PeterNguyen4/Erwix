@@ -9,6 +9,7 @@ langchain chat-model interface — nothing here assumes Anthropic beyond the
 node that constructs the chat model.
 """
 
+import logging
 from datetime import datetime
 from typing import Annotated, AsyncIterator, Literal, TypedDict
 
@@ -27,14 +28,16 @@ from app.models import Trade
 from app.services.embeddings import build_trade_text
 from app.services.trade_retrieval import get_trades_window, semantic_search
 
+logger = logging.getLogger("entro.agent_graph")
+
 ANALYST_MODEL = "claude-opus-4-8"  # used when llm_provider == "anthropic"
 
 SYSTEM_PROMPT = (
-    "You are a trading journal analyst named uWick. You are given a window of a trader's "
+    "You are a trading journal analyst named uWick. You are given a window of one of my "
     "executed fills (and, if relevant, similar past trades pulled by semantic "
     "search) and you review them like a mentor would: concise, specific, no "
-    "generic encouragement. Write a short narrative, as if talking the trader "
-    "through the window live."
+    "generic encouragement. Write a short narrative, as if talking me through "
+    "the window live."
 )
 
 # Separate follow-up turn asking the model to decide on tool calls based on the
@@ -44,10 +47,14 @@ SYSTEM_PROMPT = (
 TOOL_FOLLOWUP_PROMPT = (
     "Based on the review you just gave, call draw_annotations for any trades worth "
     "marking on the chart, call spotlight_day for any specific calendar dates you "
-    "referenced (e.g. 'last Monday'), and call zoom_to_range if you want the whiteboard "
+    "referenced (e.g. 'last Monday') or spotlight_trade for a specific trade row in the "
+    "journal table you referenced, and call zoom_to_range if you want the whiteboard "
     "chart to zoom/pan to a specific time range while you discuss it (e.g. the few days "
-    "around a trade you're walking through). Call only the tools that are relevant — it's "
-    "fine to call none, some, or all of them."
+    "around a trade you're walking through). For spotlight_day and spotlight_trade, "
+    "always include a short `message` (one sentence) — it's shown as a floating caption "
+    "next to the highlighted element while the chat panel is minimized, so it should "
+    "stand alone without the rest of the narrative. Call only the tools that are "
+    "relevant — it's fine to call none, some, or all of them."
 )
 
 
@@ -75,8 +82,15 @@ class SpotlightArg(BaseModel):
 
 @tool
 def spotlight_day(day_keys: list[str], message: str | None = None) -> str:
-    """Highlight one or more days on the trade calendar while discussing them."""
+    """Highlight one or more days on the trade calendar while discussing them. Only the
+    first day_key is actually highlighted, so prefer calling this once per day."""
     return f"spotlighted {len(day_keys)} day(s)"
+
+
+@tool
+def spotlight_trade(trade_id: int, message: str | None = None) -> str:
+    """Highlight a specific trade's row in the journal table while discussing it."""
+    return f"spotlighted trade {trade_id}"
 
 
 @tool
@@ -84,6 +98,14 @@ def zoom_to_range(from_time: int, to_time: int) -> str:
     """Zoom/pan the whiteboard chart to a specific time range (unix seconds) while
     discussing it, e.g. the few days around a trade being walked through."""
     return f"zoomed to {from_time}-{to_time}"
+
+
+@tool
+def quote_note(trade_id: int, text: str) -> str:
+    """Quote a trade's journal note verbatim as a distinct card in the chat, instead of
+    paraphrasing it into prose. `text` must be copied exactly from the trade's `notes:`
+    field in context — do not summarize or reword it."""
+    return f"quoted note for trade {trade_id}"
 
 
 class AgentState(TypedDict):
@@ -103,6 +125,10 @@ def _base_model() -> BaseChatModel:
         return ChatOllama(
             model=settings.ollama_model,
             base_url=settings.ollama_base_url,
+            # Per-trade turns only need a few sentences or a small tool call —
+            # bounding generation keeps the now-per-trade loop from stalling on
+            # a local model that would otherwise ramble unboundedly.
+            num_predict=400,
         )
     if settings.llm_provider == "anthropic":
         if not settings.has_anthropic_creds:
@@ -117,22 +143,42 @@ def _base_model() -> BaseChatModel:
 
 
 def _tool_model() -> BaseChatModel:
-    return _base_model().bind_tools([draw_annotations, spotlight_day, zoom_to_range])
+    return _base_model().bind_tools(
+        [draw_annotations, spotlight_day, spotlight_trade, zoom_to_range, quote_note]
+    )
 
 
 def _extract_tool_events(response) -> list[dict]:
+    """Normalizes tool calls into the events streamed over the debrief WS. Both
+    spotlight tools collapse to the same {"type": "spotlight", "selector", "message"}
+    shape — the frontend just needs a CSS selector to point at, it doesn't care
+    whether the target was a calendar day or a journal trade row."""
+    raw_calls = getattr(response, "tool_calls", None) or []
+    logger.info("tool-call turn: %s", [c["name"] for c in raw_calls] or "(none)")
     events: list[dict] = []
-    for call in getattr(response, "tool_calls", None) or []:
+    for call in raw_calls:
         if call["name"] == "draw_annotations":
             events.append({"type": "annotations", "annotations": call["args"].get("annotations", [])})
         elif call["name"] == "spotlight_day":
-            events.append(
-                {
-                    "type": "spotlight",
-                    "day_keys": call["args"].get("day_keys", []),
-                    "message": call["args"].get("message"),
-                }
-            )
+            day_keys = call["args"].get("day_keys", [])
+            if day_keys:
+                events.append(
+                    {
+                        "type": "spotlight",
+                        "selector": f'[data-daykey="{day_keys[0]}"]',
+                        "message": call["args"].get("message"),
+                    }
+                )
+        elif call["name"] == "spotlight_trade":
+            trade_id = call["args"].get("trade_id")
+            if trade_id is not None:
+                events.append(
+                    {
+                        "type": "spotlight",
+                        "selector": f'[data-tradeid="{trade_id}"]',
+                        "message": call["args"].get("message"),
+                    }
+                )
         elif call["name"] == "zoom_to_range":
             events.append(
                 {
@@ -141,6 +187,11 @@ def _extract_tool_events(response) -> list[dict]:
                     "to": call["args"].get("to_time"),
                 }
             )
+        elif call["name"] == "quote_note":
+            text = call["args"].get("text")
+            trade_id = call["args"].get("trade_id")
+            if text and trade_id is not None:
+                events.append({"type": "note_quote", "trade_id": trade_id, "text": text})
     return events
 
 
@@ -173,6 +224,7 @@ def _retrieve(state: AgentState, db: Session) -> dict:
     return {
         "messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)],
         "primary_symbol": state["symbol"] or _primary_symbol(trades),
+        "trades": trades,
     }
 
 
@@ -239,6 +291,57 @@ def _text_delta(chunk) -> str:
     return ""
 
 
+async def _stream_narrative(model: BaseChatModel, messages: list[AnyMessage]):
+    """Streams a narrative turn, yielding ("token", text) as text arrives and
+    finally ("done", accumulated_chunk_or_None).
+
+    Small local models sometimes wrap their whole reply in a stray leading/
+    trailing `"` (quoting themselves as if narrating in dialogue). Since we
+    can't know a token is the *last* one until the stream ends, this holds
+    back one token behind the cursor (a one-token lookahead buffer) so the
+    final flush can strip a trailing quote — and strips a leading quote off
+    the very first token — without sacrificing incremental streaming for
+    everything in between.
+    """
+    pending: str | None = None
+    is_first = True
+    accumulated = None
+    async for chunk in model.astream(messages):
+        delta = _text_delta(chunk)
+        accumulated = chunk if accumulated is None else accumulated + chunk
+        if not delta:
+            continue
+        if is_first:
+            delta = delta.lstrip().lstrip('"“')
+            is_first = False
+        if pending is not None:
+            yield ("token", pending)
+        pending = delta
+    if pending is not None:
+        pending = pending.rstrip()
+        if pending.endswith('"') or pending.endswith("”"):
+            pending = pending[:-1]
+        if pending:
+            yield ("token", pending)
+    yield ("done", accumulated)
+
+
+PER_TRADE_TOOL_PROMPT = (
+    "For trade_id={trade_id} ({side} at ${price}, filled_at unix seconds {filled_at}) — the "
+    "trade you just discussed — you MUST call both of these:\n"
+    "1. draw_annotations: one annotation, type='arrow' at time={filled_at}, price={price}, "
+    "color green if side=buy / red if side=sell, with a 2-4 word label.\n"
+    "2. zoom_to_range: from_time/to_time bracketing a window around {filled_at} (e.g. a few "
+    "days before and after on a daily chart) so the whiteboard focuses on this trade.\n"
+    "Then, only if it adds something beyond the chart marker, optionally call spotlight_trade "
+    "(this journal row) or spotlight_day (its calendar day) with a short standalone `message` "
+    "(one sentence) — skip it if the chart annotation already says enough. If this trade has "
+    "a `notes:` field in context and you're referencing what I wrote in my own words (not "
+    "paraphrasing your interpretation of it), call quote_note with the exact text copied "
+    "from `notes:` — don't retype it into the narrative itself."
+)
+
+
 async def astream_review(
     db: Session,
     user_id: str,
@@ -249,10 +352,12 @@ async def astream_review(
 ) -> AsyncIterator[dict]:
     """Stream the analyst's debrief for a trade window.
 
-    Yields typed events consumed directly by the /api/agent/debrief WebSocket:
-    {"type": "token", "text": ...} as the narrative is generated, then one
-    {"type": "annotations", ...} / {"type": "spotlight", ...} per tool call
-    once the model finishes, and finally {"type": "done"}.
+    Runs one narrative+tool turn per trade in the window (rather than one big
+    narrative followed by a single trailing tool-call turn) so annotation/spotlight/
+    zoom events land while the relevant text is still streaming, instead of only
+    after the whole narrative has finished. Yields {"type": "token", "text": ...}
+    as each trade's narration is generated, interleaved with that trade's
+    {"type": "annotations"|"spotlight"|"zoom", ...} events, and finally {"type": "done"}.
     """
     state: AgentState = {
         "messages": [],
@@ -265,27 +370,54 @@ async def astream_review(
         "primary_symbol": None,
     }
     retrieved = _retrieve(state, db)
-    messages = retrieved["messages"]
+    context_messages = retrieved["messages"]
+    trades: list[Trade] = retrieved["trades"]
 
     # Emit symbol for whiteboard, or fall back to whatever was traded most
     if not symbol and retrieved["primary_symbol"]:
         yield {"type": "symbol", "symbol": retrieved["primary_symbol"]}
 
-    # Phase 1: stream the narrative with no tools bound, so the model can't
-    # short-circuit into a bare tool call and skip the text (see TOOL_FOLLOWUP_PROMPT).
     narrative_model = _base_model()
-    accumulated = None
-    async for chunk in narrative_model.astream(messages):
-        delta = _text_delta(chunk)
-        if delta:
-            yield {"type": "token", "text": delta}
-        accumulated = chunk if accumulated is None else accumulated + chunk
+    tool_model = _tool_model()
 
-    # Phase 2: a follow-up turn, tools bound, asking the model to act on what
-    # it just said.
-    followup_messages = [*messages, accumulated, HumanMessage(TOOL_FOLLOWUP_PROMPT)]
-    tool_response = await _tool_model().ainvoke(followup_messages)
-    for event in _extract_tool_events(tool_response):
-        yield event
+    if not trades:
+        # Nothing to loop per-trade over — fall back to a single narrative turn.
+        async for kind, payload in _stream_narrative(narrative_model, context_messages):
+            if kind == "token":
+                yield {"type": "token", "text": payload}
+        yield {"type": "done"}
+        return
+
+    conversation: list[AnyMessage] = list(context_messages)
+    for i, trade in enumerate(sorted(trades, key=lambda t: t.filled_at)):
+        focus_prompt = HumanMessage(
+            f"Now talk through trade_id={trade.id} specifically ({build_trade_text(trade)}), "
+            "2-4 sentences, as a continuous live talk-through — don't restate trades you "
+            "already covered. Do not wrap your reply in quotation marks."
+        )
+        turn_messages = [*conversation, focus_prompt]
+
+        if i > 0:
+            yield {"type": "token", "text": "\n\n"}  # paragraph break between trades
+
+        accumulated = None
+        async for kind, payload in _stream_narrative(narrative_model, turn_messages):
+            if kind == "token":
+                yield {"type": "token", "text": payload}
+            else:
+                accumulated = payload
+        if accumulated is None:
+            continue  # model produced nothing for this trade — skip tool turn, keep history clean
+        conversation = [*turn_messages, accumulated]
+
+        tool_prompt = PER_TRADE_TOOL_PROMPT.format(
+            trade_id=trade.id,
+            side=trade.side,
+            price=trade.fill_price,
+            filled_at=int(trade.filled_at.timestamp()),
+        )
+        tool_response = await tool_model.ainvoke([*conversation, HumanMessage(tool_prompt)])
+        for event in _extract_tool_events(tool_response):
+            yield event
 
     yield {"type": "done"}

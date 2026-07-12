@@ -98,6 +98,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                 return (
                   <Fragment key={t.id}>
                     <tr
+                      data-tradeid={t.id}
                       onClick={() => setExpanded(open ? null : t.id)}
                       className="cursor-pointer border-t border-border hover:bg-accent/10"
                     >
