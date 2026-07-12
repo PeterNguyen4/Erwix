@@ -15,7 +15,7 @@ from typing import Annotated, AsyncIterator, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AnyMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, START, StateGraph
@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Trade
 from app.services.embeddings import build_trade_text
-from app.services.trade_retrieval import get_trades_window, semantic_search
+from app.services.trade_retrieval import get_trades_window, primary_symbol, semantic_search
 
 logger = logging.getLogger("entro.agent_graph")
 
@@ -195,17 +195,6 @@ def _extract_tool_events(response) -> list[dict]:
     return events
 
 
-def _primary_symbol(trades: list[Trade]) -> str | None:
-    """Most-traded symbol in the window, used to pick what the whiteboard charts
-    when the caller didn't pin a symbol (e.g. a multi-symbol window debrief)."""
-    if not trades:
-        return None
-    counts: dict[str, int] = {}
-    for t in trades:
-        counts[t.symbol] = counts.get(t.symbol, 0) + 1
-    return max(counts, key=counts.get)
-
-
 def _retrieve(state: AgentState, db: Session) -> dict:
     trades = get_trades_window(db, state["user_id"], state["window_start"], state["window_end"])
     if state["symbol"]:
@@ -223,7 +212,7 @@ def _retrieve(state: AgentState, db: Session) -> dict:
     prompt = f"Trade window {state['window_start']:%Y-%m-%d} to {state['window_end']:%Y-%m-%d}:\n{context}"
     return {
         "messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)],
-        "primary_symbol": state["symbol"] or _primary_symbol(trades),
+        "primary_symbol": state["symbol"] or primary_symbol(trades),
         "trades": trades,
     }
 
@@ -340,6 +329,133 @@ PER_TRADE_TOOL_PROMPT = (
     "paraphrasing your interpretation of it), call quote_note with the exact text copied "
     "from `notes:` — don't retype it into the narrative itself."
 )
+
+
+def _step_from_tool_events(trade: Trade, narrative: str, events: list[dict]) -> dict:
+    """Assemble one DebriefReport.steps entry from a trade's narrative + tool events."""
+    step: dict = {"trade_id": trade.id, "narrative": narrative, "annotations": []}
+    for event in events:
+        if event["type"] == "annotations":
+            step["annotations"].extend(event["annotations"])
+        elif event["type"] == "spotlight":
+            step["spotlight"] = {"selector": event["selector"], "message": event.get("message")}
+        elif event["type"] == "zoom":
+            step["zoom"] = {"from": event["from"], "to": event["to"]}
+        elif event["type"] == "note_quote":
+            step["note_quote"] = {"trade_id": event["trade_id"], "text": event["text"]}
+    return step
+
+
+async def agenerate_steps(
+    db: Session,
+    user_id: str,
+    window_start: datetime,
+    window_end: datetime,
+    symbol: str | None = None,
+    query: str | None = None,
+) -> AsyncIterator[dict]:
+    """Non-streaming counterpart to astream_review, used by the background debrief
+    job (app.services.debrief_jobs): runs the same per-trade narrative+tool turns,
+    but yields one finished step dict per trade (see _step_from_tool_events) instead
+    of token-level events, so a caller can persist DebriefReport.steps incrementally
+    without needing a live connection."""
+    state: AgentState = {
+        "messages": [],
+        "user_id": user_id,
+        "window_start": window_start,
+        "window_end": window_end,
+        "symbol": symbol,
+        "query": query,
+        "annotations": [],
+        "primary_symbol": None,
+    }
+    retrieved = _retrieve(state, db)
+    context_messages = retrieved["messages"]
+    trades: list[Trade] = retrieved["trades"]
+
+    narrative_model = _base_model()
+    tool_model = _tool_model()
+
+    conversation: list[AnyMessage] = list(context_messages)
+    for trade in sorted(trades, key=lambda t: t.filled_at):
+        focus_prompt = HumanMessage(
+            f"Now talk through trade_id={trade.id} specifically ({build_trade_text(trade)}), "
+            "2-4 sentences, as a continuous live talk-through — don't restate trades you "
+            "already covered. Do not wrap your reply in quotation marks."
+        )
+        turn_messages = [*conversation, focus_prompt]
+        narrative_response = await narrative_model.ainvoke(turn_messages)
+        narrative = narrative_response.content
+        if isinstance(narrative, list):
+            narrative = "".join(b.get("text", "") for b in narrative if isinstance(b, dict) and b.get("type") == "text")
+        narrative = narrative.strip().strip('"“”')
+        conversation = [*turn_messages, narrative_response]
+
+        tool_prompt = PER_TRADE_TOOL_PROMPT.format(
+            trade_id=trade.id,
+            side=trade.side,
+            price=trade.fill_price,
+            filled_at=int(trade.filled_at.timestamp()),
+        )
+        tool_response = await tool_model.ainvoke([*conversation, HumanMessage(tool_prompt)])
+        events = _extract_tool_events(tool_response)
+        yield _step_from_tool_events(trade, narrative, events)
+
+
+FOLLOWUP_SYSTEM_PROMPT = (
+    "You are uWick, continuing a debrief conversation. The trade window and your original "
+    "report are in context below. Answer the trader's follow-up question directly and "
+    "specifically, grounded in the actual trades shown — don't restate the whole report. "
+    "You may call draw_annotations, spotlight_day, spotlight_trade, zoom_to_range, or "
+    "quote_note if referencing the chart/journal/a note helps answer the question."
+)
+
+
+async def arun_followup(
+    db: Session,
+    user_id: str,
+    window_start: datetime,
+    window_end: datetime,
+    report_narrative: str,
+    history: list[tuple[str, str]],
+    message: str,
+    symbol: str | None = None,
+    query: str | None = None,
+) -> tuple[str, list[dict]]:
+    """Answer a follow-up question about an already-generated DebriefReport, grounded
+    in the same trade window/retrieval context used to generate it (re-fetched here
+    rather than trusting only the stored narrative, so questions about specific
+    trades can still be checked against real data). `history` is prior
+    (role, content) DebriefMessage pairs in order. Returns (reply_text, tool_events)."""
+    state: AgentState = {
+        "messages": [],
+        "user_id": user_id,
+        "window_start": window_start,
+        "window_end": window_end,
+        "symbol": symbol,
+        "query": query,
+        "annotations": [],
+        "primary_symbol": None,
+    }
+    retrieved = _retrieve(state, db)
+    context_messages = retrieved["messages"]
+
+    messages: list[AnyMessage] = [
+        SystemMessage(FOLLOWUP_SYSTEM_PROMPT),
+        *context_messages[1:],  # skip the retrieve step's own SystemMessage, keep the trade-window HumanMessage
+        AIMessage(report_narrative),
+    ]
+    for role, content in history:
+        messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
+    messages.append(HumanMessage(message))
+
+    response = await _tool_model().ainvoke(messages)
+    reply = response.content
+    if isinstance(reply, list):
+        reply = "".join(b.get("text", "") for b in reply if isinstance(b, dict) and b.get("type") == "text")
+    events = _extract_tool_events(response)
+    annotation_events = [e for e in events if e["type"] == "annotations"]
+    return reply.strip(), annotation_events + [e for e in events if e["type"] != "annotations"]
 
 
 async def astream_review(

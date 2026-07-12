@@ -8,11 +8,31 @@ ranks trades by cosine distance in pgvector.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Trade
 from app.services.embeddings import EMBEDDING_MODEL, build_trade_text, embed_documents, embed_query
+
+
+def count_trades_since(db: Session, user_id: str, since: datetime) -> int:
+    """Number of a user's fills strictly after `since` — used both by the sidebar
+    badge (GET /api/agent/status) and the scheduler's "anything new to debrief?"
+    check (app.services.debrief_jobs)."""
+    return db.scalar(
+        select(func.count()).select_from(Trade).where(Trade.user_id == user_id, Trade.filled_at > since)
+    ) or 0
+
+
+def primary_symbol(trades: list[Trade]) -> str | None:
+    """Most-traded symbol in a window, used to pick what the whiteboard charts
+    when the caller didn't pin a symbol (e.g. a multi-symbol window debrief)."""
+    if not trades:
+        return None
+    counts: dict[str, int] = {}
+    for t in trades:
+        counts[t.symbol] = counts.get(t.symbol, 0) + 1
+    return max(counts, key=counts.get)
 
 
 def get_trades_window(db: Session, user_id: str, start: datetime, end: datetime) -> list[Trade]:

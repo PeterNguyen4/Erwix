@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
 
+    # Background weekly debrief job
+    debrief_poll_interval_minutes: int = 15
+    debrief_step_estimate_seconds: int = 20
+
     @property
     def has_alpaca_creds(self) -> bool:
         return bool(self.alpaca_api_key and self.alpaca_secret_key)

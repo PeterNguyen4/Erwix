@@ -9,6 +9,7 @@ from app.config import get_settings
 from app.db import engine
 from app.routers import agent, analysis, journal, market, trading, user
 from app.routers.market import cancel_stream_task
+from app.services.debrief_jobs import start_scheduler, stop_scheduler
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
 
 logging.basicConfig(level=logging.INFO)
@@ -30,9 +31,11 @@ async def lifespan(app: FastAPI):
             "Alpaca credentials not set — execution logger disabled. "
             "Market/trading endpoints will return 503 until configured."
         )
+    start_scheduler()
     try:
         yield
     finally:
+        stop_scheduler()
         cancel_stream_task()
         if task:
             task.cancel()
