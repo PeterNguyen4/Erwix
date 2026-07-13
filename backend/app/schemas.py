@@ -179,3 +179,36 @@ class UserPreferenceUpdate(BaseModel):
     debrief_enabled: bool | None = None
     debrief_day_of_week: int | None = None
     debrief_time: time | None = None
+
+
+# ---- Strategy tab ----
+class StrategyQuestionOut(BaseModel):
+    id: str
+    prompt: str
+
+
+class ArchetypeOut(BaseModel):
+    id: str
+    name: str
+    tagline: str
+    questions: list[StrategyQuestionOut] = []
+
+
+class StrategyNoteOut(BaseModel):
+    archetype: str | None
+    body: str | None
+    answers: dict[str, str] | None
+    structured_summary: str | None
+    summarized_at: datetime | None
+
+    model_config = {"from_attributes": True}
+
+
+class StrategyNoteUpdate(BaseModel):
+    archetype: str | None = None
+    body: str | None = None
+    answers: dict[str, str] | None = None
+
+
+class PlaybookUpdate(BaseModel):
+    sections: dict[str, list[str]]
