@@ -30,16 +30,34 @@ class OrderRequest(BaseModel):
     type: Literal["market", "limit"] = "market"
     limit_price: float | None = None
     time_in_force: Literal["day", "gtc"] = "day"
+    order_class: Literal["simple", "bracket"] = "simple"
+    # Required together when order_class="bracket" (Alpaca requires both legs).
+    take_profit_price: float | None = None
+    stop_loss_price: float | None = None
+    # Optional: makes the stop-loss leg a stop-limit instead of a plain stop.
+    stop_loss_limit_price: float | None = None
+
+
+class OrderLegOut(BaseModel):
+    id: str
+    client_order_id: str
+    side: str
+    type: str
+    limit_price: float | None = None
+    stop_price: float | None = None
 
 
 class OrderResponse(BaseModel):
     id: str
+    client_order_id: str
     symbol: str
     qty: float
     side: str
     type: str
+    order_class: str = "simple"
     status: str
     submitted_at: datetime | None = None
+    legs: list[OrderLegOut] = []
 
 
 class Position(BaseModel):
@@ -78,9 +96,17 @@ class TradeOut(BaseModel):
     side: str
     order_type: str | None
     qty: float
-    fill_price: float
+    fill_price: float | None
     fees: float
-    filled_at: datetime
+    status: str
+    order_class: str
+    leg: str | None
+    parent_client_order_id: str | None
+    limit_price: float | None
+    stop_price: float | None
+    take_profit_price: float | None
+    stop_loss_price: float | None
+    filled_at: datetime | None
     broker_order_id: str | None
     notes: str | None
 

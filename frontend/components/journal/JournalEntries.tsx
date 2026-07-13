@@ -104,7 +104,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                     >
                       <td className="py-1.5 pr-2 text-muted">{open ? "▾" : "▸"}</td>
                       <td className="py-1.5 whitespace-nowrap text-muted">
-                        {new Date(t.filled_at).toLocaleString()}
+                        {new Date(t.filled_at!).toLocaleString()}
                       </td>
                       <td className="font-medium text-white">
                         {t.symbol}
@@ -113,10 +113,10 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                       <td className={`uppercase ${t.side === "buy" ? "text-up" : "text-down"}`}>{t.side}</td>
                       <td className="text-muted">{t.order_type ?? "—"}</td>
                       <td className="text-right tabular-nums">{t.qty}</td>
-                      <td className="text-right tabular-nums">${t.fill_price.toFixed(2)}</td>
+                      <td className="text-right tabular-nums">${t.fill_price!.toFixed(2)}</td>
                       <td className="text-right tabular-nums">
                         $
-                        {(t.fill_price * t.qty).toLocaleString("en-US", {
+                        {(t.fill_price! * t.qty).toLocaleString("en-US", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
@@ -148,7 +148,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                                 <p>Ask uWick to walk through this trade with you on the whiteboard.</p>
                                 <button
                                   onClick={() => {
-                                    const filled = new Date(t.filled_at);
+                                    const filled = new Date(t.filled_at!);
                                     onDebriefTrade?.({
                                       from: new Date(filled.getTime() - 3 * 86400000).toISOString(),
                                       to: new Date(filled.getTime() + 86400000).toISOString(),
