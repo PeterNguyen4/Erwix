@@ -9,6 +9,7 @@ langchain chat-model interface — nothing here assumes Anthropic beyond the
 node that constructs the chat model.
 """
 
+import json
 import logging
 from datetime import datetime
 from typing import Annotated, AsyncIterator, Literal, TypedDict
@@ -26,7 +27,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Trade
 from app.services.embeddings import build_trade_text
-from app.services.strategy import archetype_name, get_active_strategy
+from app.services.strategy import archetype_name, get_active_strategy, render_playbook
 from app.services.trade_retrieval import get_trades_window, primary_symbol, semantic_search
 
 logger = logging.getLogger("entro.agent_graph")
@@ -202,10 +203,14 @@ def _system_prompt(db: Session, user_id: str) -> str:
     trader is following their own rules."""
     strategy = get_active_strategy(db, user_id)
     if strategy and strategy.structured_summary:
+        try:
+            rendered = render_playbook(json.loads(strategy.structured_summary))
+        except (json.JSONDecodeError, TypeError, AttributeError):
+            rendered = strategy.structured_summary  # legacy plain-text summary, pre-JSON playbooks
         label = archetype_name(strategy.archetype) or "Custom"
         return (
             f"{SYSTEM_PROMPT}\n\nThe trader's stated strategy ({label}):\n"
-            f"{strategy.structured_summary}\n\nWhen relevant, note whether the trades in this "
+            f"{rendered}\n\nWhen relevant, note whether the trades in this "
             "window align with or drift from this strategy — don't force the comparison into "
             "every trade if it doesn't add anything."
         )
@@ -558,26 +563,34 @@ async def astream_review(
 
 STRATEGIST_SYSTEM_PROMPT = (
     "You are a trading strategist. A trader has chosen an archetype and described their "
-    "strategy in their own words. Distill it into a short, structured playbook written in "
-    "second person ('you'), so it reads naturally when handed to another analyst agent as "
-    "context. Use these exact section headers, each followed by 1-3 short bullet points, and "
-    "omit a section entirely if the trader's description gives nothing to say for it:\n\n"
-    "Goal:\nEntry Rules:\nRisk Rules:\nTimeframe:\nAvoid:\n\n"
-    "Be concrete — pull specifics from what the trader wrote rather than generic advice. "
-    "Output only the sections, no preamble."
+    "strategy in their own words. Distill it into a playbook by filling out the "
+    "StrategyPlaybook fields, written in second person ('you') and in plain text with no "
+    "markdown formatting (no asterisks, no headers) — each bullet is a short, standalone "
+    "sentence. Every field is mandatory: if the trader's description doesn't cover it, infer "
+    "a sensible default consistent with their chosen archetype and prefix that bullet with "
+    "'Assumed:' so it's clear it wasn't explicitly stated. Be concrete — pull specifics from "
+    "what the trader wrote rather than generic advice."
 )
 
 
-async def asummarize_strategy(archetype: str | None, body: str) -> str:
+class StrategyPlaybook(BaseModel):
+    """Structured playbook the strategist agent fills out — every field is mandatory
+    (see STRATEGIST_SYSTEM_PROMPT) so every StrategyNote.structured_summary has the
+    same shape for both the Strategy tab UI and the Analyst's prompt context."""
+
+    goal: list[str] = Field(description="1-3 short bullets on the trader's overall goal/edge")
+    entry_rules: list[str] = Field(description="1-3 short bullets on entry setup/triggers")
+    risk_rules: list[str] = Field(description="1-3 short bullets on position sizing/stop rules")
+    timeframe: list[str] = Field(description="1-3 short bullets on typical holding period")
+    avoid: list[str] = Field(description="1-3 short bullets on what to avoid")
+
+
+async def asummarize_strategy(archetype: str | None, body: str) -> dict:
     """One-shot distillation of the Strategy tab's archetype + free-form body into a
-    structured playbook (see STRATEGIST_SYSTEM_PROMPT), stored as
+    structured playbook (see StrategyPlaybook), stored as JSON in
     StrategyNote.structured_summary and read by _system_prompt() above."""
     label = archetype_name(archetype) or "no specific archetype"
     prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
-    response = await _base_model().ainvoke(
-        [SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)]
-    )
-    summary = response.content
-    if isinstance(summary, list):
-        summary = "".join(b.get("text", "") for b in summary if isinstance(b, dict) and b.get("type") == "text")
-    return summary.strip()
+    model = _base_model().with_structured_output(StrategyPlaybook)
+    result = await model.ainvoke([SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)])
+    return result.model_dump()

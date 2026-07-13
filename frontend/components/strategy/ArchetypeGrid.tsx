@@ -1,18 +1,7 @@
 "use client";
 
 import { Archetype } from "@/lib/api";
-
-// Frontend-only presentation (icon glyph + accent color) keyed by the backend's
-// archetype id — copy itself (name/tagline) stays server-owned via api.getArchetypes.
-const PRESENTATION: Record<string, { glyph: string; color: string }> = {
-  trend_rider: { glyph: "📈", color: "#3b82f6" },
-  swing_sniper: { glyph: "🎯", color: "#a855f7" },
-  scalper: { glyph: "⚡", color: "#f59e0b" },
-  breakout: { glyph: "🚀", color: "#ef5350" },
-  value: { glyph: "🏛️", color: "#26a69a" },
-  guardian: { glyph: "🛡️", color: "#64748b" },
-  freeform: { glyph: "✍️", color: "#e6e9ef" },
-};
+import { presentationFor } from "./presentation";
 
 interface Props {
   archetypes: Archetype[];
@@ -24,7 +13,7 @@ export default function ArchetypeGrid({ archetypes, selected, onSelect }: Props)
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
       {archetypes.map((a) => {
-        const presentation = PRESENTATION[a.id] ?? { glyph: "🧭", color: "#3b82f6" };
+        const presentation = presentationFor(a.id);
         const isSelected = selected === a.id;
         return (
           <button

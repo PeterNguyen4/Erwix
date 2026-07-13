@@ -56,6 +56,30 @@ QUESTIONS: dict[str, list[dict]] = {
 }
 
 
+# Mandatory sections of a StrategyPlaybook (agent_graph.py), in display order.
+SECTION_LABELS: dict[str, str] = {
+    "goal": "Goal",
+    "entry_rules": "Entry Rules",
+    "risk_rules": "Risk Rules",
+    "timeframe": "Timeframe",
+    "avoid": "Avoid",
+}
+
+
+def render_playbook(sections: dict) -> str:
+    """Renders a StrategyPlaybook dict into plain text for the Analyst's prompt
+    context (agent_graph._system_prompt) — the Strategy tab UI renders the same
+    dict directly instead of parsing this text back out."""
+    lines = []
+    for key, label in SECTION_LABELS.items():
+        bullets = sections.get(key) or []
+        if not bullets:
+            continue
+        lines.append(f"{label}:")
+        lines.extend(f"- {b}" for b in bullets)
+    return "\n".join(lines)
+
+
 def archetype_name(archetype_id: str | None) -> str | None:
     return _ARCHETYPE_NAMES.get(archetype_id) if archetype_id else None
 

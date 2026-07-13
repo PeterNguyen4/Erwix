@@ -2,17 +2,16 @@
 
 import { useState } from "react";
 import { api, Archetype, StrategyNote } from "@/lib/api";
-import StrategyCard from "./StrategyCard";
 
 interface Props {
-  archetype: string | null;
-  archetypes: Archetype[];
+  archetype: Archetype;
   note: StrategyNote;
   onSaved: (note: StrategyNote) => void;
+  onBack: () => void;
 }
 
-export default function StrategyEditor({ archetype, archetypes, note, onSaved }: Props) {
-  const questions = archetypes.find((a) => a.id === archetype)?.questions ?? [];
+export default function StrategyEditor({ archetype, note, onSaved, onBack }: Props) {
+  const questions = archetype.questions;
   const isFreeform = questions.length === 0;
 
   const [body, setBody] = useState(note.body ?? "");
@@ -27,7 +26,7 @@ export default function StrategyEditor({ archetype, archetypes, note, onSaved }:
     setError(null);
     try {
       const saved = await api.saveStrategy(
-        isFreeform ? { archetype, body } : { archetype, answers },
+        isFreeform ? { archetype: archetype.id, body } : { archetype: archetype.id, answers },
       );
       onSaved(saved);
     } catch (e) {
@@ -37,21 +36,15 @@ export default function StrategyEditor({ archetype, archetypes, note, onSaved }:
     }
   }
 
-  async function regenerate() {
-    setSaving(true);
-    setError(null);
-    try {
-      const saved = await api.regenerateStrategy();
-      onSaved(saved);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
-    <div className="mt-6 space-y-4">
+    <div className="animate-fade-in-up space-y-4">
+      <button
+        onClick={onBack}
+        className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-white"
+      >
+        ← Back to classes
+      </button>
+
       {isFreeform ? (
         <div>
           <label className="mb-2 block text-sm font-semibold text-white">
@@ -60,7 +53,7 @@ export default function StrategyEditor({ archetype, archetypes, note, onSaved }:
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            rows={5}
+            rows={6}
             placeholder="Entries you look for, how you size positions, when you cut losses, your typical holding period..."
             className="w-full resize-y rounded-lg border border-border bg-bg p-3 text-sm text-white placeholder:text-muted/60 focus:border-accent focus:outline-none"
           />
@@ -101,10 +94,6 @@ export default function StrategyEditor({ archetype, archetypes, note, onSaved }:
           </span>
         )}
       </div>
-
-      {note.structured_summary && (
-        <StrategyCard summary={note.structured_summary} onRegenerate={regenerate} regenerating={saving} />
-      )}
     </div>
   );
 }

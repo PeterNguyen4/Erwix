@@ -208,3 +208,7 @@ class StrategyNoteUpdate(BaseModel):
     archetype: str | None = None
     body: str | None = None
     answers: dict[str, str] | None = None
+
+
+class PlaybookUpdate(BaseModel):
+    sections: dict[str, list[str]]
