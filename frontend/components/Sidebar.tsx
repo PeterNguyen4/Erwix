@@ -34,6 +34,16 @@ function IconPortfolio() {
   );
 }
 
+function IconStrategy() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M10 2l6 2.5v4c0 4-2.5 7-6 8.5-3.5-1.5-6-4.5-6-8.5v-4L10 2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M10 6v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M7.5 8.5h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconSettings() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -47,6 +57,7 @@ const NAV_ITEMS = [
   { label: "Chart",     href: "/chart",     Icon: IconChart },
   { label: "Portfolio", href: "/portfolio", Icon: IconPortfolio },
   { label: "Journal",   href: "/journal",   Icon: IconJournal },
+  { label: "Strategy",  href: "/strategy",  Icon: IconStrategy },
   { label: "Settings",  href: "/settings",  Icon: IconSettings },
 ];
 

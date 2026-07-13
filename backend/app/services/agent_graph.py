@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.models import Trade
 from app.services.embeddings import build_trade_text
+from app.services.strategy import archetype_name, get_active_strategy
 from app.services.trade_retrieval import get_trades_window, primary_symbol, semantic_search
 
 logger = logging.getLogger("entro.agent_graph")
@@ -195,6 +196,22 @@ def _extract_tool_events(response) -> list[dict]:
     return events
 
 
+def _system_prompt(db: Session, user_id: str) -> str:
+    """Base analyst system prompt, plus the trader's own stated strategy
+    (Strategy tab) when one exists, so the review can reference whether the
+    trader is following their own rules."""
+    strategy = get_active_strategy(db, user_id)
+    if strategy and strategy.structured_summary:
+        label = archetype_name(strategy.archetype) or "Custom"
+        return (
+            f"{SYSTEM_PROMPT}\n\nThe trader's stated strategy ({label}):\n"
+            f"{strategy.structured_summary}\n\nWhen relevant, note whether the trades in this "
+            "window align with or drift from this strategy — don't force the comparison into "
+            "every trade if it doesn't add anything."
+        )
+    return SYSTEM_PROMPT
+
+
 def _retrieve(state: AgentState, db: Session) -> dict:
     trades = get_trades_window(db, state["user_id"], state["window_start"], state["window_end"])
     if state["symbol"]:
@@ -211,7 +228,7 @@ def _retrieve(state: AgentState, db: Session) -> dict:
 
     prompt = f"Trade window {state['window_start']:%Y-%m-%d} to {state['window_end']:%Y-%m-%d}:\n{context}"
     return {
-        "messages": [SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)],
+        "messages": [SystemMessage(_system_prompt(db, state["user_id"])), HumanMessage(prompt)],
         "primary_symbol": state["symbol"] or primary_symbol(trades),
         "trades": trades,
     }
@@ -537,3 +554,30 @@ async def astream_review(
             yield event
 
     yield {"type": "done"}
+
+
+STRATEGIST_SYSTEM_PROMPT = (
+    "You are a trading strategist. A trader has chosen an archetype and described their "
+    "strategy in their own words. Distill it into a short, structured playbook written in "
+    "second person ('you'), so it reads naturally when handed to another analyst agent as "
+    "context. Use these exact section headers, each followed by 1-3 short bullet points, and "
+    "omit a section entirely if the trader's description gives nothing to say for it:\n\n"
+    "Goal:\nEntry Rules:\nRisk Rules:\nTimeframe:\nAvoid:\n\n"
+    "Be concrete — pull specifics from what the trader wrote rather than generic advice. "
+    "Output only the sections, no preamble."
+)
+
+
+async def asummarize_strategy(archetype: str | None, body: str) -> str:
+    """One-shot distillation of the Strategy tab's archetype + free-form body into a
+    structured playbook (see STRATEGIST_SYSTEM_PROMPT), stored as
+    StrategyNote.structured_summary and read by _system_prompt() above."""
+    label = archetype_name(archetype) or "no specific archetype"
+    prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
+    response = await _base_model().ainvoke(
+        [SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)]
+    )
+    summary = response.content
+    if isinstance(summary, list):
+        summary = "".join(b.get("text", "") for b in summary if isinstance(b, dict) and b.get("type") == "text")
+    return summary.strip()

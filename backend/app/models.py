@@ -118,16 +118,34 @@ class DebriefMessage(Base):
 
 class StrategyNote(Base):
     """
-    The user's stated strategy / rules. Analyst Agent compares logged
-    trades in a window against the active note.
+    The user's stated strategy / rules: a chosen archetype plus either a
+    free-form description (archetype="freeform" or None) or answers to that
+    archetype's tailored follow-up questions (see app.services.strategy.QUESTIONS),
+    distilled by the strategist agent (agent_graph.asummarize_strategy) into
+    structured_summary. The Analyst agent (agent_graph._retrieve) reads
+    structured_summary as context when reviewing trades. One row per user.
     """
 
     __tablename__ = "strategy_notes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    title: Mapped[str] = mapped_column(String(128))
-    body: Mapped[str] = mapped_column(Text)
-    active: Mapped[bool] = mapped_column(default=True)
+    user_id: Mapped[str] = mapped_column(String(128), index=True, unique=True)
+
+    archetype: Mapped[str | None] = mapped_column(String(32))
+    # Freeform text (archetype="freeform"/None). For question-driven archetypes this
+    # holds the composed "Q: ... A: ..." text sent to the strategist agent, derived
+    # from `answers` — kept so agent_graph doesn't need to know about the Q&A shape.
+    body: Mapped[str | None] = mapped_column(Text)
+    # Raw per-question answers {question_id: answer}, so the editor can be repopulated.
+    answers: Mapped[dict | None] = mapped_column(JSON)
+
+    structured_summary: Mapped[str | None] = mapped_column(Text)
+    summary_model: Mapped[str | None] = mapped_column(String(64))
+    summarized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
