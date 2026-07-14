@@ -17,7 +17,10 @@ import {
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
 import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
+import DrawingMenu from "@/components/chart/DrawingMenu";
+import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
+import { DrawingToolId } from "@/components/chart/drawingTools";
 import { INDICATORS } from "@/components/chart/indicators";
 
 const COMPANY_NAMES: Record<string, string> = {
@@ -132,27 +135,6 @@ function IconCursor() {
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
       <path d="M3 2L15 9L9.5 10.5L7 16L3 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function IconLine() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <line x1="3" y1="15" x2="15" y2="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="3" cy="15" r="1.5" fill="currentColor" />
-      <circle cx="15" cy="3" r="1.5" fill="currentColor" />
-    </svg>
-  );
-}
-
-function IconFib() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <line x1="2" y1="3" x2="16" y2="3" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="2" y1="7" x2="12" y2="7" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="2" y1="11" x2="16" y2="11" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="2" y1="15" x2="9" y2="15" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   );
 }
@@ -1008,30 +990,21 @@ export default function Chart({
           <ToolbarButton label="Cursor" active={drawingState.mode === "crosshair"} onClick={() => setMode("crosshair")}>
             <IconCursor />
           </ToolbarButton>
-          <ToolbarButton label="Trend Line" active={drawingState.mode === "line"} onClick={() => setMode("line")}>
-            <IconLine />
-          </ToolbarButton>
-          <ToolbarButton label="Fibonacci Retracement" active={drawingState.mode === "fib"} onClick={() => setMode("fib")}>
-            <IconFib />
-          </ToolbarButton>
-          <ToolbarButton label="Clear all drawings" tone="danger" onClick={clearDrawings}>
-            <IconDelete />
-          </ToolbarButton>
+          <DrawingMenu
+            value={drawingState.mode === "line" || drawingState.mode === "fib" ? drawingState.mode : "crosshair"}
+            onChange={(id: DrawingToolId) => setMode(id)}
+            align="right"
+          />
 
           {/* Divider */}
           <div className="h-5 w-px bg-border mx-1" />
 
           {/* Indicators — rendered from the registry, so adding one is just adding an entry there. */}
-          {INDICATORS.map((ind) => (
-            <ToolbarButton
-              key={ind.id}
-              label={ind.label}
-              active={activeIndicators.has(ind.id)}
-              onClick={() => toggleIndicator(ind.id)}
-            >
-              <ind.icon />
-            </ToolbarButton>
-          ))}
+          <IndicatorsMenu active={activeIndicators} onToggle={toggleIndicator} />
+
+          <ToolbarButton label="Clear all drawings" tone="danger" onClick={clearDrawings}>
+            <IconDelete />
+          </ToolbarButton>
         </div>
       </div>
 
