@@ -89,6 +89,8 @@ function ChartPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
   const [bracketPreview, setBracketPreview] = useState<BracketLevels | null>(null);
+  const [takeProfitPrice, setTakeProfitPrice] = useState(0);
+  const [stopLossPrice, setStopLossPrice] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const candleRequestIdRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -307,7 +309,15 @@ function ChartPage() {
                 </p>
               </div>
             ) : (
-              <Chart candles={candles} liveCandle={liveCandle} symbol={symbol} bracket={bracketPreview} />
+              <Chart
+                candles={candles}
+                liveCandle={liveCandle}
+                symbol={symbol}
+                bracket={bracketPreview}
+                onBracketDrag={(which, newPrice) =>
+                  which === "tp" ? setTakeProfitPrice(newPrice) : setStopLossPrice(newPrice)
+                }
+              />
             )}
           </div>
         </div>
@@ -320,7 +330,12 @@ function ChartPage() {
             onOrderPlaced={onOrderPlaced}
             buyingPower={account?.buying_power ?? null}
             price={liveQuote?.price ?? candles[candles.length - 1]?.close ?? null}
+            currentTime={liveCandle?.time ?? candles[candles.length - 1]?.time ?? null}
             onBracketChange={setBracketPreview}
+            takeProfitPrice={takeProfitPrice}
+            onTakeProfitPriceChange={setTakeProfitPrice}
+            stopLossPrice={stopLossPrice}
+            onStopLossPriceChange={setStopLossPrice}
           />
           <PositionsTable positions={positions} />
         </div>

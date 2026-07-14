@@ -11,18 +11,35 @@ interface OrderPanelProps {
   price?: number | null;
   /** Fires with the live entry/TP/SL preview while the bracket toggle is on, so the chart can shade it. */
   onBracketChange?: (bracket: BracketLevels | null) => void;
+  /** Controlled so the chart's draggable TP/SL lines can push edits back into these inputs. */
+  takeProfitPrice: number;
+  onTakeProfitPriceChange: (price: number) => void;
+  stopLossPrice: number;
+  onStopLossPriceChange: (price: number) => void;
+  /** Latest plotted candle time (unix seconds) — used as the bracket's entry time so it lines up with the chart's own timeline instead of the wall clock. */
+  currentTime?: number | null;
 }
 
 const fmtUsd = (v: number) =>
   v.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 
-export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price, onBracketChange }: OrderPanelProps) {
+export default function OrderPanel({
+  symbol,
+  onOrderPlaced,
+  buyingPower,
+  price,
+  onBracketChange,
+  takeProfitPrice,
+  onTakeProfitPriceChange,
+  stopLossPrice,
+  onStopLossPriceChange,
+  currentTime,
+}: OrderPanelProps) {
   const [qty, setQty] = useState(1);
   const [type, setType] = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice] = useState<number>(0);
   const [bracket, setBracket] = useState(false);
-  const [takeProfitPrice, setTakeProfitPrice] = useState<number>(0);
-  const [stopLossPrice, setStopLossPrice] = useState<number>(0);
+  const [entryTime, setEntryTime] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -45,9 +62,14 @@ export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price, 
       entryPrice: estPrice,
       takeProfitPrice: takeProfitPrice > 0 ? takeProfitPrice : null,
       stopLossPrice: stopLossPrice > 0 ? stopLossPrice : null,
+      // Fixed at the moment the bracket was set up, so the chart's lines
+      // don't keep sliding forward to the latest candle on every tick.
+      // Anchored to the chart's own latest candle time (not the wall clock)
+      // so it always resolves to a coordinate on the plotted timeline.
+      entryTime: entryTime ?? currentTime ?? Math.floor(Date.now() / 1000),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bracket, estPrice, takeProfitPrice, stopLossPrice]);
+  }, [bracket, estPrice, takeProfitPrice, stopLossPrice, entryTime, currentTime]);
 
   useEffect(() => () => onBracketChange?.(null), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -130,7 +152,22 @@ export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price, 
         <input
           type="checkbox"
           checked={bracket}
-          onChange={(e) => setBracket(e.target.checked)}
+          onChange={(e) => {
+            const checked = e.target.checked;
+            setBracket(checked);
+            if (checked) {
+              setEntryTime(currentTime ?? Math.floor(Date.now() / 1000));
+              // Default to a 1:1 risk/reward band (1% of entry each side) so the
+              // trader has a starting point instead of blank TP/SL fields.
+              if (estPrice != null && takeProfitPrice === 0 && stopLossPrice === 0) {
+                const delta = estPrice * 0.01;
+                onTakeProfitPriceChange(Number((estPrice + delta).toFixed(2)));
+                onStopLossPriceChange(Number((estPrice - delta).toFixed(2)));
+              }
+            } else {
+              setEntryTime(null);
+            }
+          }}
         />
         Attach take-profit / stop-loss (bracket order)
       </label>
@@ -142,7 +179,7 @@ export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price, 
             type="number"
             className="mb-3 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
             value={takeProfitPrice}
-            onChange={(e) => setTakeProfitPrice(Number(e.target.value))}
+            onChange={(e) => onTakeProfitPriceChange(Number(e.target.value))}
           />
 
           <label className="mb-1 block text-xs text-muted">Stop loss price</label>
@@ -150,7 +187,7 @@ export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price, 
             type="number"
             className="mb-3 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
             value={stopLossPrice}
-            onChange={(e) => setStopLossPrice(Number(e.target.value))}
+            onChange={(e) => onStopLossPriceChange(Number(e.target.value))}
           />
 
           {totalRisk != null && (

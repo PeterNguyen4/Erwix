@@ -38,6 +38,8 @@ export interface BracketLevels {
   entryPrice: number;
   takeProfitPrice?: number | null;
   stopLossPrice?: number | null;
+  /** Unix seconds when the bracket was set up — lines are drawn from here forward, not from "now". */
+  entryTime: number;
 }
 
 interface ChartProps {
@@ -48,6 +50,8 @@ interface ChartProps {
   visibleRange?: ZoomRange | null;
   /** Entry/take-profit/stop-loss levels to highlight, e.g. for a bracket order or an open trade. */
   bracket?: BracketLevels | null;
+  /** Fires while the user drags the TP or SL line, with the new price at the cursor. */
+  onBracketDrag?: (which: "tp" | "sl", price: number) => void;
 }
 
 interface HoveredCandle {
@@ -172,6 +176,7 @@ export default function Chart({
   symbol = "",
   visibleRange = null,
   bracket = null,
+  onBracketDrag,
 }: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -193,6 +198,8 @@ export default function Chart({
   const [fibDrawings, setFibDrawings] = useState<FibDrawing[]>([]);
   const [fibPreviewStart, setFibPreviewStart] = useState<{ time: number; price: number } | null>(null);
   const [draggingFibHandle, setDraggingFibHandle] = useState<{ index: number; handle: "start" | "end" } | null>(null);
+  const [draggingBracketHandle, setDraggingBracketHandle] = useState<"tp" | "sl" | null>(null);
+  const [hoveredBracketHandle, setHoveredBracketHandle] = useState<"tp" | "sl" | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [crosshairData, setCrosshairData] = useState<{ time: number | null; price: number | null }>({ time: null, price: null });
   const [activeIndicators, setActiveIndicators] = useState<Set<string>>(new Set());
@@ -212,6 +219,14 @@ export default function Chart({
     () => [...activeIndicators].filter((id) => INDICATORS.find((i) => i.id === id)?.kind === "oscillator"),
     [activeIndicators],
   );
+
+  // Fixed to bracket.entryTime (when the bracket was set up) so the start of
+  // the lines/zones doesn't drift forward as new candles arrive.
+  const getBracketStartX = () => {
+    const chart = chartRef.current;
+    if (!chart || !bracket) return null;
+    return chart.timeScale().timeToCoordinate(bracket.entryTime as UTCTimestamp);
+  };
 
   // Initialize chart
   useEffect(() => {
@@ -274,9 +289,13 @@ export default function Chart({
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
-    const suspend = drawingState.mode === "fib" || drawingState.mode === "line" || draggingFibHandle !== null;
+    const suspend =
+      drawingState.mode === "fib" ||
+      drawingState.mode === "line" ||
+      draggingFibHandle !== null ||
+      draggingBracketHandle !== null;
     chart.applyOptions({ handleScroll: !suspend, handleScale: !suspend });
-  }, [drawingState.mode, draggingFibHandle, chartReady]);
+  }, [drawingState.mode, draggingFibHandle, draggingBracketHandle, chartReady]);
 
   // Load historical candles
   useEffect(() => {
@@ -391,8 +410,7 @@ export default function Chart({
     }
   }, [activeIndicators, candles, chartReady]);
 
-  // Same, but for oscillator indicators (RSI/MACD/...) — rendered in pane 1
-  // of the same chart, so they automatically share the main pane's time axis.
+  // Sync main pane with oscillators
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
@@ -430,9 +448,6 @@ export default function Chart({
       }
     }
 
-    // Pane 1 (the oscillator sub-pane) only exists once a series has been
-    // added to it, so size it here rather than in a separate effect that
-    // could run before this one on the same render.
     const pane = chart.panes()[1];
     if (pane) pane.setHeight(activeKeys.size > 0 ? 130 : 0);
   }, [activeOscillatorIds, candles, chartReady]);
@@ -451,6 +466,7 @@ export default function Chart({
         color: "#e2e8f0",
         lineWidth: 2,
         lineStyle: 0, // solid
+        lineVisible: false,
         axisLabelVisible: true,
         title: "Entry",
       }),
@@ -462,6 +478,7 @@ export default function Chart({
           color: "#38bdf8", // light blue
           lineWidth: 2,
           lineStyle: 2, // dashed
+          lineVisible: false,
           axisLabelVisible: true,
           title: "TP",
         }),
@@ -474,6 +491,7 @@ export default function Chart({
           color: "#f87171", // light red
           lineWidth: 2,
           lineStyle: 2, // dashed
+          lineVisible: false,
           axisLabelVisible: true,
           title: "SL",
         }),
@@ -506,25 +524,70 @@ export default function Chart({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Bracket TP/SL zones — shaded bands between the entry price and each
-    // level, so the risk/reward is visible at a glance (price lines above
-    // handle the labeled level lines themselves).
-    if (bracket && seriesRef.current) {
-      const entryY = seriesRef.current.priceToCoordinate(bracket.entryPrice);
-      if (entryY != null) {
-        if (bracket.takeProfitPrice != null) {
-          const tpY = seriesRef.current.priceToCoordinate(bracket.takeProfitPrice);
-          if (tpY != null) {
-            ctx.fillStyle = "rgba(56, 189, 248, 0.12)"; // light blue
-            ctx.fillRect(0, Math.min(entryY, tpY), canvas.width, Math.abs(entryY - tpY));
+    // level, so the risk/reward is visible at a glance. Clipped to start at
+    // bracket.entryTime's x-coordinate instead of the left edge of the chart.
+    if (bracket && chartRef.current && seriesRef.current) {
+      const series = seriesRef.current;
+      const nowX = getBracketStartX();
+      if (nowX != null) {
+        const startX = Math.max(0, Math.min(nowX, canvas.width));
+        const zoneWidth = canvas.width - startX;
+        const entryY = series.priceToCoordinate(bracket.entryPrice);
+        if (entryY != null && zoneWidth > 0) {
+          if (bracket.takeProfitPrice != null) {
+            const tpY = series.priceToCoordinate(bracket.takeProfitPrice);
+            if (tpY != null) {
+              ctx.fillStyle = "rgba(56, 189, 248, 0.12)"; // light blue
+              ctx.fillRect(startX, Math.min(entryY, tpY), zoneWidth, Math.abs(entryY - tpY));
+            }
+          }
+          if (bracket.stopLossPrice != null) {
+            const slY = series.priceToCoordinate(bracket.stopLossPrice);
+            if (slY != null) {
+              ctx.fillStyle = "rgba(248, 113, 113, 0.12)"; // light red
+              ctx.fillRect(startX, Math.min(entryY, slY), zoneWidth, Math.abs(entryY - slY));
+            }
           }
         }
-        if (bracket.stopLossPrice != null) {
-          const slY = seriesRef.current.priceToCoordinate(bracket.stopLossPrice);
-          if (slY != null) {
-            ctx.fillStyle = "rgba(248, 113, 113, 0.12)"; // light red
-            ctx.fillRect(0, Math.min(entryY, slY), canvas.width, Math.abs(entryY - slY));
-          }
-        }
+
+        // Hand-drawn level lines (the price lines above only supply the
+        // axis label), each starting at startX and running to the right edge.
+        const drawLevelLine = (levelY: number | null, color: string, dashed: boolean) => {
+          if (levelY == null) return;
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 2;
+          ctx.setLineDash(dashed ? [6, 4] : []);
+          ctx.beginPath();
+          ctx.moveTo(startX, levelY);
+          ctx.lineTo(canvas.width, levelY);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        };
+        drawLevelLine(entryY, "#e2e8f0", false);
+        if (bracket.takeProfitPrice != null) drawLevelLine(series.priceToCoordinate(bracket.takeProfitPrice), "#38bdf8", true);
+        if (bracket.stopLossPrice != null) drawLevelLine(series.priceToCoordinate(bracket.stopLossPrice), "#f87171", true);
+      }
+    }
+
+    // Tooltip showing the live price while dragging a TP/SL handle.
+    if (draggingBracketHandle && bracket && mousePos) {
+      const price =
+        draggingBracketHandle === "tp" ? bracket.takeProfitPrice : bracket.stopLossPrice;
+      if (price != null) {
+        const label = `${draggingBracketHandle === "tp" ? "TP" : "SL"} ${price.toFixed(2)}`;
+        ctx.font = "12px monospace";
+        const padding = 6;
+        const textWidth = ctx.measureText(label).width;
+        const boxW = textWidth + padding * 2;
+        const boxH = 20;
+        const boxX = Math.min(mousePos.x + 10, canvas.width - boxW - 4);
+        const boxY = mousePos.y - boxH / 2;
+        ctx.fillStyle = draggingBracketHandle === "tp" ? "#38bdf8" : "#f87171";
+        ctx.fillRect(boxX, boxY, boxW, boxH);
+        ctx.fillStyle = "#0b0e14";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, boxX + padding, boxY + boxH / 2 + 1);
+        ctx.textBaseline = "alphabetic";
       }
     }
 
@@ -710,7 +773,7 @@ export default function Chart({
         ctx.fill();
       }
     }
-  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles]);
+  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles, draggingBracketHandle]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current;
@@ -719,6 +782,25 @@ export default function Chart({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     setMousePos({ x, y });
+
+    if (draggingBracketHandle) {
+      const series = seriesRef.current;
+      const price = series?.coordinateToPrice(y);
+      if (price != null) onBracketDrag?.(draggingBracketHandle, price);
+      return;
+    }
+
+    if (bracket && drawingState.mode === "crosshair") {
+      const series = seriesRef.current;
+      const startX = getBracketStartX();
+      const HANDLE_LINE_TOLERANCE = 6;
+      const onLine = startX != null && x >= startX;
+      const tpY = onLine && bracket.takeProfitPrice != null ? series?.priceToCoordinate(bracket.takeProfitPrice) : null;
+      const slY = onLine && bracket.stopLossPrice != null ? series?.priceToCoordinate(bracket.stopLossPrice) : null;
+      if (tpY != null && Math.abs(y - tpY) <= HANDLE_LINE_TOLERANCE) setHoveredBracketHandle("tp");
+      else if (slY != null && Math.abs(y - slY) <= HANDLE_LINE_TOLERANCE) setHoveredBracketHandle("sl");
+      else setHoveredBracketHandle(null);
+    }
 
     if (draggingFibHandle) {
       const chart = chartRef.current;
@@ -762,6 +844,7 @@ export default function Chart({
   const handleMouseLeave = () => {
     setMousePos(null);
     setCrosshairData({ time: null, price: null });
+    setHoveredBracketHandle(null);
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
     if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume, prevClose: prev?.close });
@@ -791,6 +874,24 @@ export default function Chart({
     if (!chart || !series) return;
 
     if (drawingState.mode === "crosshair") {
+      const bracketStartX = getBracketStartX();
+      if (bracket && bracketStartX != null && mousePos.x >= bracketStartX) {
+        const HANDLE_LINE_TOLERANCE = 6;
+        if (bracket.takeProfitPrice != null) {
+          const tpY = series.priceToCoordinate(bracket.takeProfitPrice);
+          if (tpY != null && Math.abs(mousePos.y - tpY) <= HANDLE_LINE_TOLERANCE) {
+            setDraggingBracketHandle("tp");
+            return;
+          }
+        }
+        if (bracket.stopLossPrice != null) {
+          const slY = series.priceToCoordinate(bracket.stopLossPrice);
+          if (slY != null && Math.abs(mousePos.y - slY) <= HANDLE_LINE_TOLERANCE) {
+            setDraggingBracketHandle("sl");
+            return;
+          }
+        }
+      }
       for (let i = fibDrawings.length - 1; i >= 0; i--) {
         const fib = fibDrawings[i];
         const x1 = chart.timeScale().timeToCoordinate(fib.time1 as UTCTimestamp);
@@ -817,6 +918,10 @@ export default function Chart({
   };
 
   const handleMouseUp = () => {
+    if (draggingBracketHandle) {
+      setDraggingBracketHandle(null);
+      return;
+    }
     if (draggingFibHandle) {
       setDraggingFibHandle(null);
       return;
@@ -938,7 +1043,14 @@ export default function Chart({
         onClick={handleMouseClick}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
-        style={{ cursor: drawingState.mode === "line" || drawingState.mode === "fib" ? "crosshair" : "default" }}
+        style={{
+          cursor:
+            draggingBracketHandle || hoveredBracketHandle
+              ? "ns-resize"
+              : drawingState.mode === "line" || drawingState.mode === "fib"
+                ? "crosshair"
+                : "default",
+        }}
       >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
         {/* pointer-events-none so mouse events fall through to lightweight-charts'
