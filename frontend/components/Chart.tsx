@@ -5,12 +5,14 @@ import {
   ColorType,
   IChartApi,
   ISeriesApi,
-  LogicalRange,
+  ISeriesMarkersPluginApi,
+  LineSeries,
   SeriesMarker,
   SeriesType,
   Time,
   UTCTimestamp,
   createChart,
+  createSeriesMarkers,
 } from "lightweight-charts";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
 import ToolbarButton from "@/components/chart/ToolbarButton";
@@ -171,11 +173,9 @@ export default function Chart({
   const indicatorSeriesMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const annotationLinesRef = useRef<ReturnType<ISeriesApi<"Line">["createPriceLine"]>[]>([]);
   const bracketLinesRef = useRef<ReturnType<ISeriesApi<"Line">["createPriceLine"]>[]>([]);
-  const oscillatorContainerRef = useRef<HTMLDivElement>(null);
-  const oscillatorChartRef = useRef<IChartApi | null>(null);
   const oscillatorSeriesMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+  const markersPluginRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
   const [chartReady, setChartReady] = useState(false);
-  const [oscChartReady, setOscChartReady] = useState(false);
   const [chartTypeId, setChartTypeId] = useState<ChartTypeId>("candle");
   const [drawingState, setDrawingState] = useState<DrawingState>({
     isDrawing: false,
@@ -203,7 +203,6 @@ export default function Chart({
     () => [...activeIndicators].filter((id) => INDICATORS.find((i) => i.id === id)?.kind === "oscillator"),
     [activeIndicators],
   );
-  const hasOscillators = activeOscillatorIds.length > 0;
 
   // Initialize chart
   useEffect(() => {
@@ -222,11 +221,10 @@ export default function Chart({
         horzLine: { visible: false },
       },
       timeScale: { borderColor: "#1e2633", timeVisible: true },
-      // Fixed so the main chart and the oscillator sub-pane (which can show
+      // Fixed so the main pane and the oscillator sub-pane (which can show
       // very different label widths — RSI's "0"-"100" vs MACD's decimals)
       // always reserve the same axis width and stay pixel-aligned.
       rightPriceScale: { borderColor: "#1e2633", minimumWidth: 68 },
-      watermark: { visible: false },
       autoSize: true,
     });
     const series = CHART_TYPES[0].createSeries(chart);
@@ -262,57 +260,6 @@ export default function Chart({
     seriesRef.current.setData(def.toData(candles) as never[]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartTypeId, chartReady]);
-
-  // Oscillator sub-pane (RSI/MACD/...) — created only while at least one
-  // oscillator indicator is active, and torn down when the last one is
-  // toggled off. (Previously this stayed mounted permanently and was just
-  // clipped to zero height via CSS when unused, but that meant the chart's
-  // container never actually changed size after the very first render,
-  // which was one moving part too many to reason about reliably — mounting
-  // it fresh each time guarantees it always initializes against a real,
-  // visible, correctly-sized container.)
-  useEffect(() => {
-    if (!hasOscillators || !oscillatorContainerRef.current || !chartReady) return;
-    const chart = createChart(oscillatorContainerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: "#0b0e14" }, textColor: "#7d8799" },
-      grid: { vertLines: { color: "#1e2633" }, horzLines: { color: "#1e2633" } },
-      crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
-      timeScale: { borderColor: "#1e2633", timeVisible: true },
-      // Fixed so the main chart and the oscillator sub-pane (which can show
-      // very different label widths — RSI's "0"-"100" vs MACD's decimals)
-      // always reserve the same axis width and stay pixel-aligned.
-      rightPriceScale: { borderColor: "#1e2633", minimumWidth: 68 },
-      watermark: { visible: false },
-      autoSize: true,
-    });
-    oscillatorChartRef.current = chart;
-    setOscChartReady(true);
-
-    // One-directional: the main chart drives the oscillator pane's time axis.
-    // (Syncing the other way too would let the oscillator chart's own initial
-    // auto-fit range — which appears the moment it's created or the moment a
-    // series is added to it — stomp the main chart's deliberately-set "last
-    // 100 candles" view, which is what caused the whole chart to jump/empty
-    // out whenever an oscillator indicator was toggled.)
-    const mainChart = chartRef.current;
-    const fromMain = (range: LogicalRange | null) => {
-      if (!range) return;
-      chart.timeScale().setVisibleLogicalRange(range);
-    };
-    mainChart?.timeScale().subscribeVisibleLogicalRangeChange(fromMain);
-    // Adopt the main chart's current range immediately — don't wait for its
-    // next pan/zoom event, which may never come if the view is already settled.
-    const initialRange = mainChart?.timeScale().getVisibleLogicalRange();
-    if (initialRange) chart.timeScale().setVisibleLogicalRange(initialRange);
-
-    return () => {
-      mainChart?.timeScale().unsubscribeVisibleLogicalRangeChange(fromMain);
-      chart.remove();
-      oscillatorChartRef.current = null;
-      oscillatorSeriesMapRef.current.clear();
-      setOscChartReady(false);
-    };
-  }, [hasOscillators, chartReady]);
 
   // Load historical candles
   useEffect(() => {
@@ -360,7 +307,8 @@ export default function Chart({
       })
       .filter((m): m is SeriesMarker<Time> => m !== null)
       .sort((a, b) => (a.time as number) - (b.time as number));
-    series.setMarkers(markers);
+    if (!markersPluginRef.current) markersPluginRef.current = createSeriesMarkers(series, markers);
+    else markersPluginRef.current.setMarkers(markers);
 
     for (const line of annotationLinesRef.current) series.removePriceLine(line);
     annotationLinesRef.current = annotations
@@ -406,7 +354,7 @@ export default function Chart({
         activeKeys.add(key);
         let series = map.get(key);
         if (!series) {
-          series = chart.addLineSeries({
+          series = chart.addSeries(LineSeries, {
             color: line.color,
             lineWidth: 2,
             title: def.label,
@@ -426,10 +374,11 @@ export default function Chart({
     }
   }, [activeIndicators, candles, chartReady]);
 
-  // Same, but for oscillator indicators (RSI/MACD/...) in the sub-pane below.
+  // Same, but for oscillator indicators (RSI/MACD/...) — rendered in pane 1
+  // of the same chart, so they automatically share the main pane's time axis.
   useEffect(() => {
-    const chart = oscillatorChartRef.current;
-    if (!chart || !oscChartReady) return;
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
     const map = oscillatorSeriesMapRef.current;
     const activeKeys = new Set<string>();
 
@@ -441,13 +390,17 @@ export default function Chart({
         activeKeys.add(key);
         let series = map.get(key);
         if (!series) {
-          series = chart.addLineSeries({
-            color: line.color,
-            lineWidth: 2,
-            title: `${def.label} ${line.key}`,
-            lastValueVisible: false,
-            priceLineVisible: false,
-          });
+          series = chart.addSeries(
+            LineSeries,
+            {
+              color: line.color,
+              lineWidth: 2,
+              title: `${def.label} ${line.key}`,
+              lastValueVisible: false,
+              priceLineVisible: false,
+            },
+            1,
+          );
           map.set(key, series);
         }
         series.setData(line.compute(candles));
@@ -460,17 +413,12 @@ export default function Chart({
       }
     }
 
-    // The pane-to-pane range sync only fires on the main chart's *next* pan/
-    // zoom event — but by the time an oscillator is toggled on, that event
-    // may already be long past (the main chart's "last 100 candles" view was
-    // set once on load). Without this, newly-added RSI/MACD data can sit
-    // entirely outside the oscillator pane's still-default visible range,
-    // making it look like nothing rendered. Force the match right now too.
-    if (activeKeys.size > 0) {
-      const mainRange = chartRef.current?.timeScale().getVisibleLogicalRange();
-      if (mainRange) chart.timeScale().setVisibleLogicalRange(mainRange);
-    }
-  }, [activeOscillatorIds, candles, oscChartReady]);
+    // Pane 1 (the oscillator sub-pane) only exists once a series has been
+    // added to it, so size it here rather than in a separate effect that
+    // could run before this one on the same render.
+    const pane = chart.panes()[1];
+    if (pane) pane.setHeight(activeKeys.size > 0 ? 130 : 0);
+  }, [activeOscillatorIds, candles, chartReady]);
 
   // Entry/take-profit/stop-loss price lines for a bracket order or open trade.
   useEffect(() => {
@@ -701,7 +649,7 @@ export default function Chart({
     }
   }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, candles]);
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -862,29 +810,25 @@ export default function Chart({
       </div>
 
       {/* Chart area */}
-      <div className="relative flex-1 min-h-0">
+      <div
+        className="relative flex-1 min-h-0"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onClick={handleMouseClick}
+        style={{ cursor: drawingState.mode === "line" || drawingState.mode === "fib" ? "crosshair" : "default" }}
+      >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
+        {/* pointer-events-none so mouse events fall through to lightweight-charts'
+            own canvas underneath — otherwise its native per-series crosshair
+            markers (e.g. the dots that track the MACD/signal lines) never see
+            the mousemove. Our own crosshair reticle/labels are still drawn here;
+            the handlers just live on the wrapping div instead. */}
         <canvas
           ref={canvasRef}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          onClick={handleMouseClick}
-          className="absolute inset-0"
-          style={{
-            zIndex: 10,
-            cursor: drawingState.mode === "line" || drawingState.mode === "fib" ? "crosshair" : "default",
-          }}
+          className="absolute inset-0 pointer-events-none"
+          style={{ zIndex: 10 }}
         />
       </div>
-
-      {/* Oscillator sub-pane (RSI/MACD/...) — only mounted while at least
-          one oscillator indicator is active; see the creation effect above
-          for why this isn't just CSS-collapsed instead. */}
-      {hasOscillators && (
-        <div className="h-[130px] w-full shrink-0 border-t border-border">
-          <div ref={oscillatorContainerRef} className="h-full w-full [&_a]:hidden" />
-        </div>
-      )}
     </div>
   );
 }

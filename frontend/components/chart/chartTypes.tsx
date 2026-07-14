@@ -2,7 +2,18 @@
 // area). Each entry owns how to create its lightweight-charts series and how
 // to transform raw candles into that series' data shape — Chart.tsx just
 // swaps the active series when the user picks a different type.
-import type { CandlestickData, IChartApi, ISeriesApi, LineData, SeriesType, UTCTimestamp } from "lightweight-charts";
+import {
+  AreaSeries,
+  BarSeries,
+  CandlestickSeries,
+  LineSeries,
+  type CandlestickData,
+  type IChartApi,
+  type ISeriesApi,
+  type LineData,
+  type SeriesType,
+  type UTCTimestamp,
+} from "lightweight-charts";
 import type { Candle } from "@/lib/api";
 
 export type ChartTypeId = "candle" | "hollow" | "heikinashi" | "bar" | "line" | "area";
@@ -111,7 +122,7 @@ export const CHART_TYPES: ChartTypeDef[] = [
     label: "Candles",
     icon: IconCandle,
     createSeries: (chart) =>
-      chart.addCandlestickSeries({
+      chart.addSeries(CandlestickSeries, {
         upColor: "#26a69a",
         downColor: "#ef5350",
         borderVisible: false,
@@ -125,7 +136,7 @@ export const CHART_TYPES: ChartTypeDef[] = [
     label: "Hollow Candles",
     icon: IconHollow,
     createSeries: (chart) =>
-      chart.addCandlestickSeries({
+      chart.addSeries(CandlestickSeries, {
         upColor: "rgba(0,0,0,0)",
         downColor: "#ef5350",
         borderVisible: true,
@@ -141,7 +152,7 @@ export const CHART_TYPES: ChartTypeDef[] = [
     label: "Heikin-Ashi",
     icon: IconHeikin,
     createSeries: (chart) =>
-      chart.addCandlestickSeries({
+      chart.addSeries(CandlestickSeries, {
         upColor: "#26a69a",
         downColor: "#ef5350",
         borderVisible: false,
@@ -154,14 +165,14 @@ export const CHART_TYPES: ChartTypeDef[] = [
     id: "bar",
     label: "Bars",
     icon: IconBar,
-    createSeries: (chart) => chart.addBarSeries({ upColor: "#26a69a", downColor: "#ef5350" }),
+    createSeries: (chart) => chart.addSeries(BarSeries, { upColor: "#26a69a", downColor: "#ef5350" }),
     toData: (candles) => candles.map(toCandleData),
   },
   {
     id: "line",
     label: "Line",
     icon: IconLineType,
-    createSeries: (chart) => chart.addLineSeries({ color: "#3b82f6", lineWidth: 2 }),
+    createSeries: (chart) => chart.addSeries(LineSeries, { color: "#3b82f6", lineWidth: 2 }),
     toData: (candles) => candles.map(toCloseLine),
   },
   {
@@ -169,7 +180,7 @@ export const CHART_TYPES: ChartTypeDef[] = [
     label: "Area",
     icon: IconArea,
     createSeries: (chart) =>
-      chart.addAreaSeries({
+      chart.addSeries(AreaSeries, {
         lineColor: "#3b82f6",
         topColor: "rgba(59, 130, 246, 0.35)",
         bottomColor: "rgba(59, 130, 246, 0.02)",
