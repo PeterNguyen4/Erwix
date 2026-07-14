@@ -27,7 +27,7 @@ export default function RootLayout({
         <body className="flex h-screen" suppressHydrationWarning>
           <AuthBridge />
           <ConditionalSidebar />
-          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
             {children}
           </div>
         </body>

@@ -1,19 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, OrderRequest } from "@/lib/api";
+import type { BracketLevels } from "@/components/Chart";
 
 interface OrderPanelProps {
   symbol: string;
   onOrderPlaced?: () => void;
   buyingPower?: number | null;
   price?: number | null;
+  /** Fires with the live entry/TP/SL preview while the bracket toggle is on, so the chart can shade it. */
+  onBracketChange?: (bracket: BracketLevels | null) => void;
 }
 
 const fmtUsd = (v: number) =>
   v.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 
-export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price }: OrderPanelProps) {
+export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price, onBracketChange }: OrderPanelProps) {
   const [qty, setQty] = useState(1);
   const [type, setType] = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice] = useState<number>(0);
@@ -31,6 +34,22 @@ export default function OrderPanel({ symbol, onOrderPlaced, buyingPower, price }
     bracket && estPrice != null && stopLossPrice > 0 ? Math.abs(estPrice - stopLossPrice) : null;
   const totalRisk = riskPerShare != null ? riskPerShare * qty : null;
   const bracketValid = !bracket || (takeProfitPrice > 0 && stopLossPrice > 0);
+
+  // Live-preview the bracket levels on the chart while the trader is setting them up.
+  useEffect(() => {
+    if (!bracket || estPrice == null) {
+      onBracketChange?.(null);
+      return;
+    }
+    onBracketChange?.({
+      entryPrice: estPrice,
+      takeProfitPrice: takeProfitPrice > 0 ? takeProfitPrice : null,
+      stopLossPrice: stopLossPrice > 0 ? stopLossPrice : null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bracket, estPrice, takeProfitPrice, stopLossPrice]);
+
+  useEffect(() => () => onBracketChange?.(null), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(side: "buy" | "sell") {
     setBusy(true);

@@ -1,17 +1,22 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  CandlestickData,
   ColorType,
   IChartApi,
   ISeriesApi,
+  LogicalRange,
   SeriesMarker,
+  SeriesType,
   Time,
   UTCTimestamp,
   createChart,
 } from "lightweight-charts";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
+import ToolbarButton from "@/components/chart/ToolbarButton";
+import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
+import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
+import { INDICATORS } from "@/components/chart/indicators";
 
 const COMPANY_NAMES: Record<string, string> = {
   AAPL: "Apple Inc.",
@@ -27,12 +32,20 @@ const COMPANY_NAMES: Record<string, string> = {
   QQQ: "Invesco QQQ Trust",
 };
 
+export interface BracketLevels {
+  entryPrice: number;
+  takeProfitPrice?: number | null;
+  stopLossPrice?: number | null;
+}
+
 interface ChartProps {
   candles: Candle[];
   liveCandle?: Candle | null;
   annotations?: ChartAnnotation[];
   symbol?: string;
   visibleRange?: ZoomRange | null;
+  /** Entry/take-profit/stop-loss levels to highlight, e.g. for a bracket order or an open trade. */
+  bracket?: BracketLevels | null;
 }
 
 interface HoveredCandle {
@@ -40,25 +53,40 @@ interface HoveredCandle {
   high: number;
   low: number;
   close: number;
+  volume: number;
   prevClose?: number;
+}
+
+function formatVolume(v: number): string {
+  if (v >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(2)}B`;
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(2)}K`;
+  return `${v}`;
 }
 
 interface DrawingState {
   isDrawing: boolean;
   points: Array<{ x: number; y: number }>;
-  mode: "crosshair" | "line" | null;
+  mode: "crosshair" | "line" | "fib" | null;
   completedLines: Array<Array<{ x: number; y: number }>>;
 }
 
-function toSeriesData(c: Candle): CandlestickData {
-  return {
-    time: c.time as UTCTimestamp,
-    open: c.open,
-    high: c.high,
-    low: c.low,
-    close: c.close,
-  };
+interface FibDrawing {
+  time1: number;
+  price1: number;
+  time2: number;
+  price2: number;
 }
+
+const FIB_LEVELS: { ratio: number; color: string }[] = [
+  { ratio: 0, color: "#787b86" },
+  { ratio: 0.236, color: "#f23645" },
+  { ratio: 0.382, color: "#ff9800" },
+  { ratio: 0.5, color: "#4caf50" },
+  { ratio: 0.618, color: "#00bcd4" },
+  { ratio: 0.786, color: "#3f51b5" },
+  { ratio: 1, color: "#9c27b0" },
+];
 
 function toMarker(a: ChartAnnotation, snappedTime: UTCTimestamp): SeriesMarker<Time> {
   const isArrowUp = a.type === "arrow";
@@ -86,17 +114,6 @@ function nearestCandleTime(candles: Candle[], time: number): UTCTimestamp | null
   return closest.time as UTCTimestamp;
 }
 
-function computeSMA(candles: Candle[], period: number) {
-  return candles
-    .map((c, i) => {
-      if (i < period - 1) return null;
-      const slice = candles.slice(i - period + 1, i + 1);
-      const avg = slice.reduce((sum, x) => sum + x.close, 0) / period;
-      return { time: c.time as UTCTimestamp, value: avg };
-    })
-    .filter(Boolean) as { time: UTCTimestamp; value: number }[];
-}
-
 // --- Toolbar icons ---
 function IconCursor() {
   return (
@@ -116,10 +133,13 @@ function IconLine() {
   );
 }
 
-function IconSMA() {
+function IconFib() {
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M2 13 Q5 5 9 9 Q13 13 16 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <line x1="2" y1="3" x2="16" y2="3" stroke="currentColor" strokeWidth="1.3" />
+      <line x1="2" y1="7" x2="12" y2="7" stroke="currentColor" strokeWidth="1.3" />
+      <line x1="2" y1="11" x2="16" y2="11" stroke="currentColor" strokeWidth="1.3" />
+      <line x1="2" y1="15" x2="9" y2="15" stroke="currentColor" strokeWidth="1.3" />
     </svg>
   );
 }
@@ -136,24 +156,54 @@ function IconDelete() {
   );
 }
 
-export default function Chart({ candles, liveCandle, annotations = [], symbol = "", visibleRange = null }: ChartProps) {
+export default function Chart({
+  candles,
+  liveCandle,
+  annotations = [],
+  symbol = "",
+  visibleRange = null,
+  bracket = null,
+}: ChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const indicatorSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
-  const annotationLinesRef = useRef<ReturnType<ISeriesApi<"Candlestick">["createPriceLine"]>[]>([]);
+  const seriesRef = useRef<ISeriesApi<SeriesType> | null>(null);
+  const indicatorSeriesMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
+  const annotationLinesRef = useRef<ReturnType<ISeriesApi<"Line">["createPriceLine"]>[]>([]);
+  const bracketLinesRef = useRef<ReturnType<ISeriesApi<"Line">["createPriceLine"]>[]>([]);
+  const oscillatorContainerRef = useRef<HTMLDivElement>(null);
+  const oscillatorChartRef = useRef<IChartApi | null>(null);
+  const oscillatorSeriesMapRef = useRef<Map<string, ISeriesApi<"Line">>>(new Map());
   const [chartReady, setChartReady] = useState(false);
+  const [oscChartReady, setOscChartReady] = useState(false);
+  const [chartTypeId, setChartTypeId] = useState<ChartTypeId>("candle");
   const [drawingState, setDrawingState] = useState<DrawingState>({
     isDrawing: false,
     points: [],
     mode: "crosshair",
     completedLines: [],
   });
+  const [fibDrawings, setFibDrawings] = useState<FibDrawing[]>([]);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [crosshairData, setCrosshairData] = useState<{ time: number | null; price: number | null }>({ time: null, price: null });
-  const [indicators, setIndicators] = useState<"sma20" | null>(null);
+  const [activeIndicators, setActiveIndicators] = useState<Set<string>>(new Set());
+  const [redrawTick, setRedrawTick] = useState(0);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
+
+  const toggleIndicator = (id: string) => {
+    setActiveIndicators((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const activeOscillatorIds = useMemo(
+    () => [...activeIndicators].filter((id) => INDICATORS.find((i) => i.id === id)?.kind === "oscillator"),
+    [activeIndicators],
+  );
+  const hasOscillators = activeOscillatorIds.length > 0;
 
   // Initialize chart
   useEffect(() => {
@@ -172,56 +222,131 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
         horzLine: { visible: false },
       },
       timeScale: { borderColor: "#1e2633", timeVisible: true },
-      rightPriceScale: { borderColor: "#1e2633" },
+      // Fixed so the main chart and the oscillator sub-pane (which can show
+      // very different label widths — RSI's "0"-"100" vs MACD's decimals)
+      // always reserve the same axis width and stay pixel-aligned.
+      rightPriceScale: { borderColor: "#1e2633", minimumWidth: 68 },
       watermark: { visible: false },
       autoSize: true,
     });
-    const series = chart.addCandlestickSeries({
-      upColor: "#26a69a",
-      downColor: "#ef5350",
-      borderVisible: false,
-      wickUpColor: "#26a69a",
-      wickDownColor: "#ef5350",
-    });
-    const priceLine = chart.addLineSeries({
-      color: "#f0ad4e",
-      lineWidth: 2,
-      title: "SMA",
-      lastValueVisible: false,
-      priceLineVisible: false,
-    });
+    const series = CHART_TYPES[0].createSeries(chart);
     chartRef.current = chart;
     seriesRef.current = series;
-    indicatorSeriesRef.current = priceLine;
     setChartReady(true);
 
+    // Bracket-zone/FVG/Fib shading (drawn on the overlay canvas) depends on
+    // price->y and time->x coordinates, which shift on pan/zoom/autoscale —
+    // bump a tick so the draw effect re-runs even without its own deps changing.
+    const bumpRedraw = () => setRedrawTick((t) => t + 1);
+    chart.timeScale().subscribeVisibleTimeRangeChange(bumpRedraw);
+
     return () => {
+      chart.timeScale().unsubscribeVisibleTimeRangeChange(bumpRedraw);
       chart.remove();
       chartRef.current = null;
       seriesRef.current = null;
-      indicatorSeriesRef.current = null;
+      indicatorSeriesMapRef.current.clear();
       setChartReady(false);
     };
   }, []);
 
+  // Swap the main series when the user picks a different chart type
+  // (candles/hollow/Heikin-Ashi/bars/line/area) — remove the old series and
+  // create the new one via the registry in components/chart/chartTypes.tsx.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    if (seriesRef.current) chart.removeSeries(seriesRef.current);
+    const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
+    seriesRef.current = def.createSeries(chart);
+    seriesRef.current.setData(def.toData(candles) as never[]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartTypeId, chartReady]);
+
+  // Oscillator sub-pane (RSI/MACD/...) — created only while at least one
+  // oscillator indicator is active, and torn down when the last one is
+  // toggled off. (Previously this stayed mounted permanently and was just
+  // clipped to zero height via CSS when unused, but that meant the chart's
+  // container never actually changed size after the very first render,
+  // which was one moving part too many to reason about reliably — mounting
+  // it fresh each time guarantees it always initializes against a real,
+  // visible, correctly-sized container.)
+  useEffect(() => {
+    if (!hasOscillators || !oscillatorContainerRef.current || !chartReady) return;
+    const chart = createChart(oscillatorContainerRef.current, {
+      layout: { background: { type: ColorType.Solid, color: "#0b0e14" }, textColor: "#7d8799" },
+      grid: { vertLines: { color: "#1e2633" }, horzLines: { color: "#1e2633" } },
+      crosshair: { vertLine: { visible: false }, horzLine: { visible: false } },
+      timeScale: { borderColor: "#1e2633", timeVisible: true },
+      // Fixed so the main chart and the oscillator sub-pane (which can show
+      // very different label widths — RSI's "0"-"100" vs MACD's decimals)
+      // always reserve the same axis width and stay pixel-aligned.
+      rightPriceScale: { borderColor: "#1e2633", minimumWidth: 68 },
+      watermark: { visible: false },
+      autoSize: true,
+    });
+    oscillatorChartRef.current = chart;
+    setOscChartReady(true);
+
+    // One-directional: the main chart drives the oscillator pane's time axis.
+    // (Syncing the other way too would let the oscillator chart's own initial
+    // auto-fit range — which appears the moment it's created or the moment a
+    // series is added to it — stomp the main chart's deliberately-set "last
+    // 100 candles" view, which is what caused the whole chart to jump/empty
+    // out whenever an oscillator indicator was toggled.)
+    const mainChart = chartRef.current;
+    const fromMain = (range: LogicalRange | null) => {
+      if (!range) return;
+      chart.timeScale().setVisibleLogicalRange(range);
+    };
+    mainChart?.timeScale().subscribeVisibleLogicalRangeChange(fromMain);
+    // Adopt the main chart's current range immediately — don't wait for its
+    // next pan/zoom event, which may never come if the view is already settled.
+    const initialRange = mainChart?.timeScale().getVisibleLogicalRange();
+    if (initialRange) chart.timeScale().setVisibleLogicalRange(initialRange);
+
+    return () => {
+      mainChart?.timeScale().unsubscribeVisibleLogicalRangeChange(fromMain);
+      chart.remove();
+      oscillatorChartRef.current = null;
+      oscillatorSeriesMapRef.current.clear();
+      setOscChartReady(false);
+    };
+  }, [hasOscillators, chartReady]);
+
   // Load historical candles
   useEffect(() => {
     if (!seriesRef.current) return;
-    seriesRef.current.setData(candles.map(toSeriesData));
+    const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
+    seriesRef.current.setData(def.toData(candles) as never[]);
     const total = candles.length;
     if (total > 0) {
       chartRef.current?.timeScale().setVisibleLogicalRange({ from: total - 100, to: total + 2 });
     }
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
-    if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, prevClose: prev?.close });
-  }, [candles, chartReady]);
+    if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume, prevClose: prev?.close });
+  }, [candles, chartReady, chartTypeId]);
 
-  // Apply live updates.
+  // Apply live updates. Heikin-Ashi recomputes fully (its candles depend on
+  // the running average of prior ones, so there's no cheap incremental form).
   useEffect(() => {
     if (!seriesRef.current || !liveCandle) return;
-    seriesRef.current.update(toSeriesData(liveCandle));
-  }, [liveCandle]);
+    if (chartTypeId === "heikinashi") {
+      const def = CHART_TYPES.find((t) => t.id === "heikinashi")!;
+      seriesRef.current.setData(def.toData([...candles, liveCandle]) as never[]);
+    } else if (chartTypeId === "line" || chartTypeId === "area") {
+      seriesRef.current.update({ time: liveCandle.time as UTCTimestamp, value: liveCandle.close } as never);
+    } else {
+      seriesRef.current.update({
+        time: liveCandle.time as UTCTimestamp,
+        open: liveCandle.open,
+        high: liveCandle.high,
+        low: liveCandle.low,
+        close: liveCandle.close,
+      } as never);
+    }
+  }, [liveCandle, chartTypeId]);
 
   // Draw annotation overlays
   useEffect(() => {
@@ -262,16 +387,134 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
     });
   }, [visibleRange]);
 
-  // Compute SMA.
+  // Sync overlay indicator series (drawn on the main price pane) with the
+  // active set — add a line series the first time an indicator is toggled
+  // on, remove it when toggled off, and recompute whenever candles change.
+  // New overlay indicators only need an entry in the INDICATORS registry
+  // (components/chart/indicators.tsx); no changes needed here.
   useEffect(() => {
-    const indSeries = indicatorSeriesRef.current;
-    if (!indSeries) return;
-    if (!indicators) {
-      indSeries.setData([]);
-      return;
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    const map = indicatorSeriesMapRef.current;
+    const activeKeys = new Set<string>();
+
+    for (const id of activeIndicators) {
+      const def = INDICATORS.find((i) => i.id === id);
+      if (!def || def.kind !== "overlay" || !def.lines) continue;
+      for (const line of def.lines) {
+        const key = `${id}:${line.key}`;
+        activeKeys.add(key);
+        let series = map.get(key);
+        if (!series) {
+          series = chart.addLineSeries({
+            color: line.color,
+            lineWidth: 2,
+            title: def.label,
+            lastValueVisible: false,
+            priceLineVisible: false,
+          });
+          map.set(key, series);
+        }
+        series.setData(line.compute(candles));
+      }
     }
-    indSeries.setData(computeSMA(candles, 20));
-  }, [indicators, candles, chartReady]);
+    for (const [key, series] of map) {
+      if (!activeKeys.has(key)) {
+        chart.removeSeries(series);
+        map.delete(key);
+      }
+    }
+  }, [activeIndicators, candles, chartReady]);
+
+  // Same, but for oscillator indicators (RSI/MACD/...) in the sub-pane below.
+  useEffect(() => {
+    const chart = oscillatorChartRef.current;
+    if (!chart || !oscChartReady) return;
+    const map = oscillatorSeriesMapRef.current;
+    const activeKeys = new Set<string>();
+
+    for (const id of activeOscillatorIds) {
+      const def = INDICATORS.find((i) => i.id === id);
+      if (!def?.lines) continue;
+      for (const line of def.lines) {
+        const key = `${id}:${line.key}`;
+        activeKeys.add(key);
+        let series = map.get(key);
+        if (!series) {
+          series = chart.addLineSeries({
+            color: line.color,
+            lineWidth: 2,
+            title: `${def.label} ${line.key}`,
+            lastValueVisible: false,
+            priceLineVisible: false,
+          });
+          map.set(key, series);
+        }
+        series.setData(line.compute(candles));
+      }
+    }
+    for (const [key, series] of map) {
+      if (!activeKeys.has(key)) {
+        chart.removeSeries(series);
+        map.delete(key);
+      }
+    }
+
+    // The pane-to-pane range sync only fires on the main chart's *next* pan/
+    // zoom event — but by the time an oscillator is toggled on, that event
+    // may already be long past (the main chart's "last 100 candles" view was
+    // set once on load). Without this, newly-added RSI/MACD data can sit
+    // entirely outside the oscillator pane's still-default visible range,
+    // making it look like nothing rendered. Force the match right now too.
+    if (activeKeys.size > 0) {
+      const mainRange = chartRef.current?.timeScale().getVisibleLogicalRange();
+      if (mainRange) chart.timeScale().setVisibleLogicalRange(mainRange);
+    }
+  }, [activeOscillatorIds, candles, oscChartReady]);
+
+  // Entry/take-profit/stop-loss price lines for a bracket order or open trade.
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series) return;
+    for (const line of bracketLinesRef.current) series.removePriceLine(line);
+    bracketLinesRef.current = [];
+    if (!bracket) return;
+
+    bracketLinesRef.current.push(
+      series.createPriceLine({
+        price: bracket.entryPrice,
+        color: "#e2e8f0",
+        lineWidth: 2,
+        lineStyle: 0, // solid
+        axisLabelVisible: true,
+        title: "Entry",
+      }),
+    );
+    if (bracket.takeProfitPrice != null) {
+      bracketLinesRef.current.push(
+        series.createPriceLine({
+          price: bracket.takeProfitPrice,
+          color: "#38bdf8", // light blue
+          lineWidth: 2,
+          lineStyle: 2, // dashed
+          axisLabelVisible: true,
+          title: "TP",
+        }),
+      );
+    }
+    if (bracket.stopLossPrice != null) {
+      bracketLinesRef.current.push(
+        series.createPriceLine({
+          price: bracket.stopLossPrice,
+          color: "#f87171", // light red
+          lineWidth: 2,
+          lineStyle: 2, // dashed
+          axisLabelVisible: true,
+          title: "SL",
+        }),
+      );
+    }
+  }, [bracket, chartReady]);
 
   // Sync canvas buffer size with container.
   useEffect(() => {
@@ -296,6 +539,77 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
     if (!ctx) return;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Bracket TP/SL zones — shaded bands between the entry price and each
+    // level, so the risk/reward is visible at a glance (price lines above
+    // handle the labeled level lines themselves).
+    if (bracket && seriesRef.current) {
+      const entryY = seriesRef.current.priceToCoordinate(bracket.entryPrice);
+      if (entryY != null) {
+        if (bracket.takeProfitPrice != null) {
+          const tpY = seriesRef.current.priceToCoordinate(bracket.takeProfitPrice);
+          if (tpY != null) {
+            ctx.fillStyle = "rgba(56, 189, 248, 0.12)"; // light blue
+            ctx.fillRect(0, Math.min(entryY, tpY), canvas.width, Math.abs(entryY - tpY));
+          }
+        }
+        if (bracket.stopLossPrice != null) {
+          const slY = seriesRef.current.priceToCoordinate(bracket.stopLossPrice);
+          if (slY != null) {
+            ctx.fillStyle = "rgba(248, 113, 113, 0.12)"; // light red
+            ctx.fillRect(0, Math.min(entryY, slY), canvas.width, Math.abs(entryY - slY));
+          }
+        }
+      }
+    }
+
+    // Zone indicators (e.g. Fair Value Gap) — shaded boxes from time/price
+    // ranges computed by the indicator registry.
+    if (chartRef.current && seriesRef.current) {
+      const chart = chartRef.current;
+      const mainSeries = seriesRef.current;
+      for (const id of activeIndicators) {
+        const def = INDICATORS.find((i) => i.id === id);
+        if (!def || def.kind !== "zone" || !def.computeZones) continue;
+        for (const zone of def.computeZones(candles)) {
+          const x1 = chart.timeScale().timeToCoordinate(zone.startTime);
+          const x2 = chart.timeScale().timeToCoordinate(zone.endTime);
+          const yTop = mainSeries.priceToCoordinate(zone.top);
+          const yBottom = mainSeries.priceToCoordinate(zone.bottom);
+          if (x1 == null || x2 == null || yTop == null || yBottom == null) continue;
+          ctx.fillStyle = zone.color;
+          ctx.fillRect(Math.min(x1, x2), Math.min(yTop, yBottom), Math.abs(x2 - x1), Math.abs(yBottom - yTop));
+        }
+      }
+    }
+
+    // Fibonacci retracement drawings.
+    if (chartRef.current && seriesRef.current) {
+      const chart = chartRef.current;
+      const mainSeries = seriesRef.current;
+      for (const fib of fibDrawings) {
+        const x1 = chart.timeScale().timeToCoordinate(fib.time1 as UTCTimestamp);
+        const x2 = chart.timeScale().timeToCoordinate(fib.time2 as UTCTimestamp);
+        if (x1 == null || x2 == null) continue;
+        const left = Math.min(x1, x2);
+        const right = Math.max(x1, x2);
+        for (const level of FIB_LEVELS) {
+          const price = fib.price1 + (fib.price2 - fib.price1) * level.ratio;
+          const y = mainSeries.priceToCoordinate(price);
+          if (y == null) continue;
+          ctx.strokeStyle = level.color;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([]);
+          ctx.beginPath();
+          ctx.moveTo(left, y);
+          ctx.lineTo(right, y);
+          ctx.stroke();
+          ctx.font = "10px monospace";
+          ctx.fillStyle = level.color;
+          ctx.fillText(`${(level.ratio * 100).toFixed(1)}% (${price.toFixed(2)})`, left + 4, y - 3);
+        }
+      }
+    }
 
     if (mousePos) {
       ctx.strokeStyle = "#7d8799";
@@ -385,7 +699,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
         ctx.fill();
       }
     }
-  }, [mousePos, drawingState, crosshairData]);
+  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, candles]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -404,7 +718,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
         const candle = candles[clampedIdx];
         if (candle) {
           const prev = candles[clampedIdx - 1];
-          setHoveredCandle({ open: candle.open, high: candle.high, low: candle.low, close: candle.close, prevClose: prev?.close });
+          setHoveredCandle({ open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume, prevClose: prev?.close });
         }
       }
       const time = chart.timeScale().coordinateToTime(x);
@@ -418,7 +732,7 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
     setCrosshairData({ time: null, price: null });
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
-    if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, prevClose: prev?.close });
+    if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume, prevClose: prev?.close });
   };
 
   const handleMouseClick = () => {
@@ -433,21 +747,36 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
           completedLines: [...drawingState.completedLines, [drawingState.points[0], mousePos]],
         });
       }
+    } else if (drawingState.mode === "fib" && mousePos) {
+      if (drawingState.points.length === 0) {
+        setDrawingState({ ...drawingState, points: [mousePos] });
+      } else {
+        const chart = chartRef.current;
+        const series = seriesRef.current;
+        const p0 = drawingState.points[0];
+        if (chart && series) {
+          const time1 = chart.timeScale().coordinateToTime(p0.x) as number | null;
+          const price1 = series.coordinateToPrice(p0.y);
+          const time2 = chart.timeScale().coordinateToTime(mousePos.x) as number | null;
+          const price2 = series.coordinateToPrice(mousePos.y);
+          if (time1 != null && price1 != null && time2 != null && price2 != null) {
+            setFibDrawings((prev) => [...prev, { time1, price1, time2, price2 }]);
+          }
+        }
+        setDrawingState({ ...drawingState, mode: "crosshair", points: [] });
+      }
     }
   };
 
-  const setMode = (mode: "crosshair" | "line") => {
+  const setMode = (mode: "crosshair" | "line" | "fib") => {
     setDrawingState({ ...drawingState, points: [], mode });
   };
 
   const clearDrawings = () => {
     setDrawingState({ isDrawing: false, points: [], mode: drawingState.mode, completedLines: [] });
+    setFibDrawings([]);
   };
 
-  const toolBtn = (active: boolean) =>
-    `flex items-center justify-center gap-1.5 px-2.5 h-7 rounded text-xs transition-colors ${
-      active ? "bg-accent text-white" : "text-muted hover:bg-accent/20 hover:text-white"
-    }`;
 
   // Change / % change from previous candle close.
   const changeDisplay = (() => {
@@ -460,9 +789,9 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
 
   return (
     <div className="relative flex flex-col h-full w-full">
-      {/* Horizontal toolbar */}
+      {/* Info bar + toolbar (single horizontal row) */}
       <div className="flex items-center gap-1 border-b border-border bg-panel px-2 py-1 z-20 shrink-0">
-        {/* OHLC info */}
+        {/* OHLC/volume info */}
         <div className="flex items-baseline gap-2 mr-3 select-none pointer-events-none">
           {symbol && (
             <>
@@ -487,49 +816,53 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
                     {changeDisplay.up ? "+" : ""}{changeDisplay.change.toFixed(2)} ({changeDisplay.up ? "+" : ""}{changeDisplay.pct.toFixed(2)}%)
                   </span>
                 )}
+                <span className="text-muted">Vol <span className="text-white">{formatVolume(hoveredCandle.volume)}</span></span>
               </span>
             );
           })()}
         </div>
 
-        {/* Divider */}
-        <div className="h-5 w-px bg-border mx-1" />
+        {/* Everything else pushed to the right of the info bar, same row */}
+        <div className="ml-auto flex items-center gap-1">
+          {/* Chart type */}
+          <ChartTypeMenu value={chartTypeId} onChange={setChartTypeId} align="right" />
 
-        {/* Drawing tools */}
-        <button title="Cursor" onClick={() => setMode("crosshair")} className={toolBtn(drawingState.mode === "crosshair")}>
-          <IconCursor />
-          <span>Cursor</span>
-        </button>
-        <button title="Trend Line" onClick={() => setMode("line")} className={toolBtn(drawingState.mode === "line")}>
-          <IconLine />
-          <span>Line</span>
-        </button>
+          {/* Divider */}
+          <div className="h-5 w-px bg-border mx-1" />
 
-        {/* Divider */}
-        <div className="h-5 w-px bg-border mx-1" />
+          {/* Drawings */}
+          <ToolbarButton label="Cursor" active={drawingState.mode === "crosshair"} onClick={() => setMode("crosshair")}>
+            <IconCursor />
+          </ToolbarButton>
+          <ToolbarButton label="Trend Line" active={drawingState.mode === "line"} onClick={() => setMode("line")}>
+            <IconLine />
+          </ToolbarButton>
+          <ToolbarButton label="Fibonacci Retracement" active={drawingState.mode === "fib"} onClick={() => setMode("fib")}>
+            <IconFib />
+          </ToolbarButton>
+          <ToolbarButton label="Clear all drawings" tone="danger" onClick={clearDrawings}>
+            <IconDelete />
+          </ToolbarButton>
 
-        {/* Indicators */}
-        <button title="SMA 20" onClick={() => setIndicators(indicators ? null : "sma20")} className={toolBtn(!!indicators)}>
-          <IconSMA />
-          <span>SMA 20</span>
-        </button>
+          {/* Divider */}
+          <div className="h-5 w-px bg-border mx-1" />
 
-        {/* Divider */}
-        <div className="h-5 w-px bg-border mx-1" />
-
-        {/* Clear drawings */}
-        <button
-          title="Clear all drawings"
-          onClick={clearDrawings}
-          className="flex items-center justify-center gap-1.5 px-2.5 h-7 rounded text-xs transition-colors text-muted hover:bg-red-500/20 hover:text-red-400"
-        >
-          <IconDelete />
-          <span>Delete</span>
-        </button>
+          {/* Indicators — rendered from the registry, so adding one is just adding an entry there. */}
+          {INDICATORS.map((ind) => (
+            <ToolbarButton
+              key={ind.id}
+              label={ind.label}
+              active={activeIndicators.has(ind.id)}
+              onClick={() => toggleIndicator(ind.id)}
+            >
+              <ind.icon />
+            </ToolbarButton>
+          ))}
+        </div>
       </div>
 
       {/* Chart area */}
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-h-0">
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
         <canvas
           ref={canvasRef}
@@ -539,10 +872,19 @@ export default function Chart({ candles, liveCandle, annotations = [], symbol = 
           className="absolute inset-0"
           style={{
             zIndex: 10,
-            cursor: drawingState.mode === "line" ? "crosshair" : "default",
+            cursor: drawingState.mode === "line" || drawingState.mode === "fib" ? "crosshair" : "default",
           }}
         />
       </div>
+
+      {/* Oscillator sub-pane (RSI/MACD/...) — only mounted while at least
+          one oscillator indicator is active; see the creation effect above
+          for why this isn't just CSS-collapsed instead. */}
+      {hasOscillators && (
+        <div className="h-[130px] w-full shrink-0 border-t border-border">
+          <div ref={oscillatorContainerRef} className="h-full w-full [&_a]:hidden" />
+        </div>
+      )}
     </div>
   );
 }
