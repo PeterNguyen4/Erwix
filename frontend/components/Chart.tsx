@@ -90,6 +90,13 @@ const FIB_LEVELS: { ratio: number; color: string }[] = [
   { ratio: 1, color: "#9c27b0" },
 ];
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 function toMarker(a: ChartAnnotation, snappedTime: UTCTimestamp): SeriesMarker<Time> {
   const isArrowUp = a.type === "arrow";
   return {
@@ -184,6 +191,8 @@ export default function Chart({
     completedLines: [],
   });
   const [fibDrawings, setFibDrawings] = useState<FibDrawing[]>([]);
+  const [fibPreviewStart, setFibPreviewStart] = useState<{ time: number; price: number } | null>(null);
+  const [draggingFibHandle, setDraggingFibHandle] = useState<{ index: number; handle: "start" | "end" } | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [crosshairData, setCrosshairData] = useState<{ time: number | null; price: number | null }>({ time: null, price: null });
   const [activeIndicators, setActiveIndicators] = useState<Set<string>>(new Set());
@@ -260,6 +269,14 @@ export default function Chart({
     seriesRef.current.setData(def.toData(candles) as never[]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartTypeId, chartReady]);
+
+  // Lock chart while setting line or fibonacci retracement
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    const suspend = drawingState.mode === "fib" || drawingState.mode === "line" || draggingFibHandle !== null;
+    chart.applyOptions({ handleScroll: !suspend, handleScale: !suspend });
+  }, [drawingState.mode, draggingFibHandle, chartReady]);
 
   // Load historical candles
   useEffect(() => {
@@ -531,30 +548,76 @@ export default function Chart({
       }
     }
 
-    // Fibonacci retracement drawings.
+    // Fibonacci retracement drawings
     if (chartRef.current && seriesRef.current) {
       const chart = chartRef.current;
       const mainSeries = seriesRef.current;
-      for (const fib of fibDrawings) {
+
+      const drawFib = (fib: FibDrawing, preview: boolean, handles: boolean) => {
         const x1 = chart.timeScale().timeToCoordinate(fib.time1 as UTCTimestamp);
         const x2 = chart.timeScale().timeToCoordinate(fib.time2 as UTCTimestamp);
-        if (x1 == null || x2 == null) continue;
+        const y1 = mainSeries.priceToCoordinate(fib.price1);
+        const y2 = mainSeries.priceToCoordinate(fib.price2);
+        if (x1 == null || x2 == null || y1 == null || y2 == null) return;
         const left = Math.min(x1, x2);
         const right = Math.max(x1, x2);
-        for (const level of FIB_LEVELS) {
-          const price = fib.price1 + (fib.price2 - fib.price1) * level.ratio;
-          const y = mainSeries.priceToCoordinate(price);
-          if (y == null) continue;
+
+        const levelYs = FIB_LEVELS.map((level) => ({
+          level,
+          y: mainSeries.priceToCoordinate(fib.price1 + (fib.price2 - fib.price1) * level.ratio),
+        })).filter((l) => l.y != null) as { level: (typeof FIB_LEVELS)[number]; y: number }[];
+
+        // Subtly tinted band between each consecutive pair of levels, in
+        // that band's own level color.
+        for (let i = 0; i < levelYs.length - 1; i++) {
+          const a = levelYs[i];
+          const b = levelYs[i + 1];
+          ctx.fillStyle = hexToRgba(a.level.color, preview ? 0.06 : 0.1);
+          ctx.fillRect(left, Math.min(a.y, b.y), right - left, Math.abs(b.y - a.y));
+        }
+
+        for (const { level, y } of levelYs) {
           ctx.strokeStyle = level.color;
           ctx.lineWidth = 1;
-          ctx.setLineDash([]);
+          ctx.setLineDash(preview ? [4, 3] : []);
           ctx.beginPath();
+          // Level lines only span between the two anchor points
           ctx.moveTo(left, y);
           ctx.lineTo(right, y);
           ctx.stroke();
+          const price = fib.price1 + (fib.price2 - fib.price1) * level.ratio;
           ctx.font = "10px monospace";
           ctx.fillStyle = level.color;
           ctx.fillText(`${(level.ratio * 100).toFixed(1)}% (${price.toFixed(2)})`, left + 4, y - 3);
+        }
+        ctx.setLineDash([]);
+
+        if (handles) {
+          for (const [hx, hy] of [
+            [x1, y1],
+            [x2, y2],
+          ] as const) {
+            ctx.beginPath();
+            ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
+            ctx.fillStyle = "#0b0e14";
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#3b82f6";
+            ctx.stroke();
+          }
+        }
+      };
+
+      fibDrawings.forEach((fib, index) => {
+        const isDragging = draggingFibHandle?.index === index;
+        drawFib(fib, isDragging, true);
+      });
+
+      if (fibPreviewStart && mousePos) {
+        const time2 = chart.timeScale().coordinateToTime(mousePos.x) as number | null;
+        const price2 = mainSeries.coordinateToPrice(mousePos.y);
+        if (time2 != null && price2 != null) {
+          drawFib({ time1: fibPreviewStart.time, price1: fibPreviewStart.price, time2, price2 }, true, false);
         }
       }
     }
@@ -647,7 +710,7 @@ export default function Chart({
         ctx.fill();
       }
     }
-  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, candles]);
+  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current;
@@ -656,6 +719,27 @@ export default function Chart({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     setMousePos({ x, y });
+
+    if (draggingFibHandle) {
+      const chart = chartRef.current;
+      const series = seriesRef.current;
+      if (chart && series) {
+        const time = chart.timeScale().coordinateToTime(x) as number | null;
+        const price = series.coordinateToPrice(y);
+        if (time != null && price != null) {
+          setFibDrawings((prev) =>
+            prev.map((fib, i) =>
+              i !== draggingFibHandle.index
+                ? fib
+                : draggingFibHandle.handle === "start"
+                  ? { ...fib, time1: time, price1: price }
+                  : { ...fib, time2: time, price2: price },
+            ),
+          );
+        }
+      }
+      return;
+    }
 
     const chart = chartRef.current;
     if (chart && candles.length > 0) {
@@ -684,45 +768,82 @@ export default function Chart({
   };
 
   const handleMouseClick = () => {
-    if (drawingState.mode === "line" && mousePos) {
-      if (drawingState.points.length === 0) {
-        setDrawingState({ ...drawingState, points: [mousePos] });
-      } else {
-        setDrawingState({
-          ...drawingState,
-          mode: "crosshair",
-          points: [],
-          completedLines: [...drawingState.completedLines, [drawingState.points[0], mousePos]],
-        });
-      }
-    } else if (drawingState.mode === "fib" && mousePos) {
-      if (drawingState.points.length === 0) {
-        setDrawingState({ ...drawingState, points: [mousePos] });
-      } else {
-        const chart = chartRef.current;
-        const series = seriesRef.current;
-        const p0 = drawingState.points[0];
-        if (chart && series) {
-          const time1 = chart.timeScale().coordinateToTime(p0.x) as number | null;
-          const price1 = series.coordinateToPrice(p0.y);
-          const time2 = chart.timeScale().coordinateToTime(mousePos.x) as number | null;
-          const price2 = series.coordinateToPrice(mousePos.y);
-          if (time1 != null && price1 != null && time2 != null && price2 != null) {
-            setFibDrawings((prev) => [...prev, { time1, price1, time2, price2 }]);
-          }
+    if (drawingState.mode !== "line" || !mousePos) return;
+    if (drawingState.points.length === 0) {
+      setDrawingState({ ...drawingState, points: [mousePos] });
+    } else {
+      setDrawingState({
+        ...drawingState,
+        mode: "crosshair",
+        points: [],
+        completedLines: [...drawingState.completedLines, [drawingState.points[0], mousePos]],
+      });
+    }
+  };
+
+  // Fib retracement is click-and-drag with 2 anchor points
+  const HANDLE_HIT_RADIUS = 8;
+
+  const handleMouseDown = () => {
+    if (!mousePos) return;
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (!chart || !series) return;
+
+    if (drawingState.mode === "crosshair") {
+      for (let i = fibDrawings.length - 1; i >= 0; i--) {
+        const fib = fibDrawings[i];
+        const x1 = chart.timeScale().timeToCoordinate(fib.time1 as UTCTimestamp);
+        const y1 = series.priceToCoordinate(fib.price1);
+        const x2 = chart.timeScale().timeToCoordinate(fib.time2 as UTCTimestamp);
+        const y2 = series.priceToCoordinate(fib.price2);
+        if (x1 != null && y1 != null && Math.hypot(mousePos.x - x1, mousePos.y - y1) <= HANDLE_HIT_RADIUS) {
+          setDraggingFibHandle({ index: i, handle: "start" });
+          return;
         }
-        setDrawingState({ ...drawingState, mode: "crosshair", points: [] });
+        if (x2 != null && y2 != null && Math.hypot(mousePos.x - x2, mousePos.y - y2) <= HANDLE_HIT_RADIUS) {
+          setDraggingFibHandle({ index: i, handle: "end" });
+          return;
+        }
+      }
+      return;
+    }
+
+    if (drawingState.mode !== "fib") return;
+    const time = chart.timeScale().coordinateToTime(mousePos.x) as number | null;
+    const price = series.coordinateToPrice(mousePos.y);
+    if (time == null || price == null) return;
+    setFibPreviewStart({ time, price });
+  };
+
+  const handleMouseUp = () => {
+    if (draggingFibHandle) {
+      setDraggingFibHandle(null);
+      return;
+    }
+    if (drawingState.mode !== "fib" || !fibPreviewStart || !mousePos) return;
+    const chart = chartRef.current;
+    const series = seriesRef.current;
+    if (chart && series) {
+      const time2 = chart.timeScale().coordinateToTime(mousePos.x) as number | null;
+      const price2 = series.coordinateToPrice(mousePos.y);
+      if (time2 != null && price2 != null && time2 !== fibPreviewStart.time) {
+        setFibDrawings((prev) => [...prev, { time1: fibPreviewStart.time, price1: fibPreviewStart.price, time2, price2 }]);
       }
     }
+    setFibPreviewStart(null);
+    setDrawingState((prev) => ({ ...prev, mode: "crosshair", points: [] }));
   };
 
   const setMode = (mode: "crosshair" | "line" | "fib") => {
     setDrawingState({ ...drawingState, points: [], mode });
+    setFibPreviewStart(null);
   };
 
   const clearDrawings = () => {
     setDrawingState({ isDrawing: false, points: [], mode: drawingState.mode, completedLines: [] });
     setFibDrawings([]);
+    setFibPreviewStart(null);
   };
 
 
@@ -815,6 +936,8 @@ export default function Chart({
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={handleMouseClick}
+        onMouseDown={handleMouseDown}
+        onMouseUp={handleMouseUp}
         style={{ cursor: drawingState.mode === "line" || drawingState.mode === "fib" ? "crosshair" : "default" }}
       >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
