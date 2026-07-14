@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { api, DebriefRequest, Trade } from "@/lib/api";
+import { api, DebriefRequest, PnLSummary, Trade } from "@/lib/api";
 
 const WINDOWS = [
   { label: "1D", days: 1 },
@@ -21,6 +21,7 @@ interface JournalEntriesProps {
 export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEntriesProps) {
   const router = useRouter();
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [pnl, setPnl] = useState<PnLSummary | null>(null);
   const [days, setDays] = useState(30);
   const [expanded, setExpanded] = useState<number | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
@@ -36,6 +37,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
         setNotes(Object.fromEntries(t.map((x) => [x.id, x.notes ?? ""])));
       })
       .catch((e) => setError((e as Error).message));
+    api.pnlSummary({ from }).then(setPnl).catch((e) => setError((e as Error).message));
   }, [days, refreshKey]);
 
   const saveNote = (id: number, value: string) => {
@@ -64,6 +66,44 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
           ))}
         </div>
       </div>
+
+      {pnl && (pnl.win_count > 0 || pnl.loss_count > 0 || pnl.breakeven_count > 0) && (
+        <div className="mb-3 flex flex-wrap items-center gap-4 rounded-md border border-border bg-bg/40 px-3 py-2">
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-muted">Realized PnL</div>
+            <div className={`text-sm font-semibold tabular-nums ${pnl.total_pnl >= 0 ? "text-up" : "text-down"}`}>
+              {pnl.total_pnl >= 0 ? "+" : ""}
+              {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-muted">Win Rate</div>
+            <div className="text-sm font-semibold tabular-nums text-white">
+              {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-muted">W / L</div>
+            <div className="text-sm font-semibold tabular-nums text-white">
+              <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
+            </div>
+          </div>
+          {/* Win/loss/breakeven proportion, closed round-trips this window. */}
+          <div className="flex h-2 flex-1 min-w-24 overflow-hidden rounded-full bg-border">
+            {(() => {
+              const total = pnl.win_count + pnl.loss_count + pnl.breakeven_count;
+              if (total === 0) return null;
+              return (
+                <>
+                  <div className="h-full bg-up" style={{ width: `${(pnl.win_count / total) * 100}%` }} />
+                  <div className="h-full bg-muted/40" style={{ width: `${(pnl.breakeven_count / total) * 100}%` }} />
+                  <div className="h-full bg-down" style={{ width: `${(pnl.loss_count / total) * 100}%` }} />
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-xs text-down">{error}</p>}
       {trades.length === 0 && !error ? (
