@@ -28,6 +28,19 @@ function IconFib() {
   );
 }
 
+export function IconStar({ filled }: { filled: boolean }) {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill={filled ? "currentColor" : "none"}>
+      <path
+        d="M8 1.5l1.98 4.26 4.52.55-3.34 3.24.86 4.6L8 11.9l-4.02 2.25.86-4.6-3.34-3.24 4.52-.55L8 1.5z"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function IconDrawingTool() {
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none">

@@ -20,7 +20,7 @@ import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
 import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
-import { DrawingToolId } from "@/components/chart/drawingTools";
+import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
 import { INDICATORS } from "@/components/chart/indicators";
 
 const COMPANY_NAMES: Record<string, string> = {
@@ -185,8 +185,28 @@ export default function Chart({
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [crosshairData, setCrosshairData] = useState<{ time: number | null; price: number | null }>({ time: null, price: null });
   const [activeIndicators, setActiveIndicators] = useState<Set<string>>(new Set());
+  const [pinnedIndicators, setPinnedIndicators] = useState<Set<string>>(new Set());
+  const [pinnedDrawingTools, setPinnedDrawingTools] = useState<Set<DrawingToolId>>(new Set());
   const [redrawTick, setRedrawTick] = useState(0);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
+
+  const togglePinnedIndicator = (id: string) => {
+    setPinnedIndicators((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePinnedDrawingTool = (id: DrawingToolId) => {
+    setPinnedDrawingTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const toggleIndicator = (id: string) => {
     setActiveIndicators((prev) => {
@@ -994,13 +1014,32 @@ export default function Chart({
             value={drawingState.mode === "line" || drawingState.mode === "fib" ? drawingState.mode : "crosshair"}
             onChange={(id: DrawingToolId) => setMode(id)}
             align="right"
+            pinned={pinnedDrawingTools}
+            onTogglePin={togglePinnedDrawingTool}
           />
+          {/* Pinned drawing tools — starred in the dropdown, surfaced here for one-click access. */}
+          {DRAWING_TOOLS.filter((t) => pinnedDrawingTools.has(t.id)).map((t) => (
+            <ToolbarButton key={t.id} label={t.label} active={drawingState.mode === t.id} onClick={() => setMode(t.id)}>
+              <t.icon />
+            </ToolbarButton>
+          ))}
 
           {/* Divider */}
           <div className="h-5 w-px bg-border mx-1" />
 
           {/* Indicators — rendered from the registry, so adding one is just adding an entry there. */}
-          <IndicatorsMenu active={activeIndicators} onToggle={toggleIndicator} />
+          <IndicatorsMenu
+            active={activeIndicators}
+            onToggle={toggleIndicator}
+            pinned={pinnedIndicators}
+            onTogglePin={togglePinnedIndicator}
+          />
+          {/* Pinned indicators — starred in the dropdown, surfaced here for one-click access. */}
+          {INDICATORS.filter((ind) => pinnedIndicators.has(ind.id)).map((ind) => (
+            <ToolbarButton key={ind.id} label={ind.label} active={activeIndicators.has(ind.id)} onClick={() => toggleIndicator(ind.id)}>
+              <ind.icon />
+            </ToolbarButton>
+          ))}
 
           <ToolbarButton label="Clear all drawings" tone="danger" onClick={clearDrawings}>
             <IconDelete />

@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 import { INDICATORS } from "@/components/chart/indicators";
+import { IconStar } from "@/components/chart/drawingTools";
 
 interface IndicatorsMenuProps {
   active: Set<string>;
   onToggle: (id: string) => void;
+  pinned: Set<string>;
+  onTogglePin: (id: string) => void;
 }
 
 function IconIndicators() {
@@ -17,7 +20,7 @@ function IconIndicators() {
   );
 }
 
-export default function IndicatorsMenu({ active, onToggle }: IndicatorsMenuProps) {
+export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }: IndicatorsMenuProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -42,23 +45,39 @@ export default function IndicatorsMenu({ active, onToggle }: IndicatorsMenuProps
           {INDICATORS.map((ind) => {
             const checked = active.has(ind.id);
             return (
-              <button
+              <div
                 key={ind.id}
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => onToggle(ind.id)}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
                   checked ? "bg-accent/20 text-white" : "text-muted hover:bg-accent/10 hover:text-white"
                 }`}
               >
-                <ind.icon />
-                <span className="flex-1 text-left">{ind.label}</span>
-                {checked && (
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => onToggle(ind.id)}
+                  className="flex flex-1 items-center gap-2"
+                >
+                  <ind.icon />
+                  <span className="flex-1 text-left">{ind.label}</span>
+                  {checked && (
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                      <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  title={pinned.has(ind.id) ? "Unpin from toolbar" : "Pin to toolbar"}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePin(ind.id);
+                  }}
+                  className={`shrink-0 transition-colors ${pinned.has(ind.id) ? "text-accent" : "text-muted hover:text-white"}`}
+                >
+                  <IconStar filled={pinned.has(ind.id)} />
+                </button>
+              </div>
             );
           })}
         </div>
