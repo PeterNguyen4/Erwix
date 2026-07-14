@@ -29,8 +29,12 @@ class UserPreference(Base):
 
 class Trade(Base):
     """
-    An auto-logged fill. Written by the execution_logger whenever Alpaca
-    reports a fill.
+    An auto-logged order — intent, lifecycle updates, and fills. Written by
+    the execution_logger: a row is created at submission time (status="new")
+    and updated in place as Alpaca reports further trade-update events
+    (partial_fill, fill, canceled, expired, rejected, replaced, ...). Bracket
+    orders produce one row for the entry leg plus one row per child leg
+    (take_profit / stop_loss), linked via parent_client_order_id.
     """
 
     __tablename__ = "trades"
@@ -39,22 +43,40 @@ class Trade(Base):
     # Alpaca identifiers
     broker_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
     client_order_id: Mapped[str | None] = mapped_column(String(128), index=True)
+    # Set on bracket child legs (take_profit/stop_loss) to link back to the entry order's
+    # client_order_id. Null for simple orders and for the entry leg itself.
+    parent_client_order_id: Mapped[str | None] = mapped_column(String(128), index=True)
 
     # Clerk user_id
     user_id: Mapped[str | None] = mapped_column(String(128), index=True)
 
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(8))  # buy | sell
-    order_type: Mapped[str | None] = mapped_column(String(16))  # market | limit
+    order_type: Mapped[str | None] = mapped_column(String(16))  # market | limit | stop | stop_limit
     qty: Mapped[float] = mapped_column(Float)
-    fill_price: Mapped[float] = mapped_column(Float)
+    fill_price: Mapped[float | None] = mapped_column(Float)
     fees: Mapped[float] = mapped_column(Float, default=0.0)
+
+    # Alpaca order lifecycle status: new | partially_filled | filled | canceled |
+    # expired | rejected | replaced | ...
+    status: Mapped[str] = mapped_column(String(16), default="new", index=True)
+    # simple | bracket | oco | oto
+    order_class: Mapped[str] = mapped_column(String(16), default="simple")
+    # For bracket child rows: which leg this is. Null for simple orders / the entry leg.
+    leg: Mapped[str | None] = mapped_column(String(16))  # take_profit | stop_loss
+
+    # Order-intent prices, captured at submission (not necessarily the fill price)
+    limit_price: Mapped[float | None] = mapped_column(Float)
+    stop_price: Mapped[float | None] = mapped_column(Float)
+    # Denormalized onto the entry row so risk/reward is visible without joining legs
+    take_profit_price: Mapped[float | None] = mapped_column(Float)
+    stop_loss_price: Mapped[float | None] = mapped_column(Float)
 
     # User's reflection on this trade
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    # Entry time
-    filled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    # Fill time (null until the order fills)
+    filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

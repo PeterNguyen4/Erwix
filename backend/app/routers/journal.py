@@ -25,8 +25,16 @@ def list_trades(
     to: datetime | None = None,
     limit: int = Query(500, le=2000),
 ) -> list[Trade]:
-    """Windowed query over auto-logged fills — the analyst's review window."""
-    stmt = select(Trade).where(Trade.user_id == user_id).order_by(Trade.filled_at.desc())
+    """Windowed query over auto-logged fills — the analyst's review window and
+    the journal UI. Orders are now logged from submission (status="new")
+    onward, but this endpoint still only surfaces trades that have filled,
+    matching what the journal UI (and the analyst's RAG window) expect;
+    pending intent/bracket-leg rows live in the same table for future use."""
+    stmt = (
+        select(Trade)
+        .where(Trade.user_id == user_id, Trade.filled_at.isnot(None))
+        .order_by(Trade.filled_at.desc())
+    )
     if symbol:
         stmt = stmt.where(Trade.symbol == symbol.upper())
     if from_:

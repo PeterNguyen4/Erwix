@@ -8,6 +8,7 @@ import { getCached, setCached } from "@/lib/candleCache";
 import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
+import type { BracketLevels } from "@/components/Chart";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -87,6 +88,9 @@ function ChartPage() {
   const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
+  const [bracketPreview, setBracketPreview] = useState<BracketLevels | null>(null);
+  const [takeProfitPrice, setTakeProfitPrice] = useState(0);
+  const [stopLossPrice, setStopLossPrice] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const candleRequestIdRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -287,10 +291,10 @@ function ChartPage() {
         </div>
       </header>
 
-      <div className="grid flex-1 grid-rows-1 grid-cols-[1fr_320px] gap-3 overflow-hidden p-3">
+      <div className="grid flex-1 min-h-0 grid-rows-1 grid-cols-[1fr_320px] gap-3 overflow-hidden p-3">
         {/* Left: chart */}
-        <div className="flex flex-col overflow-hidden">
-          <div className="relative flex-1 rounded-lg border border-border bg-bg overflow-hidden">
+        <div className="flex flex-col min-h-0 overflow-hidden">
+          <div className="relative flex-1 min-h-0 rounded-lg border border-border bg-bg overflow-hidden">
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
             ) : loading || !prefsResolved ? (
@@ -305,7 +309,15 @@ function ChartPage() {
                 </p>
               </div>
             ) : (
-              <Chart candles={candles} liveCandle={liveCandle} symbol={symbol} />
+              <Chart
+                candles={candles}
+                liveCandle={liveCandle}
+                symbol={symbol}
+                bracket={bracketPreview}
+                onBracketDrag={(which, newPrice) =>
+                  which === "tp" ? setTakeProfitPrice(newPrice) : setStopLossPrice(newPrice)
+                }
+              />
             )}
           </div>
         </div>
@@ -318,6 +330,12 @@ function ChartPage() {
             onOrderPlaced={onOrderPlaced}
             buyingPower={account?.buying_power ?? null}
             price={liveQuote?.price ?? candles[candles.length - 1]?.close ?? null}
+            currentTime={liveCandle?.time ?? candles[candles.length - 1]?.time ?? null}
+            onBracketChange={setBracketPreview}
+            takeProfitPrice={takeProfitPrice}
+            onTakeProfitPriceChange={setTakeProfitPrice}
+            stopLossPrice={stopLossPrice}
+            onStopLossPriceChange={setStopLossPrice}
           />
           <PositionsTable positions={positions} />
         </div>

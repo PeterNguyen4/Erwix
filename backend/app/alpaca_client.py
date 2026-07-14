@@ -14,10 +14,12 @@ from alpaca.data.live import StockDataStream
 from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
 from alpaca.trading.requests import (
     LimitOrderRequest,
     MarketOrderRequest,
+    StopLossRequest,
+    TakeProfitRequest,
 )
 from alpaca.trading.stream import TradingStream
 
@@ -25,6 +27,7 @@ from app.config import get_settings
 from app.schemas import (
     Account,
     Candle,
+    OrderLegOut,
     OrderRequest,
     OrderResponse,
     PortfolioHistory,
@@ -170,6 +173,19 @@ def submit_order(order: OrderRequest, user_id: str) -> OrderResponse:
     tif = TimeInForce.DAY if order.time_in_force == "day" else TimeInForce.GTC
     client_order_id = f"{user_id}{_CLIENT_ORDER_ID_SEP}{uuid.uuid4()}"
 
+    extra: dict = {}
+    if order.order_class == "bracket":
+        if order.take_profit_price is None or order.stop_loss_price is None:
+            raise ValueError(
+                "take_profit_price and stop_loss_price are both required for bracket orders"
+            )
+        extra["order_class"] = OrderClass.BRACKET
+        extra["take_profit"] = TakeProfitRequest(limit_price=order.take_profit_price)
+        extra["stop_loss"] = StopLossRequest(
+            stop_price=order.stop_loss_price,
+            limit_price=order.stop_loss_limit_price,
+        )
+
     if order.type == "limit":
         if order.limit_price is None:
             raise ValueError("limit_price is required for limit orders")
@@ -180,6 +196,7 @@ def submit_order(order: OrderRequest, user_id: str) -> OrderResponse:
             time_in_force=tif,
             limit_price=order.limit_price,
             client_order_id=client_order_id,
+            **extra,
         )
     else:
         req = MarketOrderRequest(
@@ -188,16 +205,31 @@ def submit_order(order: OrderRequest, user_id: str) -> OrderResponse:
             side=side,
             time_in_force=tif,
             client_order_id=client_order_id,
+            **extra,
         )
     o = client.submit_order(req)
+    legs = [
+        OrderLegOut(
+            id=str(leg.id),
+            client_order_id=leg.client_order_id,
+            side=leg.side.value if hasattr(leg.side, "value") else str(leg.side),
+            type=leg.order_type.value if hasattr(leg.order_type, "value") else str(leg.order_type),
+            limit_price=float(leg.limit_price) if leg.limit_price is not None else None,
+            stop_price=float(leg.stop_price) if leg.stop_price is not None else None,
+        )
+        for leg in (getattr(o, "legs", None) or [])
+    ]
     return OrderResponse(
         id=str(o.id),
+        client_order_id=o.client_order_id,
         symbol=o.symbol,
         qty=float(o.qty),
         side=o.side.value if hasattr(o.side, "value") else str(o.side),
         type=o.order_type.value if hasattr(o.order_type, "value") else str(o.order_type),
+        order_class=order.order_class,
         status=o.status.value if hasattr(o.status, "value") else str(o.status),
         submitted_at=o.submitted_at,
+        legs=legs,
     )
 
 
