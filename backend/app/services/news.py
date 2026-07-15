@@ -15,6 +15,10 @@ logger = logging.getLogger("entro.news")
 
 _SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search"
 
+# Broad index proxies used to pull market-wide (not single-ticker) headlines —
+# S&P 500, Dow, Nasdaq, and the VIX (volatility/risk-sentiment stories).
+MARKET_PROXY_SYMBOLS = ["^GSPC", "^DJI", "^IXIC", "^VIX"]
+
 
 @dataclass
 class NewsArticle:
@@ -72,3 +76,18 @@ async def fetch_news(symbols: list[str], limit_per_symbol: int = 6) -> list[News
         articles.extend(result)
     articles.sort(key=lambda a: a.published_at, reverse=True)
     return articles
+
+
+async def fetch_market_news(limit: int = 20) -> list[NewsArticle]:
+    """Market-wide headlines, not tied to any one ticker — pulls from the major
+    index proxies and dedupes by URL (the same story often surfaces under more
+    than one index's search results)."""
+    articles = await fetch_news(MARKET_PROXY_SYMBOLS, limit_per_symbol=limit)
+    seen: set[str] = set()
+    deduped: list[NewsArticle] = []
+    for a in articles:
+        if a.url in seen:
+            continue
+        seen.add(a.url)
+        deduped.append(a)
+    return deduped[:limit]

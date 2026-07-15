@@ -216,12 +216,11 @@ class NewsArticleOut(BaseModel):
     published_at: datetime
 
 
-class NewsInsightOut(BaseModel):
-    symbol: str
+class MarketInsightOut(BaseModel):
     sentiment: Literal["bullish", "bearish", "neutral"]
     advice: str
     rationale: list[str]
-    articles: list[NewsArticleOut]
+    highlighted_urls: list[str]
 
 
 # ---- Strategy tab ----

@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { api, NewsArticle, NewsInsight } from "@/lib/api";
+import { api, MarketInsight, NewsArticle } from "@/lib/api";
 
-const SENTIMENT_STYLE: Record<NewsInsight["sentiment"], string> = {
+const SENTIMENT_STYLE: Record<MarketInsight["sentiment"], string> = {
   bullish: "bg-up/20 text-up",
   bearish: "bg-down/20 text-down",
   neutral: "bg-muted/20 text-muted",
@@ -16,158 +16,131 @@ function timeAgo(iso: string): string {
   return `${Math.round(seconds / 86400)}d ago`;
 }
 
-type InsightState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; insight: NewsInsight };
-
 export default function NewsPage() {
-  const [symbolInput, setSymbolInput] = useState("AAPL, MSFT, NVDA");
-  const [symbols, setSymbols] = useState<string[]>([]);
-  const [articlesBySymbol, setArticlesBySymbol] = useState<Record<string, NewsArticle[]>>({});
-  const [insights, setInsights] = useState<Record<string, InsightState>>({});
-  const [loadingArticles, setLoadingArticles] = useState(false);
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [loadingArticles, setLoadingArticles] = useState(true);
+  const [insight, setInsight] = useState<MarketInsight | null>(null);
+  const [insightError, setInsightError] = useState<string | null>(null);
+  const [insightLoading, setInsightLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadNews = () => {
-    const parsed = symbolInput
-      .split(",")
-      .map((s) => s.trim().toUpperCase())
-      .filter(Boolean);
-    if (parsed.length === 0) return;
-
-    setSymbols(parsed);
-    setArticlesBySymbol({});
-    setInsights({});
-    setError(null);
     setLoadingArticles(true);
+    setInsightLoading(true);
+    setError(null);
+    setInsightError(null);
+    setInsight(null);
 
-    // Show the raw headlines the moment they're scraped — don't make the
-    // trader wait on the agent's LLM call (one per symbol) before seeing
-    // anything. Advice fills in per-card afterward, independently.
+    // Raw headlines render the moment they're scraped — the agent's read
+    // (one LLM call over the whole pool) fills in separately afterward,
+    // instead of gating the page on it.
     api
-      .newsArticles(parsed)
-      .then((articles) => {
-        const grouped: Record<string, NewsArticle[]> = {};
-        for (const symbol of parsed) grouped[symbol] = articles.filter((a) => a.symbol === symbol);
-        setArticlesBySymbol(grouped);
-      })
+      .marketArticles()
+      .then(setArticles)
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoadingArticles(false));
 
-    for (const symbol of parsed) {
-      setInsights((prev) => ({ ...prev, [symbol]: { status: "loading" } }));
-      api
-        .newsInsight(symbol)
-        .then((insight) => setInsights((prev) => ({ ...prev, [symbol]: { status: "ready", insight } })))
-        .catch((e) =>
-          setInsights((prev) => ({ ...prev, [symbol]: { status: "error", message: (e as Error).message } })),
-        );
-    }
+    api
+      .marketInsight()
+      .then(setInsight)
+      .catch((e) => setInsightError((e as Error).message))
+      .finally(() => setInsightLoading(false));
   };
 
   useEffect(() => {
     loadNews();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const highlighted = new Set(insight?.highlighted_urls ?? []);
 
   return (
     <main className="flex h-full flex-col">
-      <header className="border-b border-border bg-panel px-4 py-3 shrink-0">
-        <div className="text-xl font-semibold text-white">News</div>
-        <div className="text-xs text-muted">
-          Recent headlines per symbol, with uWick's read against your Strategy tab archetype
+      <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 shrink-0">
+        <div>
+          <div className="text-xl font-semibold text-white">News</div>
+          <div className="text-xs text-muted">
+            The most compelling market-wide stories right now, with uWick's read against your Strategy tab archetype
+          </div>
         </div>
+        <button
+          onClick={loadNews}
+          disabled={loadingArticles}
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
+        >
+          {loadingArticles ? "Scanning…" : "Refresh"}
+        </button>
       </header>
 
       <div className="flex-1 overflow-auto p-4">
-        <div className="mx-auto flex max-w-4xl flex-col gap-4">
-          <div className="flex gap-2">
-            <input
-              value={symbolInput}
-              onChange={(e) => setSymbolInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && loadNews()}
-              placeholder="AAPL, MSFT, NVDA"
-              className="flex-1 rounded-md border border-border bg-panel px-3 py-2 text-sm text-white placeholder:text-muted focus:border-accent focus:outline-none"
-            />
-            <button
-              onClick={loadNews}
-              disabled={loadingArticles}
-              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
-            >
-              {loadingArticles ? "Scanning…" : "Scan"}
-            </button>
-          </div>
-
+        <div className="mx-auto flex max-w-3xl flex-col gap-4">
           {error && (
             <div className="rounded-lg border border-down/40 bg-down/10 px-4 py-2 text-sm text-down">{error}</div>
           )}
 
-          {!loadingArticles && !error && symbols.length === 0 && (
-            <p className="py-12 text-center text-sm text-muted">
-              Enter one or more symbols above and hit Scan for a news read.
-            </p>
-          )}
-
-          {symbols.map((symbol) => {
-            const articles = articlesBySymbol[symbol] ?? [];
-            const insightState = insights[symbol];
-            return (
-              <div key={symbol} className="rounded-lg border border-border bg-panel p-4">
-                <div className="mb-2 flex items-center gap-2">
-                  <span className="text-base font-bold text-white">{symbol}</span>
-                  {insightState?.status === "ready" && (
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insightState.insight.sentiment]}`}>
-                      {insightState.insight.sentiment}
-                    </span>
-                  )}
-                </div>
-
-                {/* Raw headlines render as soon as they're scraped, independent of the agent. */}
-                {loadingArticles ? (
-                  <p className="mb-3 text-xs text-muted">Fetching headlines…</p>
-                ) : articles.length === 0 ? (
-                  <p className="mb-3 text-xs text-muted">No recent headlines found.</p>
-                ) : (
-                  <ul className="mb-3 flex flex-col gap-1">
-                    {articles.map((a) => (
-                      <li key={a.url} className="flex items-baseline gap-2 text-xs">
-                        <a
-                          href={a.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="truncate text-white hover:text-accent hover:underline"
-                        >
-                          {a.title}
-                        </a>
-                        <span className="shrink-0 text-muted">
-                          {a.publisher} · {timeAgo(a.published_at)}
-                        </span>
-                      </li>
+          {/* uWick's overall market read */}
+          <div className="rounded-lg border border-border bg-panel p-4">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-sm font-semibold text-white">uWick's Take</span>
+              {insight && (
+                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
+                  {insight.sentiment}
+                </span>
+              )}
+            </div>
+            {insightLoading ? (
+              <p className="text-xs text-muted">Reading the market…</p>
+            ) : insightError ? (
+              <p className="text-xs text-down">{insightError}</p>
+            ) : insight ? (
+              <>
+                <p className="mb-2 text-sm text-white">{insight.advice}</p>
+                {insight.rationale.length > 0 && (
+                  <ul className="list-disc pl-5 text-xs text-muted">
+                    {insight.rationale.map((r, i) => (
+                      <li key={i}>{r}</li>
                     ))}
                   </ul>
                 )}
+              </>
+            ) : null}
+          </div>
 
-                {/* uWick's take fills in independently per symbol once its LLM call resolves. */}
-                <div className="border-t border-border pt-2">
-                  <div className="mb-1 text-[10px] uppercase tracking-wide text-muted">uWick's Take</div>
-                  {!insightState || insightState.status === "loading" ? (
-                    <p className="text-xs text-muted">Reading the headlines…</p>
-                  ) : insightState.status === "error" ? (
-                    <p className="text-xs text-down">{insightState.message}</p>
-                  ) : (
-                    <>
-                      <p className="mb-2 text-sm text-white">{insightState.insight.advice}</p>
-                      {insightState.insight.rationale.length > 0 && (
-                        <ul className="list-disc pl-5 text-xs text-muted">
-                          {insightState.insight.rationale.map((r, i) => (
-                            <li key={i}>{r}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {/* Raw headline pool — the ones uWick called out above are highlighted. */}
+          <div className="rounded-lg border border-border bg-panel p-4">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Headlines</div>
+            {loadingArticles ? (
+              <p className="text-xs text-muted">Fetching headlines…</p>
+            ) : articles.length === 0 ? (
+              <p className="text-xs text-muted">No recent headlines found.</p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {articles.map((a) => {
+                  const isHighlighted = highlighted.has(a.url);
+                  return (
+                    <li
+                      key={a.url}
+                      className={`flex items-baseline gap-2 rounded px-2 py-1 text-sm ${
+                        isHighlighted ? "bg-accent/10" : ""
+                      }`}
+                    >
+                      {isHighlighted && <span className="shrink-0 text-accent" title="Called out by uWick">★</span>}
+                      <a
+                        href={a.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-white hover:text-accent hover:underline"
+                      >
+                        {a.title}
+                      </a>
+                      <span className="shrink-0 text-xs text-muted">
+                        {a.publisher} · {timeAgo(a.published_at)}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </main>

@@ -78,12 +78,11 @@ export interface NewsArticle {
   published_at: string;
 }
 
-export interface NewsInsight {
-  symbol: string;
+export interface MarketInsight {
   sentiment: "bullish" | "bearish" | "neutral";
   advice: string;
   rationale: string[];
-  articles: NewsArticle[];
+  highlighted_urls: string[];
 }
 
 export interface OrderRequest {
@@ -311,10 +310,8 @@ export const api = {
     postJSON<Trade>(`/api/journal/trades/${id}/notes`, { notes }, "PATCH"),
   searchSymbols: (q: string) =>
     getJSON<SymbolResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
-  newsArticles: (symbols: string[]) =>
-    getJSON<NewsArticle[]>(`/api/news/articles?symbols=${encodeURIComponent(symbols.join(","))}`),
-  newsInsight: (symbol: string) =>
-    getJSON<NewsInsight>(`/api/news/insight?symbol=${encodeURIComponent(symbol)}`),
+  marketArticles: () => getJSON<NewsArticle[]>("/api/news/market-articles"),
+  marketInsight: () => getJSON<MarketInsight>("/api/news/market-insight"),
   reviewTrades: (req: AgentReviewRequest) =>
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
