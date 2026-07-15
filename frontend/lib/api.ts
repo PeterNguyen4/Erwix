@@ -311,8 +311,10 @@ export const api = {
     postJSON<Trade>(`/api/journal/trades/${id}/notes`, { notes }, "PATCH"),
   searchSymbols: (q: string) =>
     getJSON<SymbolResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
-  newsInsights: (symbols: string[]) =>
-    getJSON<NewsInsight[]>(`/api/news/insights?symbols=${encodeURIComponent(symbols.join(","))}`),
+  newsArticles: (symbols: string[]) =>
+    getJSON<NewsArticle[]>(`/api/news/articles?symbols=${encodeURIComponent(symbols.join(","))}`),
+  newsInsight: (symbol: string) =>
+    getJSON<NewsInsight>(`/api/news/insight?symbol=${encodeURIComponent(symbol)}`),
   reviewTrades: (req: AgentReviewRequest) =>
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
