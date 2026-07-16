@@ -117,6 +117,35 @@ class TradeNoteUpdate(BaseModel):
     notes: str
 
 
+class ClosedTradeOut(BaseModel):
+    """One realized round-trip (FIFO-matched entry/exit), not a raw fill row."""
+
+    symbol: str
+    qty: float
+    entry_price: float
+    exit_price: float
+    pnl: float
+    opened_at: datetime
+    closed_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PnLSummaryOut(BaseModel):
+    total_pnl: float
+    win_count: int
+    loss_count: int
+    breakeven_count: int
+    win_rate: float | None  # None when there are no closed round-trips yet
+    avg_win: float | None
+    avg_loss: float | None
+    largest_win: float | None
+    largest_loss: float | None
+    closed_trades: list[ClosedTradeOut]
+
+    model_config = {"from_attributes": True}
+
+
 # ---- Analyst Agent ----
 class ChartAnnotation(BaseModel):
     type: Literal["arrow", "circle", "marker", "line"]
@@ -205,6 +234,22 @@ class UserPreferenceUpdate(BaseModel):
     debrief_enabled: bool | None = None
     debrief_day_of_week: int | None = None
     debrief_time: time | None = None
+
+
+# ---- News agent ----
+class NewsArticleOut(BaseModel):
+    symbol: str
+    title: str
+    publisher: str
+    url: str
+    published_at: datetime
+
+
+class MarketInsightOut(BaseModel):
+    sentiment: Literal["bullish", "bearish", "neutral"]
+    advice: str
+    rationale: list[str]
+    highlighted_urls: list[str]
 
 
 # ---- Strategy tab ----
