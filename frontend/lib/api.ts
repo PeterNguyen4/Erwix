@@ -70,6 +70,21 @@ export interface Trade {
   notes: string | null;
 }
 
+export interface NewsArticle {
+  symbol: string;
+  title: string;
+  publisher: string;
+  url: string;
+  published_at: string;
+}
+
+export interface MarketInsight {
+  sentiment: "bullish" | "bearish" | "neutral";
+  advice: string;
+  rationale: string[];
+  highlighted_urls: string[];
+}
+
 export interface ClosedTrade {
   symbol: string;
   qty: number;
@@ -316,14 +331,16 @@ export const api = {
   },
   saveTradeNote: (id: number, notes: string) =>
     postJSON<Trade>(`/api/journal/trades/${id}/notes`, { notes }, "PATCH"),
+  searchSymbols: (q: string) =>
+    getJSON<SymbolResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
+  marketArticles: () => getJSON<NewsArticle[]>("/api/news/market-articles"),
+  marketInsight: () => getJSON<MarketInsight>("/api/news/market-insight"),
   pnlSummary: (params: { from?: string; to?: string } = {}) => {
     const q = new URLSearchParams();
     if (params.from) q.set("from", params.from);
     if (params.to) q.set("to", params.to);
     return getJSON<PnLSummary>(`/api/journal/pnl-summary?${q.toString()}`);
   },
-  searchSymbols: (q: string) =>
-    getJSON<SymbolResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
   reviewTrades: (req: AgentReviewRequest) =>
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),

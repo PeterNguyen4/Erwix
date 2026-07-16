@@ -236,6 +236,22 @@ class UserPreferenceUpdate(BaseModel):
     debrief_time: time | None = None
 
 
+# ---- News agent ----
+class NewsArticleOut(BaseModel):
+    symbol: str
+    title: str
+    publisher: str
+    url: str
+    published_at: datetime
+
+
+class MarketInsightOut(BaseModel):
+    sentiment: Literal["bullish", "bearish", "neutral"]
+    advice: str
+    rationale: list[str]
+    highlighted_urls: list[str]
+
+
 # ---- Strategy tab ----
 class StrategyQuestionOut(BaseModel):
     id: str
