@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import Trade
-from app.schemas import TradeNoteUpdate, TradeOut
-from app.services.trade_retrieval import embed_trade
+from app.schemas import PnLSummaryOut, TradeNoteUpdate, TradeOut
+from app.services.trade_retrieval import compute_pnl_summary, embed_trade
 
 logger = logging.getLogger("entro.journal")
 
@@ -43,6 +43,18 @@ def list_trades(
         stmt = stmt.where(Trade.filled_at <= to)
     stmt = stmt.limit(limit)
     return list(db.scalars(stmt).all())
+
+
+@router.get("/pnl-summary", response_model=PnLSummaryOut)
+def pnl_summary(
+    db: Session = Depends(get_db),
+    user_id: str = Depends(require_auth),
+    from_: datetime | None = Query(None, alias="from"),
+    to: datetime | None = None,
+) -> PnLSummaryOut:
+    """Realized PnL + win/loss stats for round-trips closed in [from, to]."""
+    summary = compute_pnl_summary(db, user_id, from_, to)
+    return PnLSummaryOut.model_validate(summary)
 
 
 @router.get("/trades/{trade_id}", response_model=TradeOut)

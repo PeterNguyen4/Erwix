@@ -85,6 +85,29 @@ export interface MarketInsight {
   highlighted_urls: string[];
 }
 
+export interface ClosedTrade {
+  symbol: string;
+  qty: number;
+  entry_price: number;
+  exit_price: number;
+  pnl: number;
+  opened_at: string;
+  closed_at: string;
+}
+
+export interface PnLSummary {
+  total_pnl: number;
+  win_count: number;
+  loss_count: number;
+  breakeven_count: number;
+  win_rate: number | null;
+  avg_win: number | null;
+  avg_loss: number | null;
+  largest_win: number | null;
+  largest_loss: number | null;
+  closed_trades: ClosedTrade[];
+}
+
 export interface OrderRequest {
   symbol: string;
   qty: number;
@@ -312,6 +335,12 @@ export const api = {
     getJSON<SymbolResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
   marketArticles: () => getJSON<NewsArticle[]>("/api/news/market-articles"),
   marketInsight: () => getJSON<MarketInsight>("/api/news/market-insight"),
+  pnlSummary: (params: { from?: string; to?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.from) q.set("from", params.from);
+    if (params.to) q.set("to", params.to);
+    return getJSON<PnLSummary>(`/api/journal/pnl-summary?${q.toString()}`);
+  },
   reviewTrades: (req: AgentReviewRequest) =>
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
