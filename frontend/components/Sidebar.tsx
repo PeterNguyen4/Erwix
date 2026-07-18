@@ -44,7 +44,7 @@ export default function Sidebar() {
             className={`relative flex flex-col items-center gap-1 w-full py-2 px-1 transition-colors ${
               active
                 ? "text-accent bg-accent/20"
-                : "text-muted hover:text-white hover:bg-accent/10"
+                : "text-muted hover:text-fg hover:bg-accent/10"
             }`}
           >
             <span className="relative">

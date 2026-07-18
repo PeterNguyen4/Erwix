@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { DoorOpen, Pencil, Shield, Target, TriangleAlert, Timer, Crosshair, Scale, LogIn } from "lucide-react";
+import { Pencil, Shield, TriangleAlert, Timer, Crosshair, LogIn } from "lucide-react";
 import { api, StrategyNote } from "@/lib/api";
 
 // Mirrors backend/app/services/strategy.py's SECTION_LABELS + StrategyPlaybook fields.

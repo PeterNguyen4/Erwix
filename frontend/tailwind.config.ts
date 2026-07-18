@@ -5,16 +5,18 @@ const config: Config = {
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
   ],
+  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
-        bg: "#0b0e14",
-        panel: "#121722",
-        border: "#1e2633",
-        muted: "#7d8799",
-        accent: "#3b82f6",
-        up: "#26a69a",
-        down: "#ef5350",
+        bg: "rgb(var(--color-bg) / <alpha-value>)",
+        panel: "rgb(var(--color-panel) / <alpha-value>)",
+        border: "rgb(var(--color-border) / <alpha-value>)",
+        muted: "rgb(var(--color-muted) / <alpha-value>)",
+        fg: "rgb(var(--color-fg) / <alpha-value>)",
+        accent: "rgb(var(--color-accent) / <alpha-value>)",
+        up: "rgb(var(--color-up) / <alpha-value>)",
+        down: "rgb(var(--color-down) / <alpha-value>)",
       },
       keyframes: {
         "fade-in-up": {
