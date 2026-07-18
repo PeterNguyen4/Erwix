@@ -14,6 +14,7 @@ export default function ArchetypeGrid({ archetypes, selected, onSelect }: Props)
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
       {archetypes.map((a) => {
         const presentation = presentationFor(a.id);
+        const Icon = presentation.icon;
         const isSelected = selected === a.id;
         return (
           <button
@@ -27,10 +28,10 @@ export default function ArchetypeGrid({ archetypes, selected, onSelect }: Props)
             }`}
           >
             <span
-              className="flex h-14 w-14 items-center justify-center rounded-full text-2xl transition-transform group-hover:scale-110"
+              className="flex h-14 w-14 items-center justify-center rounded-full transition-transform group-hover:scale-110"
               style={{ backgroundColor: `${presentation.color}22` }}
             >
-              {presentation.glyph}
+              <Icon size={24} strokeWidth={2} color={presentation.color} />
             </span>
             <span className="text-sm font-semibold text-white">{a.name}</span>
             <span className="text-xs text-muted leading-snug">{a.tagline}</span>
