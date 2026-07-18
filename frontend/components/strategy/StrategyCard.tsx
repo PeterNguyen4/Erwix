@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { DoorOpen, Pencil, Shield, Target, TriangleAlert, Timer, Crosshair, Scale, LogIn } from "lucide-react";
 import { api, StrategyNote } from "@/lib/api";
 
 // Mirrors backend/app/services/strategy.py's SECTION_LABELS + StrategyPlaybook fields.
 const SECTIONS = [
-  { key: "goal", label: "Goal", icon: "🎯" },
-  { key: "entry_rules", label: "Entry Rules", icon: "🚪" },
-  { key: "risk_rules", label: "Risk Rules", icon: "🛡️" },
-  { key: "timeframe", label: "Timeframe", icon: "⏱️" },
-  { key: "avoid", label: "Avoid", icon: "⚠️" },
+  { key: "goal", label: "Goal", icon: Crosshair },
+  { key: "entry_rules", label: "Entry Rules", icon: LogIn },
+  { key: "risk_rules", label: "Risk Rules", icon: Shield },
+  { key: "timeframe", label: "Timeframe", icon: Timer },
+  { key: "avoid", label: "Avoid", icon: TriangleAlert },
 ] as const;
 
 type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -103,7 +104,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
                 title="Edit playbook"
                 className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-white"
               >
-                ✏️
+                <Pencil size={12} strokeWidth={2} />
               </button>
             )}
             {onRegenerate && (
@@ -124,7 +125,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
           {SECTIONS.map((s) => (
             <div key={s.key}>
               <label className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-white">
-                <span>{s.icon}</span>
+                <s.icon size={13} strokeWidth={2} />
                 {s.label}
               </label>
               <textarea
@@ -158,7 +159,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
           {SECTIONS.filter((s) => (sections[s.key] ?? []).length > 0).map((s) => (
             <div key={s.key} className="p-3">
               <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white">
-                <span>{s.icon}</span>
+                <s.icon size={13} strokeWidth={2} />
                 {s.label}
               </div>
               <ul className="space-y-1 text-xs text-muted">

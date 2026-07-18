@@ -1,4 +1,4 @@
-import { Star, Pencil } from "lucide-react";
+import { Star, Brush } from "lucide-react";
 
 // Drawing-tool registry (trend line / Fibonacci retracement)
 export type DrawingToolId = "line" | "fib";
@@ -35,7 +35,7 @@ export function IconStar({ filled }: { filled: boolean }) {
 }
 
 export function IconDrawingTool() {
-  return <Pencil size={16} strokeWidth={2} />;
+  return <Brush size={16} strokeWidth={2} />;
 }
 
 export const DRAWING_TOOLS: DrawingToolDef[] = [
