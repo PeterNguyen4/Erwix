@@ -91,10 +91,7 @@ class Trade(Base):
 
 class DebriefReport(Base):
     """
-    A background-generated, navigable analyst debrief for a trade window.
-    Populated incrementally (one step per trade) by app.services.debrief_jobs
-    so a partially-run report is still readable and an ETA can be computed
-    from current_step/total_steps.
+    A background analyst debrief broken into steps..
     """
 
     __tablename__ = "debrief_reports"
@@ -125,7 +122,7 @@ class DebriefReport(Base):
 
 
 class DebriefMessage(Base):
-    """A persisted follow-up chat turn tied to a completed DebriefReport."""
+    """A persisted follow-up chat turn tied to a completed DebriefReport"""
 
     __tablename__ = "debrief_messages"
 
@@ -140,12 +137,7 @@ class DebriefMessage(Base):
 
 class StrategyNote(Base):
     """
-    The user's stated strategy / rules: a chosen archetype plus either a
-    free-form description (archetype="freeform" or None) or answers to that
-    archetype's tailored follow-up questions (see app.services.strategy.QUESTIONS),
-    distilled by the strategist agent (agent_graph.asummarize_strategy) into
-    structured_summary. The Analyst agent (agent_graph._retrieve) reads
-    structured_summary as context when reviewing trades. One row per user.
+    The user's stated strategy / rules based on archetype
     """
 
     __tablename__ = "strategy_notes"
@@ -170,4 +162,45 @@ class StrategyNote(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BacktestConfig(Base):
+    """A saved backtest rule config"""
+
+    __tablename__ = "backtest_configs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), index=True)
+
+    name: Mapped[str] = mapped_column(String(128))
+    symbol: Mapped[str] = mapped_column(String(16))
+    timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
+    config: Mapped[dict] = mapped_column(JSON)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BacktestRun(Base):
+    """A single execution of a BacktestConfig over a historical window"""
+
+    __tablename__ = "backtest_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), index=True)
+    config_id: Mapped[int] = mapped_column(ForeignKey("backtest_configs.id"), index=True)
+
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|running|ready|error
+    start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    result: Mapped[dict | None] = mapped_column(JSON)
+    error_detail: Mapped[str | None] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )

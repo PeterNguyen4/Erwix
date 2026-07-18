@@ -44,6 +44,15 @@ function IconStrategy() {
   );
 }
 
+function IconBacktest() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+      <path d="M3 16V11M8 16V6M13 16V9M18 16V3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M2 16h16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function IconNews() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
@@ -70,6 +79,7 @@ const NAV_ITEMS = [
   { label: "Journal",   href: "/journal",   Icon: IconJournal },
   { label: "News",      href: "/news",      Icon: IconNews },
   { label: "Strategy",  href: "/strategy",  Icon: IconStrategy },
+  { label: "Backtesting", href: "/backtesting", Icon: IconBacktest },
   { label: "Settings",  href: "/settings",  Icon: IconSettings },
 ];
 

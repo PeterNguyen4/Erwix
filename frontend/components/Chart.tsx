@@ -55,6 +55,8 @@ interface ChartProps {
   bracket?: BracketLevels | null;
   /** Fires while the user drags the TP or SL line, with the new price at the cursor. */
   onBracketDrag?: (which: "tp" | "sl", price: number) => void;
+  /** Backtest replay: when set, only candles up to this index are shown/computed against. */
+  cursorIndex?: number | null;
 }
 
 interface HoveredCandle {
@@ -152,14 +154,19 @@ function IconDelete() {
 }
 
 export default function Chart({
-  candles,
+  candles: allCandles,
   liveCandle,
   annotations = [],
   symbol = "",
   visibleRange = null,
   bracket = null,
   onBracketDrag,
+  cursorIndex = null,
 }: ChartProps) {
+  const candles = useMemo(
+    () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
+    [allCandles, cursorIndex],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
