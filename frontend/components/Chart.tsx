@@ -16,6 +16,8 @@ import {
 } from "lightweight-charts";
 import { MousePointer2, Trash2 } from "lucide-react";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
+import { useTheme } from "@/components/ThemeProvider";
+import { CHART_PALETTES } from "@/lib/chartTheme";
 import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
@@ -160,6 +162,8 @@ export default function Chart({
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
     [allCandles, cursorIndex],
   );
+  const { theme } = useTheme();
+  const palette = CHART_PALETTES[theme];
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -246,22 +250,22 @@ export default function Chart({
     if (!containerRef.current) return;
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#0b0e14" },
-        textColor: "#7d8799",
+        background: { type: ColorType.Solid, color: palette.bg },
+        textColor: palette.muted,
       },
       grid: {
-        vertLines: { color: "#1e2633" },
-        horzLines: { color: "#1e2633" },
+        vertLines: { color: palette.border },
+        horzLines: { color: palette.border },
       },
       crosshair: {
         vertLine: { visible: false },
         horzLine: { visible: false },
       },
-      timeScale: { borderColor: "#1e2633", timeVisible: true },
+      timeScale: { borderColor: palette.border, timeVisible: true },
       // Fixed so the main pane and the oscillator sub-pane (which can show
       // very different label widths — RSI's "0"-"100" vs MACD's decimals)
       // always reserve the same axis width and stay pixel-aligned.
-      rightPriceScale: { borderColor: "#1e2633", minimumWidth: 68 },
+      rightPriceScale: { borderColor: palette.border, minimumWidth: 68 },
       autoSize: true,
     });
     const series = CHART_TYPES[0].createSeries(chart);
@@ -285,9 +289,23 @@ export default function Chart({
     };
   }, []);
 
-  // Swap the main series when the user picks a different chart type
-  // (candles/hollow/Heikin-Ashi/bars/line/area) — remove the old series and
-  // create the new one via the registry in components/chart/chartTypes.tsx.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    chart.applyOptions({
+      layout: {
+        background: { type: ColorType.Solid, color: palette.bg },
+        textColor: palette.muted,
+      },
+      grid: {
+        vertLines: { color: palette.border },
+        horzLines: { color: palette.border },
+      },
+      timeScale: { borderColor: palette.border },
+      rightPriceScale: { borderColor: palette.border },
+    });
+  }, [palette, chartReady]);
+
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
@@ -295,7 +313,6 @@ export default function Chart({
     const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
     seriesRef.current = def.createSeries(chart);
     seriesRef.current.setData(def.toData(candles) as never[]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartTypeId, chartReady]);
 
   // Lock chart while setting line or fibonacci retracement
@@ -476,7 +493,7 @@ export default function Chart({
     bracketLinesRef.current.push(
       series.createPriceLine({
         price: bracket.entryPrice,
-        color: "#e2e8f0",
+        color: palette.fg,
         lineWidth: 2,
         lineStyle: 0, // solid
         lineVisible: false,
@@ -510,7 +527,7 @@ export default function Chart({
         }),
       );
     }
-  }, [bracket, chartReady]);
+  }, [bracket, chartReady, palette]);
 
   // Sync canvas buffer size with container.
   useEffect(() => {
@@ -576,7 +593,7 @@ export default function Chart({
           ctx.stroke();
           ctx.setLineDash([]);
         };
-        drawLevelLine(entryY, "#e2e8f0", false);
+        drawLevelLine(entryY, palette.fg, false);
         if (bracket.takeProfitPrice != null) drawLevelLine(series.priceToCoordinate(bracket.takeProfitPrice), "#38bdf8", true);
         if (bracket.stopLossPrice != null) drawLevelLine(series.priceToCoordinate(bracket.stopLossPrice), "#f87171", true);
       }
@@ -675,7 +692,7 @@ export default function Chart({
           ] as const) {
             ctx.beginPath();
             ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
-            ctx.fillStyle = "#0b0e14";
+            ctx.fillStyle = palette.bg;
             ctx.fill();
             ctx.lineWidth = 2;
             ctx.strokeStyle = "#3b82f6";
@@ -699,7 +716,7 @@ export default function Chart({
     }
 
     if (mousePos) {
-      ctx.strokeStyle = "#7d8799";
+      ctx.strokeStyle = palette.muted;
       ctx.lineWidth = 1;
       ctx.setLineDash([5, 5]);
       ctx.beginPath();
@@ -786,7 +803,7 @@ export default function Chart({
         ctx.fill();
       }
     }
-  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles, draggingBracketHandle]);
+  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles, draggingBracketHandle, palette]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current;

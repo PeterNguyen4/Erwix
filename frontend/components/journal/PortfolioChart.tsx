@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { PortfolioPoint } from "@/lib/api";
+import { useTheme } from "@/components/ThemeProvider";
+import { CHART_PALETTES } from "@/lib/chartTheme";
 
 const PERIODS = ["1D", "1W", "1M", "3M", "1A", "all"] as const;
 export type Period = (typeof PERIODS)[number];
@@ -25,6 +27,8 @@ export default function PortfolioChart({
   loading,
 }: PortfolioChartProps) {
   const [hover, setHover] = useState<number | null>(null);
+  const { theme } = useTheme();
+  const palette = CHART_PALETTES[theme];
 
   const geom = useMemo(() => {
     if (points.length < 2) return null;
@@ -50,7 +54,7 @@ export default function PortfolioChart({
   const change = active ? active.equity - start : 0;
   const changePct = start ? (change / start) * 100 : 0;
   const up = change >= 0;
-  const stroke = up ? "#26a69a" : "#ef5350";
+  const stroke = up ? palette.up : palette.down;
 
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
@@ -117,7 +121,7 @@ export default function PortfolioChart({
                 y1={geom.baseY}
                 x2={geom.W}
                 y2={geom.baseY}
-                stroke="#7d8799"
+                stroke={palette.muted}
                 strokeWidth="1"
                 strokeDasharray="4 4"
                 vectorEffect="non-scaling-stroke"
@@ -132,7 +136,7 @@ export default function PortfolioChart({
                 y1="0"
                 x2={geom.x(hover)}
                 y2={geom.H}
-                stroke="#7d8799"
+                stroke={palette.muted}
                 strokeWidth="1"
                 vectorEffect="non-scaling-stroke"
                 opacity="0.6"
