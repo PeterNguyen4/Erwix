@@ -26,7 +26,7 @@ export default function ChartTypeMenu({ value, onChange, align = "left", pinned,
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="flex h-7 items-center gap-1 rounded px-1.5 text-muted transition-colors hover:bg-accent/20 hover:text-white"
+        className="flex h-7 items-center gap-1 rounded px-1.5 text-muted transition-colors hover:bg-accent/20 hover:text-fg"
       >
         <current.icon />
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
@@ -42,7 +42,7 @@ export default function ChartTypeMenu({ value, onChange, align = "left", pinned,
             <div
               key={t.id}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-                t.id === value ? "bg-accent/20 text-white" : "text-muted hover:bg-accent/10 hover:text-white"
+                t.id === value ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
               }`}
             >
               <button
@@ -65,7 +65,7 @@ export default function ChartTypeMenu({ value, onChange, align = "left", pinned,
                   e.stopPropagation();
                   onTogglePin(t.id);
                 }}
-                className={`shrink-0 transition-colors ${pinned.has(t.id) ? "text-accent" : "text-muted hover:text-white"}`}
+                className={`shrink-0 transition-colors ${pinned.has(t.id) ? "text-accent" : "text-muted hover:text-fg"}`}
               >
                 <IconStar filled={pinned.has(t.id)} />
               </button>

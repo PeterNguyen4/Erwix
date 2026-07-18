@@ -25,7 +25,7 @@ export default function StrategySidebar({ archetype, note, onNoteUpdated }: Prop
             >
               <Icon size={24} strokeWidth={2} color={presentation.color} />
             </span>
-            <div className="text-sm font-semibold text-white">{archetype.name}</div>
+            <div className="text-sm font-semibold text-fg">{archetype.name}</div>
             <div className="text-xs text-muted">{archetype.tagline}</div>
           </div>
         ) : (

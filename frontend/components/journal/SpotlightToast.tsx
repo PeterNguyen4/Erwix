@@ -94,13 +94,13 @@ export default function SpotlightToast({ targetSelector, message, onExpand }: Sp
       <button
         onClick={onExpand}
         title="Open full chat"
-        className="w-full rounded-xl border border-accent/40 bg-panel/95 px-3 py-2.5 text-left text-xs text-white shadow-xl backdrop-blur-sm transition-colors hover:border-accent"
+        className="w-full rounded-xl border border-accent/40 bg-panel/95 px-3 py-2.5 text-left text-xs text-fg shadow-xl backdrop-blur-sm transition-colors hover:border-accent"
       >
         <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
           <span className="h-1.5 w-1.5 rounded-full bg-accent" />
           uWick
         </div>
-        <p className="leading-snug text-white">
+        <p className="leading-snug text-fg">
           {shown}
           {shown.length < message.length && <span className="animate-pulse">▍</span>}
         </p>

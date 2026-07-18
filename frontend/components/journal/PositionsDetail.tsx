@@ -39,7 +39,7 @@ export default function PositionsDetail({ positions }: { positions: Position[] }
                     onClick={() => router.push(`/chart?symbol=${p.symbol}`)}
                     className="cursor-pointer border-t border-border hover:bg-accent/10"
                   >
-                    <td className="py-2 font-semibold text-white">{p.symbol}</td>
+                    <td className="py-2 font-semibold text-fg">{p.symbol}</td>
                     <td className="text-right tabular-nums">{p.qty}</td>
                     <td className="text-right tabular-nums">{fmtUsd(p.avg_entry_price)}</td>
                     <td className="text-right tabular-nums">

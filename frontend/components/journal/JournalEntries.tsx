@@ -58,7 +58,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
               key={w.label}
               onClick={() => setDays(w.days)}
               className={`rounded px-2 py-0.5 text-xs ${
-                days === w.days ? "bg-accent text-white" : "bg-border text-muted hover:bg-accent/30"
+                days === w.days ? "bg-accent text-fg" : "bg-border text-muted hover:bg-accent/30"
               }`}
             >
               {w.label}
@@ -78,13 +78,13 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-muted">Win Rate</div>
-            <div className="text-sm font-semibold tabular-nums text-white">
+            <div className="text-sm font-semibold tabular-nums text-fg">
               {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
             </div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-muted">W / L</div>
-            <div className="text-sm font-semibold tabular-nums text-white">
+            <div className="text-sm font-semibold tabular-nums text-fg">
               <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
             </div>
           </div>
@@ -111,7 +111,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
           <p className="text-sm text-muted">No trades logged in this window.</p>
           <button
             onClick={() => router.push("/chart")}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/80"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-accent/80"
           >
             Execute Trade
           </button>
@@ -146,7 +146,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                       <td className="py-1.5 whitespace-nowrap text-muted">
                         {new Date(t.filled_at!).toLocaleString()}
                       </td>
-                      <td className="font-medium text-white">
+                      <td className="font-medium text-fg">
                         {t.symbol}
                         {hasNote && <span className="ml-1 text-accent" title="Has note">•</span>}
                       </td>
@@ -176,7 +176,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                                 value={notes[t.id] ?? ""}
                                 onChange={(e) => saveNote(t.id, e.target.value)}
                                 placeholder="What was your plan? Which confluences lined up? How did you feel executing this?"
-                                className="h-28 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-white placeholder:text-muted focus:border-accent focus:outline-none"
+                                className="h-28 w-full resize-y rounded-md border border-border bg-panel p-2 text-sm text-fg placeholder:text-muted focus:border-accent focus:outline-none"
                               />
                             </div>
                             {/* AI reflection */}
@@ -196,7 +196,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                                       query: `Reflect specifically on my ${t.side} of ${t.symbol} filled at $${t.fill_price} on ${filled.toLocaleDateString()}.`,
                                     });
                                   }}
-                                  className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-accent/80"
+                                  className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-fg transition-colors hover:bg-accent/80"
                                 >
                                   Debrief this trade
                                 </button>

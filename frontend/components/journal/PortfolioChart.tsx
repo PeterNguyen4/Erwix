@@ -57,7 +57,7 @@ export default function PortfolioChart({
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Portfolio Value</h2>
-          <div className="mt-1 text-3xl font-bold tabular-nums text-white">
+          <div className="mt-1 text-3xl font-bold tabular-nums text-fg">
             {active ? fmtUsd(active.equity) : "—"}
           </div>
           <div className={`text-sm font-semibold tabular-nums ${up ? "text-up" : "text-down"}`}>
@@ -75,7 +75,7 @@ export default function PortfolioChart({
               key={p}
               onClick={() => onPeriodChange(p)}
               className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                period === p ? "bg-accent text-white" : "bg-border text-muted hover:bg-accent/30"
+                period === p ? "bg-accent text-fg" : "bg-border text-muted hover:bg-accent/30"
               }`}
             >
               {p === "1A" ? "1Y" : p === "all" ? "All" : p}

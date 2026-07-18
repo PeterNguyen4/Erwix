@@ -28,13 +28,13 @@ export default function TotalAssets({ positions }: { positions: Position[] }) {
                 className="flex w-full items-center justify-between py-2.5 text-left transition-colors hover:bg-accent/10"
               >
                 <div className="min-w-0">
-                  <div className="font-semibold text-white">{p.symbol}</div>
+                  <div className="font-semibold text-fg">{p.symbol}</div>
                   <div className="text-xs text-muted">
                     {p.qty} share{p.qty === 1 ? "" : "s"}
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="tabular-nums text-white">
+                  <div className="tabular-nums text-fg">
                     {p.current_price != null ? fmtUsd(p.current_price) : "—"}
                   </div>
                   <div className={`text-xs tabular-nums ${up ? "text-up" : "text-down"}`}>

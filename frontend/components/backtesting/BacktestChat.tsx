@@ -93,8 +93,8 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
             key={m.id}
             className={`max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-xs ${
               m.role === "user"
-                ? "ml-auto rounded-tr-sm bg-accent/20 text-white"
-                : "rounded-tl-sm bg-border/60 text-white"
+                ? "ml-auto rounded-tr-sm bg-accent/20 text-fg"
+                : "rounded-tl-sm bg-border/60 text-fg"
             }`}
           >
             {m.text || (i === messages.length - 1 && streaming ? <TypingIndicator /> : null)}
@@ -107,12 +107,12 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Describe your strategy…"
-          className="flex-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-xs text-white"
+          className="flex-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-xs text-fg"
         />
         <button
           onClick={send}
           disabled={streaming}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
         >
           Send
         </button>

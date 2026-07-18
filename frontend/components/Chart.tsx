@@ -987,7 +987,7 @@ export default function Chart({
         <div className="flex items-baseline gap-2 mr-3 select-none pointer-events-none">
           {symbol && (
             <>
-              <span className="text-sm font-bold text-white">{symbol}</span>
+              <span className="text-sm font-bold text-fg">{symbol}</span>
               {COMPANY_NAMES[symbol] && (
                 <span className="text-xs text-muted">{COMPANY_NAMES[symbol]}</span>
               )}
@@ -999,10 +999,10 @@ export default function Chart({
             const fmt = (v: number) => v.toFixed(2);
             return (
               <span className="flex gap-2 text-xs font-mono">
-                <span className="text-white">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
-                <span className="text-white">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
-                <span className="text-white">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>
-                <span className="text-white">C <span className={valueColor}>{fmt(hoveredCandle.close)}</span></span>
+                <span className="text-fg">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
+                <span className="text-fg">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
+                <span className="text-fg">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>
+                <span className="text-fg">C <span className={valueColor}>{fmt(hoveredCandle.close)}</span></span>
                 {changeDisplay && (
                   <span className={changeDisplay.up ? "text-up" : "text-down"}>
                     {changeDisplay.up ? "+" : ""}{changeDisplay.change.toFixed(2)} ({changeDisplay.up ? "+" : ""}{changeDisplay.pct.toFixed(2)}%)

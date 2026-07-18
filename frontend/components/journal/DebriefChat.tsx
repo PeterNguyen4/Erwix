@@ -51,8 +51,8 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
             key={m.id}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/20 px-3 py-1.5 text-sm text-white"
-                : "max-w-[85%] rounded-2xl rounded-tl-sm bg-border/60 px-3 py-1.5 text-sm text-white"
+                ? "ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/20 px-3 py-1.5 text-sm text-fg"
+                : "max-w-[85%] rounded-2xl rounded-tl-sm bg-border/60 px-3 py-1.5 text-sm text-fg"
             }
           >
             {m.content}
@@ -65,12 +65,12 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Ask a follow-up…"
-          className="flex-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-accent"
+          className="flex-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-sm text-fg outline-none focus:border-accent"
         />
         <button
           onClick={send}
           disabled={sending || !input.trim()}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-40"
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-40"
         >
           Send
         </button>

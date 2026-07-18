@@ -84,7 +84,7 @@ export default function AllocationChart({
           {slices.slice(0, 6).map((s) => (
             <div key={s.label} className="flex items-center gap-2 text-xs">
               <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} />
-              <span className="font-medium text-white">{s.label}</span>
+              <span className="font-medium text-fg">{s.label}</span>
               <span className="ml-auto tabular-nums text-muted">
                 {((s.value / total) * 100).toFixed(1)}%
               </span>

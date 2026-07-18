@@ -245,7 +245,7 @@ function ChartPage() {
               params.set("tf", e.target.value);
               router.replace(`/chart?${params.toString()}`);
             }}
-            className="rounded border border-border bg-bg px-2 py-2 text-sm text-white outline-none focus:border-accent cursor-pointer"
+            className="rounded border border-border bg-bg px-2 py-2 text-sm text-fg outline-none focus:border-accent cursor-pointer"
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>{tf.label}</option>
@@ -277,7 +277,7 @@ function ChartPage() {
                 }
                 if (e.key === "Escape") setShowSymbolDropdown(false);
               }}
-              className="flex-1 bg-transparent text-sm outline-none text-white placeholder:text-muted"
+              className="flex-1 bg-transparent text-sm outline-none text-fg placeholder:text-muted"
             />
           </div>
           {showSymbolDropdown && (searchResults.length > 0 || searchLoading) && (
@@ -292,7 +292,7 @@ function ChartPage() {
                   onClick={() => handleSymbolSelect(r.symbol, r.name)}
                   className="w-full px-3 py-2 text-left text-sm hover:bg-accent/20 border-b border-border last:border-b-0 flex items-baseline gap-2"
                 >
-                  <span className="font-mono text-white min-w-[3.5rem]">
+                  <span className="font-mono text-fg min-w-[3.5rem]">
                     <HighlightMatch text={r.symbol} query={symbolSearch} />
                   </span>
                   <span className="text-xs text-muted truncate">{r.name}</span>
@@ -315,7 +315,7 @@ function ChartPage() {
               </div>
             ) : candles.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-4">
-                <div className="text-sm font-medium text-white">No chart data for {symbol}</div>
+                <div className="text-sm font-medium text-fg">No chart data for {symbol}</div>
                 <p className="max-w-xs text-xs text-muted">
                   We couldn&apos;t find any candles for this symbol/timeframe. Try a different symbol or timeframe.
                 </p>
@@ -333,7 +333,7 @@ function ChartPage() {
               />
             )}
             {quickOrderStatus && (
-              <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-border bg-[#151a24] px-3 py-1.5 text-xs font-medium text-white shadow-lg">
+              <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-border bg-[#151a24] px-3 py-1.5 text-xs font-medium text-fg shadow-lg">
                 {quickOrderStatus}
               </div>
             )}

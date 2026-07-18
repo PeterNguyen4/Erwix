@@ -70,7 +70,7 @@ export default function ChartContextMenu({
 
   const itemClass = (active: boolean) =>
     `flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-      active ? "bg-accent/20 text-white" : "text-muted hover:bg-accent/10 hover:text-white"
+      active ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
     }`;
 
   return (
@@ -89,7 +89,7 @@ export default function ChartContextMenu({
                 onQuickOrder("buy");
                 onClose();
               }}
-              className="flex-1 rounded bg-up/90 py-1.5 text-xs font-semibold text-white hover:bg-up"
+              className="flex-1 rounded bg-up/90 py-1.5 text-xs font-semibold text-fg hover:bg-up"
             >
               Buy
             </button>
@@ -99,7 +99,7 @@ export default function ChartContextMenu({
                 onQuickOrder("sell");
                 onClose();
               }}
-              className="flex-1 rounded bg-down/90 py-1.5 text-xs font-semibold text-white hover:bg-down"
+              className="flex-1 rounded bg-down/90 py-1.5 text-xs font-semibold text-fg hover:bg-down"
             >
               Sell
             </button>

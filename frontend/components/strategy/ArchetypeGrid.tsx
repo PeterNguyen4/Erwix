@@ -33,11 +33,11 @@ export default function ArchetypeGrid({ archetypes, selected, onSelect }: Props)
             >
               <Icon size={24} strokeWidth={2} color={presentation.color} />
             </span>
-            <span className="text-sm font-semibold text-white">{a.name}</span>
+            <span className="text-sm font-semibold text-fg">{a.name}</span>
             <span className="text-xs text-muted leading-snug">{a.tagline}</span>
             {isSelected && (
               <span
-                className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-white"
+                className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-fg"
                 style={{ backgroundColor: presentation.color }}
               >
                 ✓

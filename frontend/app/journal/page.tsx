@@ -29,13 +29,13 @@ export default function JournalPage() {
   return (
     <main className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 shrink-0">
-        <div className="text-xl font-semibold text-white">Journal</div>
+        <div className="text-xl font-semibold text-fg">Journal</div>
         <div className="flex items-center gap-3">
           {process.env.NODE_ENV !== "production" && (
             <button
               onClick={() => api.resetDebrief().then(() => api.generateDebriefNow()).then(refresh)}
               title="Dev: resets last_debrief_at and immediately starts generating a debrief report, bypassing the schedule"
-              className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:border-accent hover:text-white"
+              className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:border-accent hover:text-fg"
             >
               Dev: Generate Debrief Now
             </button>
@@ -54,7 +54,7 @@ export default function JournalPage() {
 
         {report && !reportOpen && (
           <div className="mb-4 flex items-center justify-between rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 animate-fade-in-up">
-            <div className="text-sm text-white">
+            <div className="text-sm text-fg">
               {report.status === "ready" && "Your scheduled debrief is ready."}
               {(report.status === "pending" || report.status === "running") &&
                 `Your debrief is cooking… ${report.current_step}/${report.total_steps ?? "?"} trades reviewed` +
@@ -64,7 +64,7 @@ export default function JournalPage() {
             {report.status !== "error" && (
               <button
                 onClick={() => setReportOpen(true)}
-                className="shrink-0 rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent/80"
+                className="shrink-0 rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-fg transition-colors hover:bg-accent/80"
               >
                 {report.status === "ready" ? "Open Report" : "View Progress"}
               </button>

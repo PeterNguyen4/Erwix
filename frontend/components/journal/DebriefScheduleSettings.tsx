@@ -114,7 +114,7 @@ export default function DebriefScheduleSettings() {
     <div className="relative" ref={panelRef}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-accent hover:text-white"
+        className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
       >
         <ClockIcon />
         <span>Debrief: {summary}</span>
@@ -124,7 +124,7 @@ export default function DebriefScheduleSettings() {
         <div className="absolute right-0 z-40 mt-2 w-72 animate-fade-in-up rounded-xl border border-border bg-panel/95 p-4 shadow-2xl backdrop-blur-sm">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <div className="text-sm font-semibold text-white">Weekly debrief</div>
+              <div className="text-sm font-semibold text-fg">Weekly debrief</div>
               <div className="text-[11px] text-muted">Auto-generate a report on a schedule</div>
             </div>
             <Toggle checked={prefs.debrief_enabled} onChange={(v) => save({ debrief_enabled: v })} />
@@ -139,8 +139,8 @@ export default function DebriefScheduleSettings() {
                   onClick={() => saveLocalDay(i)}
                   className={`rounded-md py-1.5 text-[11px] font-medium transition-colors ${
                     local?.day === i
-                      ? "bg-accent text-white"
-                      : "bg-border/50 text-muted hover:bg-border hover:text-white"
+                      ? "bg-accent text-fg"
+                      : "bg-border/50 text-muted hover:bg-border hover:text-fg"
                   }`}
                 >
                   {d[0]}
@@ -155,7 +155,7 @@ export default function DebriefScheduleSettings() {
               type="time"
               value={local?.time ?? ""}
               onChange={(e) => e.target.value && saveLocalTime(e.target.value)}
-              className="w-full rounded-md border border-border bg-transparent px-2 py-1.5 text-sm text-white outline-none focus:border-accent"
+              className="w-full rounded-md border border-border bg-transparent px-2 py-1.5 text-sm text-fg outline-none focus:border-accent"
             />
           </div>
 

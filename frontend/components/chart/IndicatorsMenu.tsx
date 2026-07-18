@@ -24,7 +24,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={`flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
-          active.size > 0 ? "bg-accent text-white" : "text-muted hover:bg-accent/20 hover:text-white"
+          active.size > 0 ? "bg-accent text-fg" : "text-muted hover:bg-accent/20 hover:text-fg"
         }`}
       >
         <TrendingUp size={16} strokeWidth={2} />
@@ -40,7 +40,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
               <div
                 key={ind.id}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-                  checked ? "bg-accent/20 text-white" : "text-muted hover:bg-accent/10 hover:text-white"
+                  checked ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
                 }`}
               >
                 <button
@@ -61,7 +61,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
                     e.stopPropagation();
                     onTogglePin(ind.id);
                   }}
-                  className={`shrink-0 transition-colors ${pinned.has(ind.id) ? "text-accent" : "text-muted hover:text-white"}`}
+                  className={`shrink-0 transition-colors ${pinned.has(ind.id) ? "text-accent" : "text-muted hover:text-fg"}`}
                 >
                   <IconStar filled={pinned.has(ind.id)} />
                 </button>
