@@ -49,6 +49,67 @@ export interface PortfolioHistory {
   points: PortfolioPoint[];
 }
 
+export interface BacktestRule {
+  indicator: string;
+  comparator: "<" | "<=" | ">" | ">=" | "==" | "crosses_above" | "crosses_below";
+  value: number;
+}
+
+export interface BacktestSizing {
+  mode: "fixed_qty" | "pct_equity" | "pct_risk";
+  value: number;
+}
+
+export interface BacktestRisk {
+  value: number;
+}
+
+export interface BacktestConfig {
+  id?: number;
+  name: string;
+  symbol: string;
+  timeframe: string;
+  direction: "long" | "short" | "both";
+  entry_rules: BacktestRule[];
+  exit_rules: BacktestRule[];
+  position_sizing: BacktestSizing;
+  stop_loss: BacktestRisk | null;
+  take_profit: BacktestRisk | null;
+  max_concurrent_positions: number;
+}
+
+export interface BacktestTrade {
+  entry_time: number;
+  exit_time: number | null;
+  side: "long" | "short";
+  qty: number;
+  entry_price: number;
+  exit_price: number | null;
+  profit_loss: number | null;
+}
+
+export interface BacktestResult {
+  trades: BacktestTrade[];
+  equity_curve: PortfolioPoint[];
+  stats: Record<string, number>;
+}
+
+export interface BacktestRun {
+  id: number;
+  config_id: number;
+  status: "running" | "ready" | "error";
+  start: string;
+  end: string;
+  result: BacktestResult | null;
+  error_detail: string | null;
+}
+
+export type BacktestChatEvent =
+  | { type: "token"; text: string }
+  | { type: "config"; config: BacktestConfig }
+  | { type: "done" }
+  | { type: "error"; detail: string };
+
 export interface Trade {
   id: number;
   symbol: string;
@@ -371,6 +432,22 @@ export const api = {
   getPreferences: () => getJSON<UserPreference>("/api/user/preferences"),
   savePreferences: (prefs: Partial<UserPreference>) =>
     postJSON<UserPreference>("/api/user/preferences", prefs, "PATCH"),
+  saveBacktestConfig: (config: BacktestConfig) =>
+    config.id
+      ? postJSON<BacktestConfig>(`/api/backtest/configs/${config.id}`, config, "PATCH")
+      : postJSON<BacktestConfig>("/api/backtest/configs", config),
+  runBacktest: (configId: number, params: { start: string; end: string }) => {
+    const q = new URLSearchParams({ start: params.start, end: params.end });
+    return postJSON<BacktestRun>(`/api/backtest/configs/${configId}/run?${q.toString()}`, {});
+  },
+  backtestChatStreamUrl: async (config: BacktestConfig, message: string) => {
+    const token = await _getToken?.();
+    const q = new URLSearchParams();
+    q.set("message", message);
+    q.set("config", JSON.stringify(config));
+    if (token) q.set("token", token);
+    return `${WS}/api/backtest/chat?${q.toString()}`;
+  },
   streamUrl: async (symbol: string) => {
     const token = await _getToken?.();
     const base = `${WS}/api/market/stream/${encodeURIComponent(symbol)}`;

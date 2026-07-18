@@ -25,6 +25,7 @@ class BacktestRisk(BaseModel):
 
 
 class BacktestConfig(BaseModel):
+    id: int | None = None
     name: str = "Untitled strategy"
     symbol: str
     timeframe: str = "1Day"
