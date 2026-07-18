@@ -87,6 +87,7 @@ function ChartPage() {
   const [bracketPreview, setBracketPreview] = useState<BracketLevels | null>(null);
   const [takeProfitPrice, setTakeProfitPrice] = useState(0);
   const [stopLossPrice, setStopLossPrice] = useState(0);
+  const [quickOrderStatus, setQuickOrderStatus] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const candleRequestIdRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -186,6 +187,21 @@ function ChartPage() {
   const onOrderPlaced = () => {
     loadAccount();
     setTimeout(() => setRefreshKey((k) => k + 1), 1500);
+  };
+
+  // Right-click chart menu's Buy/Sell — a market order for one share, mirroring
+  // the OrderPanel's default quantity/order type instead of adding a second input.
+  const handleQuickOrder = async (side: "buy" | "sell") => {
+    setQuickOrderStatus(null);
+    try {
+      const res = await api.submitOrder({ symbol: symbol.toUpperCase(), qty: 1, side, type: "market" });
+      setQuickOrderStatus(`✓ ${side.toUpperCase()} 1 ${symbol.toUpperCase()} — ${res.status}`);
+      onOrderPlaced();
+    } catch (e) {
+      setQuickOrderStatus(`✕ ${(e as Error).message}`);
+    } finally {
+      setTimeout(() => setQuickOrderStatus(null), 4000);
+    }
   };
 
   const handleSymbolSelect = (sym: string, name = "") => {
@@ -313,7 +329,13 @@ function ChartPage() {
                 onBracketDrag={(which, newPrice) =>
                   which === "tp" ? setTakeProfitPrice(newPrice) : setStopLossPrice(newPrice)
                 }
+                onQuickOrder={handleQuickOrder}
               />
+            )}
+            {quickOrderStatus && (
+              <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-border bg-[#151a24] px-3 py-1.5 text-xs font-medium text-white shadow-lg">
+                {quickOrderStatus}
+              </div>
             )}
           </div>
         </div>

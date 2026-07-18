@@ -20,6 +20,7 @@ import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
 import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
+import ChartContextMenu from "@/components/chart/ChartContextMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
 import { INDICATORS } from "@/components/chart/indicators";
@@ -58,6 +59,8 @@ interface ChartProps {
   onBracketDrag?: (which: "tp" | "sl", price: number) => void;
   /** Backtest replay: when set, only candles up to this index are shown/computed against. */
   cursorIndex?: number | null;
+  /** Fires when the trader right-clicks the chart and picks Buy/Sell from the context menu. */
+  onQuickOrder?: (side: "buy" | "sell") => void;
 }
 
 interface HoveredCandle {
@@ -151,6 +154,7 @@ export default function Chart({
   bracket = null,
   onBracketDrag,
   cursorIndex = null,
+  onQuickOrder,
 }: ChartProps) {
   const candles = useMemo(
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
@@ -184,6 +188,7 @@ export default function Chart({
   const [pinnedIndicators, setPinnedIndicators] = useState<Set<string>>(new Set());
   const [pinnedDrawingTools, setPinnedDrawingTools] = useState<Set<DrawingToolId>>(new Set());
   const [pinnedChartTypes, setPinnedChartTypes] = useState<Set<ChartTypeId>>(new Set());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [redrawTick, setRedrawTick] = useState(0);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
 
@@ -849,6 +854,11 @@ export default function Chart({
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  };
+
   const handleMouseLeave = () => {
     setMousePos(null);
     setCrosshairData({ time: null, price: null });
@@ -1073,6 +1083,7 @@ export default function Chart({
         onClick={handleMouseClick}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
+        onContextMenu={handleContextMenu}
         style={{
           cursor:
             draggingBracketHandle || hoveredBracketHandle
@@ -1094,6 +1105,21 @@ export default function Chart({
           style={{ zIndex: 10 }}
         />
       </div>
+
+      {contextMenu && (
+        <ChartContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          chartTypeId={chartTypeId}
+          onChartTypeChange={setChartTypeId}
+          drawingMode={drawingState.mode === "line" || drawingState.mode === "fib" ? drawingState.mode : "crosshair"}
+          onDrawingModeChange={setMode}
+          activeIndicators={activeIndicators}
+          onToggleIndicator={toggleIndicator}
+          onQuickOrder={onQuickOrder}
+        />
+      )}
     </div>
   );
 }
