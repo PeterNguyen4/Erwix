@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, Check, TrendingUp } from "lucide-react";
 import { INDICATORS } from "@/components/chart/indicators";
 import { IconStar } from "@/components/chart/drawingTools";
 
@@ -9,15 +10,6 @@ interface IndicatorsMenuProps {
   onToggle: (id: string) => void;
   pinned: Set<string>;
   onTogglePin: (id: string) => void;
-}
-
-function IconIndicators() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M2 14 L6 8 L9 11 L16 3" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M2 5 H16" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" opacity="0.5" />
-    </svg>
-  );
 }
 
 export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }: IndicatorsMenuProps) {
@@ -34,11 +26,9 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
           active.size > 0 ? "bg-accent text-white" : "text-muted hover:bg-accent/20 hover:text-white"
         }`}
       >
-        <IconIndicators />
+        <TrendingUp size={16} strokeWidth={2} />
         {active.size > 0 && <span className="text-[10px] font-semibold tabular-nums">{active.size}</span>}
-        <svg width="8" height="8" viewBox="0 0 10 10" className="opacity-70">
-          <path d="M1 3 L5 7 L9 3" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        </svg>
+        <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-[#151a24] py-1 shadow-lg">
@@ -59,11 +49,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
                 >
                   <ind.icon />
                   <span className="flex-1 text-left">{ind.label}</span>
-                  {checked && (
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                      <path d="M2 6l3 3 5-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
+                  {checked && <Check size={12} strokeWidth={2.2} />}
                 </button>
                 <button
                   type="button"

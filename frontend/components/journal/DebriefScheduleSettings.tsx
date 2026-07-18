@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Clock } from "lucide-react";
 import { api, UserPreference } from "@/lib/api";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; // index matches Python's date.weekday() (0=Mon..6=Sun), which the backend scheduler compares against
@@ -29,12 +30,7 @@ function utcSlotToLocal(utcDay: number, utcTime: string): { day: number; time: s
 }
 
 function ClockIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
-      <circle cx="10" cy="10" r="7.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M10 5.5V10l3 2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    </svg>
-  );
+  return <Clock size={14} strokeWidth={1.9} />;
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {

@@ -14,6 +14,7 @@ import {
   createChart,
   createSeriesMarkers,
 } from "lightweight-charts";
+import { MousePointer2, Trash2 } from "lucide-react";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
 import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
@@ -134,23 +135,11 @@ function nearestCandleTime(candles: Candle[], time: number): UTCTimestamp | null
 
 // --- Toolbar icons ---
 function IconCursor() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M3 2L15 9L9.5 10.5L7 16L3 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
+  return <MousePointer2 size={16} strokeWidth={2} />;
 }
 
 function IconDelete() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <polyline points="3,5 15,5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M7 5V3h4v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <rect x="4" y="5" width="10" height="10" rx="1" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="7" y1="8" x2="7" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="11" y1="8" x2="11" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
+  return <Trash2 size={16} strokeWidth={2} />;
 }
 
 export default function Chart({

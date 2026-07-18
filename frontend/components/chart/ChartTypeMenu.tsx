@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 
 interface ChartTypeMenuProps {
@@ -24,9 +25,7 @@ export default function ChartTypeMenu({ value, onChange, align = "left" }: Chart
         className="flex h-7 items-center gap-1 rounded px-1.5 text-muted transition-colors hover:bg-accent/20 hover:text-white"
       >
         <current.icon />
-        <svg width="8" height="8" viewBox="0 0 10 10" className="opacity-70">
-          <path d="M1 3 L5 7 L9 3" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        </svg>
+        <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
       {open && (
         <div

@@ -1,3 +1,5 @@
+import { Star, Pencil } from "lucide-react";
+
 // Drawing-tool registry (trend line / Fibonacci retracement)
 export type DrawingToolId = "line" | "fib";
 
@@ -29,31 +31,11 @@ function IconFib() {
 }
 
 export function IconStar({ filled }: { filled: boolean }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill={filled ? "currentColor" : "none"}>
-      <path
-        d="M8 1.5l1.98 4.26 4.52.55-3.34 3.24.86 4.6L8 11.9l-4.02 2.25.86-4.6-3.34-3.24 4.52-.55L8 1.5z"
-        stroke="currentColor"
-        strokeWidth="1.2"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+  return <Star size={12} strokeWidth={1.6} fill={filled ? "currentColor" : "none"} />;
 }
 
 export function IconDrawingTool() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path
-        d="M3 15l1.5-4.5L12 3l3 3-7.5 7.5z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      <path d="M11 5l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
+  return <Pencil size={16} strokeWidth={2} />;
 }
 
 export const DRAWING_TOOLS: DrawingToolDef[] = [

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { DRAWING_TOOLS, DrawingToolId, IconDrawingTool, IconStar } from "@/components/chart/drawingTools";
 
 interface DrawingMenuProps {
@@ -29,9 +30,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
         }`}
       >
         {active ? <active.icon /> : <IconDrawingTool />}
-        <svg width="8" height="8" viewBox="0 0 10 10" className="opacity-70">
-          <path d="M1 3 L5 7 L9 3" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        </svg>
+        <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
       {open && (
         <div
