@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { DRAWING_TOOLS, DrawingToolId, IconDrawingTool, IconStar } from "@/components/chart/drawingTools";
+import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
 interface DrawingMenuProps {
   /** "crosshair" means no drawing tool is active. */
@@ -16,13 +17,13 @@ interface DrawingMenuProps {
 
 export default function DrawingMenu({ value, onChange, align = "left", pinned, onTogglePin }: DrawingMenuProps) {
   const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
   const active = DRAWING_TOOLS.find((t) => t.id === value) ?? null;
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button
         type="button"
-        title="Drawing tools"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={`flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
@@ -32,6 +33,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
         {active ? <active.icon /> : <IconDrawingTool />}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
+      <ToolbarTooltip label="Drawing tools" hover={hover && !open} />
       {open && (
         <div
           className={`absolute top-full z-30 mt-1 w-48 rounded-md border border-border bg-[#151a24] py-1 shadow-lg ${

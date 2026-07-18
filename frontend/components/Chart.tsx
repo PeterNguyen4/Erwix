@@ -183,6 +183,7 @@ export default function Chart({
   const [activeIndicators, setActiveIndicators] = useState<Set<string>>(new Set());
   const [pinnedIndicators, setPinnedIndicators] = useState<Set<string>>(new Set());
   const [pinnedDrawingTools, setPinnedDrawingTools] = useState<Set<DrawingToolId>>(new Set());
+  const [pinnedChartTypes, setPinnedChartTypes] = useState<Set<ChartTypeId>>(new Set());
   const [redrawTick, setRedrawTick] = useState(0);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
 
@@ -197,6 +198,15 @@ export default function Chart({
 
   const togglePinnedDrawingTool = (id: DrawingToolId) => {
     setPinnedDrawingTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePinnedChartType = (id: ChartTypeId) => {
+    setPinnedChartTypes((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -988,7 +998,7 @@ export default function Chart({
                     {changeDisplay.up ? "+" : ""}{changeDisplay.change.toFixed(2)} ({changeDisplay.up ? "+" : ""}{changeDisplay.pct.toFixed(2)}%)
                   </span>
                 )}
-                <span className="text-muted">Vol <span className="text-white">{formatVolume(hoveredCandle.volume)}</span></span>
+                <span className="text-muted">Vol <span className={valueColor}>{formatVolume(hoveredCandle.volume)}</span></span>
               </span>
             );
           })()}
@@ -997,7 +1007,19 @@ export default function Chart({
         {/* Everything else pushed to the right of the info bar, same row */}
         <div className="ml-auto flex items-center gap-1">
           {/* Chart type */}
-          <ChartTypeMenu value={chartTypeId} onChange={setChartTypeId} align="right" />
+          <ChartTypeMenu
+            value={chartTypeId}
+            onChange={setChartTypeId}
+            align="right"
+            pinned={pinnedChartTypes}
+            onTogglePin={togglePinnedChartType}
+          />
+          {/* Pinned chart types — starred in the dropdown, surfaced here for one-click access. */}
+          {CHART_TYPES.filter((t) => pinnedChartTypes.has(t.id)).map((t) => (
+            <ToolbarButton key={t.id} label={t.label} active={chartTypeId === t.id} onClick={() => setChartTypeId(t.id)}>
+              <t.icon />
+            </ToolbarButton>
+          ))}
 
           {/* Divider */}
           <div className="h-5 w-px bg-border mx-1" />

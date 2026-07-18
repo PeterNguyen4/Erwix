@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChevronDown, Check, TrendingUp } from "lucide-react";
 import { INDICATORS } from "@/components/chart/indicators";
 import { IconStar } from "@/components/chart/drawingTools";
+import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
 interface IndicatorsMenuProps {
   active: Set<string>;
@@ -14,12 +15,12 @@ interface IndicatorsMenuProps {
 
 export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }: IndicatorsMenuProps) {
   const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button
         type="button"
-        title="Indicators"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={`flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
@@ -30,6 +31,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
         {active.size > 0 && <span className="text-[10px] font-semibold tabular-nums">{active.size}</span>}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
+      <ToolbarTooltip label="Indicators" hover={hover && !open} />
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-[#151a24] py-1 shadow-lg">
           {INDICATORS.map((ind) => {
