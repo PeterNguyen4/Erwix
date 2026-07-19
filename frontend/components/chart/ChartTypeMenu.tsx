@@ -34,7 +34,7 @@ export default function ChartTypeMenu({ value, onChange, align = "left", pinned,
       <ToolbarTooltip label={current.label} hover={hover && !open} />
       {open && (
         <div
-          className={`absolute top-full z-30 mt-1 w-40 rounded-md border border-border bg-[#151a24] py-1 shadow-lg ${
+          className={`absolute top-full z-30 mt-1 w-40 rounded-md border border-border bg-panel py-1 shadow-lg ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >

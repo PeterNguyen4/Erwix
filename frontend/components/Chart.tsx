@@ -258,8 +258,8 @@ export default function Chart({
         horzLines: { color: palette.border },
       },
       crosshair: {
-        vertLine: { visible: false },
-        horzLine: { visible: false },
+        vertLine: { visible: false, labelVisible: false },
+        horzLine: { visible: false, labelVisible: false },
       },
       timeScale: { borderColor: palette.border, timeVisible: true },
       // Fixed so the main pane and the oscillator sub-pane (which can show

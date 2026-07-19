@@ -77,7 +77,7 @@ export default function ChartContextMenu({
     <div
       ref={menuRef}
       style={{ left: pos.x, top: pos.y }}
-      className="fixed z-50 w-48 rounded-md border border-border bg-[#151a24] py-1 shadow-lg"
+      className="fixed z-50 w-48 rounded-md border border-border bg-panel py-1 shadow-lg"
       onContextMenu={(e) => e.preventDefault()}
     >
       {onQuickOrder && (

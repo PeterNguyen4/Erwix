@@ -33,7 +33,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
       </button>
       <ToolbarTooltip label="Indicators" hover={hover && !open} />
       {open && (
-        <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-[#151a24] py-1 shadow-lg">
+        <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-panel py-1 shadow-lg">
           {INDICATORS.map((ind) => {
             const checked = active.has(ind.id);
             return (
