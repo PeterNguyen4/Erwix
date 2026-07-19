@@ -48,7 +48,7 @@ function NoteCard({ tradeId, text }: { tradeId: number; text: string }) {
         <span>&#8220;</span>
         Your note — trade #{tradeId}
       </div>
-      <p className="whitespace-pre-wrap text-sm italic text-white/90">{text}</p>
+      <p className="whitespace-pre-wrap text-sm italic text-fg/90">{text}</p>
     </div>
   );
 }
@@ -203,13 +203,13 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
             className="flex items-center gap-2 rounded-full px-1.5 py-1 transition-colors hover:bg-border"
           >
             <AnalystAvatar />
-            <span className="text-xs font-medium text-white">{ANALYST_NAME}</span>
+            <span className="text-xs font-medium text-fg">{ANALYST_NAME}</span>
             {streaming && <TypingIndicator />}
           </button>
           <button
             onClick={onClose}
             title="Close"
-            className="rounded-full p-1 text-muted transition-colors hover:bg-border hover:text-white"
+            className="rounded-full p-1 text-muted transition-colors hover:bg-border hover:text-fg"
           >
             ✕
           </button>
@@ -225,7 +225,7 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
         <div className="flex items-center gap-2">
           <AnalystAvatar />
           <div>
-            <div className="text-sm font-semibold text-white">{ANALYST_NAME}</div>
+            <div className="text-sm font-semibold text-fg">{ANALYST_NAME}</div>
             <div className="text-[10px] text-muted">
               {connecting ? "connecting…" : streaming ? "reviewing your trades…" : "debrief complete"}
             </div>
@@ -234,14 +234,14 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
         <div className="flex items-center gap-1">
           <button
             onClick={() => setMinimized(true)}
-            className="rounded p-1 text-muted transition-colors hover:bg-border hover:text-white"
+            className="rounded p-1 text-muted transition-colors hover:bg-border hover:text-fg"
             title="Minimize"
           >
             &#8211;
           </button>
           <button
             onClick={onClose}
-            className="rounded p-1 text-muted transition-colors hover:bg-border hover:text-white"
+            className="rounded p-1 text-muted transition-colors hover:bg-border hover:text-fg"
             title="Close"
           >
             ✕
@@ -271,7 +271,7 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
             {m.kind === "note" ? (
               <NoteCard tradeId={m.tradeId} text={m.text} />
             ) : (
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-border/60 px-3 py-2 text-sm text-white">
+              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-border/60 px-3 py-2 text-sm text-fg">
                 {m.text || (i === messages.length - 1 && (connecting || streaming) ? <TypingIndicator /> : null)}
               </div>
             )}

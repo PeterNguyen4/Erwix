@@ -14,11 +14,15 @@ import {
   createChart,
   createSeriesMarkers,
 } from "lightweight-charts";
+import { MousePointer2, Trash2 } from "lucide-react";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
+import { useTheme } from "@/components/ThemeProvider";
+import { CHART_PALETTES } from "@/lib/chartTheme";
 import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
 import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
+import ChartContextMenu from "@/components/chart/ChartContextMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
 import { INDICATORS } from "@/components/chart/indicators";
@@ -57,6 +61,8 @@ interface ChartProps {
   onBracketDrag?: (which: "tp" | "sl", price: number) => void;
   /** Backtest replay: when set, only candles up to this index are shown/computed against. */
   cursorIndex?: number | null;
+  /** Fires when the trader right-clicks the chart and picks Buy/Sell from the context menu. */
+  onQuickOrder?: (side: "buy" | "sell") => void;
 }
 
 interface HoveredCandle {
@@ -134,23 +140,11 @@ function nearestCandleTime(candles: Candle[], time: number): UTCTimestamp | null
 
 // --- Toolbar icons ---
 function IconCursor() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <path d="M3 2L15 9L9.5 10.5L7 16L3 2Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-    </svg>
-  );
+  return <MousePointer2 size={16} strokeWidth={2} />;
 }
 
 function IconDelete() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <polyline points="3,5 15,5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M7 5V3h4v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <rect x="4" y="5" width="10" height="10" rx="1" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="7" y1="8" x2="7" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="11" y1="8" x2="11" y2="12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
+  return <Trash2 size={16} strokeWidth={2} />;
 }
 
 export default function Chart({
@@ -162,11 +156,14 @@ export default function Chart({
   bracket = null,
   onBracketDrag,
   cursorIndex = null,
+  onQuickOrder,
 }: ChartProps) {
   const candles = useMemo(
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
     [allCandles, cursorIndex],
   );
+  const { theme } = useTheme();
+  const palette = CHART_PALETTES[theme];
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -194,6 +191,8 @@ export default function Chart({
   const [activeIndicators, setActiveIndicators] = useState<Set<string>>(new Set());
   const [pinnedIndicators, setPinnedIndicators] = useState<Set<string>>(new Set());
   const [pinnedDrawingTools, setPinnedDrawingTools] = useState<Set<DrawingToolId>>(new Set());
+  const [pinnedChartTypes, setPinnedChartTypes] = useState<Set<ChartTypeId>>(new Set());
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [redrawTick, setRedrawTick] = useState(0);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
 
@@ -208,6 +207,15 @@ export default function Chart({
 
   const togglePinnedDrawingTool = (id: DrawingToolId) => {
     setPinnedDrawingTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePinnedChartType = (id: ChartTypeId) => {
+    setPinnedChartTypes((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -242,22 +250,22 @@ export default function Chart({
     if (!containerRef.current) return;
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#0b0e14" },
-        textColor: "#7d8799",
+        background: { type: ColorType.Solid, color: palette.bg },
+        textColor: palette.muted,
       },
       grid: {
-        vertLines: { color: "#1e2633" },
-        horzLines: { color: "#1e2633" },
+        vertLines: { color: palette.border },
+        horzLines: { color: palette.border },
       },
       crosshair: {
-        vertLine: { visible: false },
-        horzLine: { visible: false },
+        vertLine: { visible: false, labelVisible: false },
+        horzLine: { visible: false, labelVisible: false },
       },
-      timeScale: { borderColor: "#1e2633", timeVisible: true },
+      timeScale: { borderColor: palette.border, timeVisible: true },
       // Fixed so the main pane and the oscillator sub-pane (which can show
       // very different label widths — RSI's "0"-"100" vs MACD's decimals)
       // always reserve the same axis width and stay pixel-aligned.
-      rightPriceScale: { borderColor: "#1e2633", minimumWidth: 68 },
+      rightPriceScale: { borderColor: palette.border, minimumWidth: 68 },
       autoSize: true,
     });
     const series = CHART_TYPES[0].createSeries(chart);
@@ -281,9 +289,23 @@ export default function Chart({
     };
   }, []);
 
-  // Swap the main series when the user picks a different chart type
-  // (candles/hollow/Heikin-Ashi/bars/line/area) — remove the old series and
-  // create the new one via the registry in components/chart/chartTypes.tsx.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || !chartReady) return;
+    chart.applyOptions({
+      layout: {
+        background: { type: ColorType.Solid, color: palette.bg },
+        textColor: palette.muted,
+      },
+      grid: {
+        vertLines: { color: palette.border },
+        horzLines: { color: palette.border },
+      },
+      timeScale: { borderColor: palette.border },
+      rightPriceScale: { borderColor: palette.border },
+    });
+  }, [palette, chartReady]);
+
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
@@ -291,7 +313,6 @@ export default function Chart({
     const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
     seriesRef.current = def.createSeries(chart);
     seriesRef.current.setData(def.toData(candles) as never[]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartTypeId, chartReady]);
 
   // Lock chart while setting line or fibonacci retracement
@@ -472,7 +493,7 @@ export default function Chart({
     bracketLinesRef.current.push(
       series.createPriceLine({
         price: bracket.entryPrice,
-        color: "#e2e8f0",
+        color: palette.fg,
         lineWidth: 2,
         lineStyle: 0, // solid
         lineVisible: false,
@@ -506,7 +527,7 @@ export default function Chart({
         }),
       );
     }
-  }, [bracket, chartReady]);
+  }, [bracket, chartReady, palette]);
 
   // Sync canvas buffer size with container.
   useEffect(() => {
@@ -572,7 +593,7 @@ export default function Chart({
           ctx.stroke();
           ctx.setLineDash([]);
         };
-        drawLevelLine(entryY, "#e2e8f0", false);
+        drawLevelLine(entryY, palette.fg, false);
         if (bracket.takeProfitPrice != null) drawLevelLine(series.priceToCoordinate(bracket.takeProfitPrice), "#38bdf8", true);
         if (bracket.stopLossPrice != null) drawLevelLine(series.priceToCoordinate(bracket.stopLossPrice), "#f87171", true);
       }
@@ -671,7 +692,7 @@ export default function Chart({
           ] as const) {
             ctx.beginPath();
             ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
-            ctx.fillStyle = "#0b0e14";
+            ctx.fillStyle = palette.bg;
             ctx.fill();
             ctx.lineWidth = 2;
             ctx.strokeStyle = "#3b82f6";
@@ -695,7 +716,7 @@ export default function Chart({
     }
 
     if (mousePos) {
-      ctx.strokeStyle = "#7d8799";
+      ctx.strokeStyle = palette.muted;
       ctx.lineWidth = 1;
       ctx.setLineDash([5, 5]);
       ctx.beginPath();
@@ -782,7 +803,7 @@ export default function Chart({
         ctx.fill();
       }
     }
-  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles, draggingBracketHandle]);
+  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles, draggingBracketHandle, palette]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current;
@@ -848,6 +869,11 @@ export default function Chart({
       const price = seriesRef.current?.coordinateToPrice(y) ?? null;
       setCrosshairData({ time: time as number | null, price });
     }
+  };
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
   const handleMouseLeave = () => {
@@ -978,7 +1004,7 @@ export default function Chart({
         <div className="flex items-baseline gap-2 mr-3 select-none pointer-events-none">
           {symbol && (
             <>
-              <span className="text-sm font-bold text-white">{symbol}</span>
+              <span className="text-sm font-bold text-fg">{symbol}</span>
               {COMPANY_NAMES[symbol] && (
                 <span className="text-xs text-muted">{COMPANY_NAMES[symbol]}</span>
               )}
@@ -990,16 +1016,16 @@ export default function Chart({
             const fmt = (v: number) => v.toFixed(2);
             return (
               <span className="flex gap-2 text-xs font-mono">
-                <span className="text-white">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
-                <span className="text-white">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
-                <span className="text-white">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>
-                <span className="text-white">C <span className={valueColor}>{fmt(hoveredCandle.close)}</span></span>
+                <span className="text-fg">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
+                <span className="text-fg">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
+                <span className="text-fg">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>
+                <span className="text-fg">C <span className={valueColor}>{fmt(hoveredCandle.close)}</span></span>
                 {changeDisplay && (
                   <span className={changeDisplay.up ? "text-up" : "text-down"}>
                     {changeDisplay.up ? "+" : ""}{changeDisplay.change.toFixed(2)} ({changeDisplay.up ? "+" : ""}{changeDisplay.pct.toFixed(2)}%)
                   </span>
                 )}
-                <span className="text-muted">Vol <span className="text-white">{formatVolume(hoveredCandle.volume)}</span></span>
+                <span className="text-muted">Vol <span className={valueColor}>{formatVolume(hoveredCandle.volume)}</span></span>
               </span>
             );
           })()}
@@ -1008,7 +1034,19 @@ export default function Chart({
         {/* Everything else pushed to the right of the info bar, same row */}
         <div className="ml-auto flex items-center gap-1">
           {/* Chart type */}
-          <ChartTypeMenu value={chartTypeId} onChange={setChartTypeId} align="right" />
+          <ChartTypeMenu
+            value={chartTypeId}
+            onChange={setChartTypeId}
+            align="right"
+            pinned={pinnedChartTypes}
+            onTogglePin={togglePinnedChartType}
+          />
+          {/* Pinned chart types — starred in the dropdown, surfaced here for one-click access. */}
+          {CHART_TYPES.filter((t) => pinnedChartTypes.has(t.id)).map((t) => (
+            <ToolbarButton key={t.id} label={t.label} active={chartTypeId === t.id} onClick={() => setChartTypeId(t.id)}>
+              <t.icon />
+            </ToolbarButton>
+          ))}
 
           {/* Divider */}
           <div className="h-5 w-px bg-border mx-1" />
@@ -1062,6 +1100,7 @@ export default function Chart({
         onClick={handleMouseClick}
         onMouseDown={handleMouseDown}
         onMouseUp={handleMouseUp}
+        onContextMenu={handleContextMenu}
         style={{
           cursor:
             draggingBracketHandle || hoveredBracketHandle
@@ -1083,6 +1122,21 @@ export default function Chart({
           style={{ zIndex: 10 }}
         />
       </div>
+
+      {contextMenu && (
+        <ChartContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          chartTypeId={chartTypeId}
+          onChartTypeChange={setChartTypeId}
+          drawingMode={drawingState.mode === "line" || drawingState.mode === "fib" ? drawingState.mode : "crosshair"}
+          onDrawingModeChange={setMode}
+          activeIndicators={activeIndicators}
+          onToggleIndicator={toggleIndicator}
+          onQuickOrder={onQuickOrder}
+        />
+      )}
     </div>
   );
 }

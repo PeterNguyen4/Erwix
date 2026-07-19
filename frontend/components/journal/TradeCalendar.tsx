@@ -59,7 +59,7 @@ export default function TradeCalendar({ points }: { points: PortfolioPoint[] }) 
           >
             ‹
           </button>
-          <span className="w-32 text-center font-medium text-white">{view.label}</span>
+          <span className="w-32 text-center font-medium text-fg">{view.label}</span>
           <button
             onClick={() => setMonthOffset((m) => Math.min(0, m + 1))}
             disabled={monthOffset >= 0}

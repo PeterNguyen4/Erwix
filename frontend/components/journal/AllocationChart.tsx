@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 import { Position } from "@/lib/api";
+import { useTheme } from "@/components/ThemeProvider";
+import { CHART_PALETTES } from "@/lib/chartTheme";
 
 // Categorical palette tuned for the dark panel bg. Cash is always the last, muted slice.
 const PALETTE = ["#3b82f6", "#26a69a", "#a855f7", "#f59e0b", "#ec4899", "#14b8a6", "#f97316", "#6366f1"];
@@ -23,6 +25,8 @@ export default function AllocationChart({
   positions: Position[];
   cash: number;
 }) {
+  const { theme } = useTheme();
+  const palette = CHART_PALETTES[theme];
   const { slices, total } = useMemo(() => {
     const sorted = [...positions]
       .filter((p) => p.market_value > 0)
@@ -78,13 +82,13 @@ export default function AllocationChart({
             offset += dash;
             return el;
           })}
-          <circle cx={CX} cy={CY} r={R - STROKE / 2 - 2} fill="#121722" />
+          <circle cx={CX} cy={CY} r={R - STROKE / 2 - 2} fill={palette.panel} />
         </svg>
         <div className="flex-1 space-y-1.5 overflow-hidden">
           {slices.slice(0, 6).map((s) => (
             <div key={s.label} className="flex items-center gap-2 text-xs">
               <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} />
-              <span className="font-medium text-white">{s.label}</span>
+              <span className="font-medium text-fg">{s.label}</span>
               <span className="ml-auto tabular-nums text-muted">
                 {((s.value / total) * 100).toFixed(1)}%
               </span>

@@ -40,14 +40,14 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
     <div className="animate-fade-in-up space-y-4">
       <button
         onClick={onBack}
-        className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-white"
+        className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-fg"
       >
         ← Back to classes
       </button>
 
       {isFreeform ? (
         <div>
-          <label className="mb-2 block text-sm font-semibold text-white">
+          <label className="mb-2 block text-sm font-semibold text-fg">
             Describe your strategy in your own words
           </label>
           <textarea
@@ -55,19 +55,19 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
             onChange={(e) => setBody(e.target.value)}
             rows={6}
             placeholder="Entries you look for, how you size positions, when you cut losses, your typical holding period..."
-            className="w-full resize-y rounded-lg border border-border bg-bg p-3 text-sm text-white placeholder:text-muted/60 focus:border-accent focus:outline-none"
+            className="w-full resize-y rounded-lg border border-border bg-bg p-3 text-sm text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
           />
         </div>
       ) : (
         <div className="space-y-3">
           {questions.map((q) => (
             <div key={q.id}>
-              <label className="mb-1.5 block text-sm font-medium text-white">{q.prompt}</label>
+              <label className="mb-1.5 block text-sm font-medium text-fg">{q.prompt}</label>
               <textarea
                 value={answers[q.id] ?? ""}
                 onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
                 rows={2}
-                className="w-full resize-y rounded-lg border border-border bg-bg p-3 text-sm text-white focus:border-accent focus:outline-none"
+                className="w-full resize-y rounded-lg border border-border bg-bg p-3 text-sm text-fg focus:border-accent focus:outline-none"
               />
             </div>
           ))}
@@ -84,7 +84,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
         <button
           onClick={generate}
           disabled={saving || !hasContent}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
         >
           {saving ? "Generating…" : "Generate My Playbook"}
         </button>

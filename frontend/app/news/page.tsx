@@ -57,7 +57,7 @@ export default function NewsPage() {
     <main className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 shrink-0">
         <div>
-          <div className="text-xl font-semibold text-white">News</div>
+          <div className="text-xl font-semibold text-fg">News</div>
           <div className="text-xs text-muted">
             The most compelling market-wide stories right now, with uWick's read against your Strategy tab archetype
           </div>
@@ -65,7 +65,7 @@ export default function NewsPage() {
         <button
           onClick={loadNews}
           disabled={loadingArticles}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
         >
           {loadingArticles ? "Scanning…" : "Refresh"}
         </button>
@@ -80,7 +80,7 @@ export default function NewsPage() {
           {/* uWick's overall market read */}
           <div className="rounded-lg border border-border bg-panel p-4">
             <div className="mb-2 flex items-center gap-2">
-              <span className="text-sm font-semibold text-white">uWick's Take</span>
+              <span className="text-sm font-semibold text-fg">uWick's Take</span>
               {insight && (
                 <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
                   {insight.sentiment}
@@ -93,7 +93,7 @@ export default function NewsPage() {
               <p className="text-xs text-down">{insightError}</p>
             ) : insight ? (
               <>
-                <p className="mb-2 text-sm text-white">{insight.advice}</p>
+                <p className="mb-2 text-sm text-fg">{insight.advice}</p>
                 {insight.rationale.length > 0 && (
                   <ul className="list-disc pl-5 text-xs text-muted">
                     {insight.rationale.map((r, i) => (
@@ -128,7 +128,7 @@ export default function NewsPage() {
                         href={a.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="truncate text-white hover:text-accent hover:underline"
+                        className="truncate text-fg hover:text-accent hover:underline"
                       >
                         {a.title}
                       </a>

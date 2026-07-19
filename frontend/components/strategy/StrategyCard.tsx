@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { Pencil, Shield, TriangleAlert, Timer, Crosshair, LogIn } from "lucide-react";
 import { api, StrategyNote } from "@/lib/api";
 
 // Mirrors backend/app/services/strategy.py's SECTION_LABELS + StrategyPlaybook fields.
 const SECTIONS = [
-  { key: "goal", label: "Goal", icon: "🎯" },
-  { key: "entry_rules", label: "Entry Rules", icon: "🚪" },
-  { key: "risk_rules", label: "Risk Rules", icon: "🛡️" },
-  { key: "timeframe", label: "Timeframe", icon: "⏱️" },
-  { key: "avoid", label: "Avoid", icon: "⚠️" },
+  { key: "goal", label: "Goal", icon: Crosshair },
+  { key: "entry_rules", label: "Entry Rules", icon: LogIn },
+  { key: "risk_rules", label: "Risk Rules", icon: Shield },
+  { key: "timeframe", label: "Timeframe", icon: Timer },
+  { key: "avoid", label: "Avoid", icon: TriangleAlert },
 ] as const;
 
 type SectionKey = (typeof SECTIONS)[number]["key"];
@@ -101,16 +102,16 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
               <button
                 onClick={startEditing}
                 title="Edit playbook"
-                className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-white"
+                className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
               >
-                ✏️
+                <Pencil size={12} strokeWidth={2} />
               </button>
             )}
             {onRegenerate && (
               <button
                 onClick={onRegenerate}
                 disabled={regenerating}
-                className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-white disabled:opacity-50"
+                className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg disabled:opacity-50"
               >
                 {regenerating ? "Regenerating…" : "Regenerate"}
               </button>
@@ -123,8 +124,8 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
         <div className="space-y-3">
           {SECTIONS.map((s) => (
             <div key={s.key}>
-              <label className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-white">
-                <span>{s.icon}</span>
+              <label className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-fg">
+                <s.icon size={13} strokeWidth={2} />
                 {s.label}
               </label>
               <textarea
@@ -132,7 +133,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
                 onChange={(e) => setDraft((prev) => ({ ...prev, [s.key]: e.target.value }))}
                 rows={2}
                 placeholder="One bullet per line"
-                className="w-full resize-y rounded-lg border border-border bg-bg p-2 text-xs text-white placeholder:text-muted/60 focus:border-accent focus:outline-none"
+                className="w-full resize-y rounded-lg border border-border bg-bg p-2 text-xs text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
               />
             </div>
           ))}
@@ -140,14 +141,14 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
             <button
               onClick={save}
               disabled={saving}
-              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save"}
             </button>
             <button
               onClick={() => setEditing(false)}
               disabled={saving}
-              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:text-white"
+              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:text-fg"
             >
               Cancel
             </button>
@@ -157,8 +158,8 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
         <div className="divide-y divide-border rounded-lg border border-border bg-bg/60">
           {SECTIONS.filter((s) => (sections[s.key] ?? []).length > 0).map((s) => (
             <div key={s.key} className="p-3">
-              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-white">
-                <span>{s.icon}</span>
+              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-fg">
+                <s.icon size={13} strokeWidth={2} />
                 {s.label}
               </div>
               <ul className="space-y-1 text-xs text-muted">

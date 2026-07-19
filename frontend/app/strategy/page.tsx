@@ -29,7 +29,7 @@ export default function StrategyPage() {
   return (
     <main className="flex h-full flex-col">
       <header className="border-b border-border bg-panel px-4 py-3 shrink-0">
-        <div className="text-xl font-semibold text-white">Strategy</div>
+        <div className="text-xl font-semibold text-fg">Strategy</div>
         <div className="text-xs text-muted">Choose your class, then teach uWick how you trade</div>
       </header>
 

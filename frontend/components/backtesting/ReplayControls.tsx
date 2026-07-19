@@ -48,19 +48,19 @@ export default function ReplayControls({
     <div className="flex items-center gap-3 border-t border-border bg-panel px-3 py-2 shrink-0">
       <button
         onClick={() => onCursorChange(Math.max(cursorIndex - 1, 0))}
-        className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-white"
+        className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
       >
         ◀ Step
       </button>
       <button
         onClick={() => onPlayingChange(!playing)}
-        className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-accent/80"
+        className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-fg transition-colors hover:bg-accent/80"
       >
         {playing ? "Pause" : "Play"}
       </button>
       <button
         onClick={() => onCursorChange(Math.min(cursorIndex + 1, total - 1))}
-        className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-white"
+        className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
       >
         Step ▶
       </button>
@@ -84,8 +84,8 @@ export default function ReplayControls({
             onClick={() => onSpeedChange(opt.value)}
             className={`rounded-md border px-2 py-1 text-xs transition-colors ${
               speedMs === opt.value
-                ? "border-accent text-white"
-                : "border-border text-muted hover:border-accent hover:text-white"
+                ? "border-accent text-fg"
+                : "border-border text-muted hover:border-accent hover:text-fg"
             }`}
           >
             {opt.label}

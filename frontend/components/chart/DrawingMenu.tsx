@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { DRAWING_TOOLS, DrawingToolId, IconDrawingTool, IconStar } from "@/components/chart/drawingTools";
+import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
 interface DrawingMenuProps {
   /** "crosshair" means no drawing tool is active. */
@@ -15,27 +17,26 @@ interface DrawingMenuProps {
 
 export default function DrawingMenu({ value, onChange, align = "left", pinned, onTogglePin }: DrawingMenuProps) {
   const [open, setOpen] = useState(false);
+  const [hover, setHover] = useState(false);
   const active = DRAWING_TOOLS.find((t) => t.id === value) ?? null;
 
   return (
-    <div className="relative">
+    <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button
         type="button"
-        title="Drawing tools"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={`flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
-          active ? "bg-accent text-white" : "text-muted hover:bg-accent/20 hover:text-white"
+          active ? "bg-accent text-fg" : "text-muted hover:bg-accent/20 hover:text-fg"
         }`}
       >
         {active ? <active.icon /> : <IconDrawingTool />}
-        <svg width="8" height="8" viewBox="0 0 10 10" className="opacity-70">
-          <path d="M1 3 L5 7 L9 3" stroke="currentColor" strokeWidth="1.5" fill="none" />
-        </svg>
+        <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
+      <ToolbarTooltip label="Drawing tools" hover={hover && !open} />
       {open && (
         <div
-          className={`absolute top-full z-30 mt-1 w-48 rounded-md border border-border bg-[#151a24] py-1 shadow-lg ${
+          className={`absolute top-full z-30 mt-1 w-48 rounded-md border border-border bg-panel py-1 shadow-lg ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -43,7 +44,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
             <div
               key={t.id}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-                t.id === value ? "bg-accent/20 text-white" : "text-muted hover:bg-accent/10 hover:text-white"
+                t.id === value ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
               }`}
             >
               <button
@@ -66,7 +67,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
                   e.stopPropagation();
                   onTogglePin(t.id);
                 }}
-                className={`shrink-0 transition-colors ${pinned.has(t.id) ? "text-accent" : "text-muted hover:text-white"}`}
+                className={`shrink-0 transition-colors ${pinned.has(t.id) ? "text-accent" : "text-muted hover:text-fg"}`}
               >
                 <IconStar filled={pinned.has(t.id)} />
               </button>

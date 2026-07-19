@@ -7,6 +7,7 @@ import ReplayControls from "@/components/backtesting/ReplayControls";
 import ConfigEditor from "@/components/backtesting/ConfigEditor";
 import HintLibrary from "@/components/backtesting/HintLibrary";
 import BacktestChat from "@/components/backtesting/BacktestChat";
+import { Search } from "lucide-react";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -47,12 +48,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
 }
 
 function IconSearch() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0">
-      <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-      <line x1="10" y1="10" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-    </svg>
-  );
+  return <Search size={14} strokeWidth={2} className="shrink-0" />;
 }
 
 const DEFAULT_CONFIG: BacktestConfig = {
@@ -168,12 +164,12 @@ export default function BacktestingPage() {
   return (
     <main className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 shrink-0">
-        <div className="text-xl font-semibold text-white">Backtesting</div>
+        <div className="text-xl font-semibold text-fg">Backtesting</div>
         <div className="flex items-center gap-3">
           <select
             value={config.timeframe}
             onChange={(e) => setConfig({ ...config, timeframe: e.target.value })}
-            className="rounded border border-border bg-bg px-2 py-1.5 text-sm text-white outline-none focus:border-accent cursor-pointer"
+            className="rounded border border-border bg-bg px-2 py-1.5 text-sm text-fg outline-none focus:border-accent cursor-pointer"
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>{tf.label}</option>
@@ -203,7 +199,7 @@ export default function BacktestingPage() {
                   }
                   if (e.key === "Escape") setShowSymbolDropdown(false);
                 }}
-                className="flex-1 bg-transparent text-sm outline-none text-white placeholder:text-white"
+                className="flex-1 bg-transparent text-sm outline-none text-fg placeholder:text-fg"
               />
             </div>
             {showSymbolDropdown && (searchResults.length > 0 || searchLoading) && (
@@ -218,7 +214,7 @@ export default function BacktestingPage() {
                     onClick={() => handleSymbolSelect(r.symbol)}
                     className="w-full px-3 py-2 text-left text-sm hover:bg-accent/20 border-b border-border last:border-b-0 flex items-baseline gap-2"
                   >
-                    <span className="font-mono text-white min-w-[3.5rem]">
+                    <span className="font-mono text-fg min-w-[3.5rem]">
                       <HighlightMatch text={r.symbol} query={symbolSearch} />
                     </span>
                     <span className="text-xs text-muted truncate">{r.name}</span>
@@ -231,7 +227,7 @@ export default function BacktestingPage() {
           <button
             onClick={runBacktest}
             disabled={running || candles.length === 0}
-            className="rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent/80 disabled:opacity-50"
+            className="rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
           >
             {running ? "Running…" : "Run backtest"}
           </button>
@@ -284,8 +280,8 @@ export default function BacktestingPage() {
           />
           {result && (
             <div className="flex shrink-0 gap-4 border-t border-border bg-panel px-3 py-2 text-xs text-muted">
-              <span>Trades: <span className="text-white">{result.stats.total_trades}</span></span>
-              <span>Win rate: <span className="text-white">{result.stats.win_rate?.toFixed(1)}%</span></span>
+              <span>Trades: <span className="text-fg">{result.stats.total_trades}</span></span>
+              <span>Win rate: <span className="text-fg">{result.stats.win_rate?.toFixed(1)}%</span></span>
               <span>Total P/L: <span className={result.stats.total_pnl >= 0 ? "text-up" : "text-down"}>{result.stats.total_pnl?.toFixed(2)}</span></span>
             </div>
           )}

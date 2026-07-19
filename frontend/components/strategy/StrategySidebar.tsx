@@ -12,6 +12,7 @@ interface Props {
 
 export default function StrategySidebar({ archetype, note, onNoteUpdated }: Props) {
   const presentation = presentationFor(archetype?.id);
+  const Icon = presentation.icon;
 
   return (
     <div className="w-[26rem] shrink-0">
@@ -19,12 +20,12 @@ export default function StrategySidebar({ archetype, note, onNoteUpdated }: Prop
         {archetype ? (
           <div className="text-center animate-fade-in-up">
             <span
-              className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full text-2xl"
+              className="mx-auto mb-2 flex h-14 w-14 items-center justify-center rounded-full"
               style={{ backgroundColor: `${presentation.color}22` }}
             >
-              {presentation.glyph}
+              <Icon size={24} strokeWidth={2} color={presentation.color} />
             </span>
-            <div className="text-sm font-semibold text-white">{archetype.name}</div>
+            <div className="text-sm font-semibold text-fg">{archetype.name}</div>
             <div className="text-xs text-muted">{archetype.tagline}</div>
           </div>
         ) : (

@@ -103,7 +103,7 @@ export default function OrderPanel({
 
       <div className="mb-3 flex items-center justify-between rounded border border-border bg-bg px-3 py-2">
         <span className="text-xs text-muted">Available to trade</span>
-        <span className="text-sm font-semibold tabular-nums text-white">
+        <span className="text-sm font-semibold tabular-nums text-fg">
           {buyingPower != null ? fmtUsd(buyingPower) : "—"}
         </span>
       </div>
@@ -142,7 +142,7 @@ export default function OrderPanel({
       {estCost != null && (
         <div className="mb-3 flex items-center justify-between text-xs">
           <span className="text-muted">Est. {type === "limit" ? "cost" : "cost @ mkt"}</span>
-          <span className={`tabular-nums font-medium ${insufficient ? "text-down" : "text-white"}`}>
+          <span className={`tabular-nums font-medium ${insufficient ? "text-down" : "text-fg"}`}>
             {fmtUsd(estCost)}
           </span>
         </div>
@@ -203,14 +203,14 @@ export default function OrderPanel({
         <button
           disabled={busy || insufficient || !bracketValid}
           onClick={() => submit("buy")}
-          className="flex-1 rounded bg-up/90 py-2 text-sm font-semibold text-white hover:bg-up disabled:opacity-50"
+          className="flex-1 rounded bg-up/90 py-2 text-sm font-semibold text-fg hover:bg-up disabled:opacity-50"
         >
           Buy
         </button>
         <button
           disabled={busy || !bracketValid}
           onClick={() => submit("sell")}
-          className="flex-1 rounded bg-down/90 py-2 text-sm font-semibold text-white hover:bg-down disabled:opacity-50"
+          className="flex-1 rounded bg-down/90 py-2 text-sm font-semibold text-fg hover:bg-down disabled:opacity-50"
         >
           Sell
         </button>

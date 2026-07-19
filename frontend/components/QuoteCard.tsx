@@ -44,7 +44,7 @@ export default function QuoteCard({ symbol, symbolName, candles, liveQuote }: Qu
     <div className="rounded-lg border border-border bg-panel p-4">
       {/* Symbol + name */}
       <div className="flex items-baseline gap-2 mb-1">
-        <span className="text-base font-bold text-white font-mono">{symbol}</span>
+        <span className="text-base font-bold text-fg font-mono">{symbol}</span>
         {symbolName && <span className="text-xs text-muted truncate">{symbolName}</span>}
       </div>
 
@@ -52,7 +52,7 @@ export default function QuoteCard({ symbol, symbolName, candles, liveQuote }: Qu
       <div className="flex items-baseline gap-3 mb-3">
         {price != null ? (
           <>
-            <span className="text-2xl font-bold text-white">${fmt(price)}</span>
+            <span className="text-2xl font-bold text-fg">${fmt(price)}</span>
             {change != null && changePct != null && (
               <span className={`text-sm font-semibold ${up ? "text-up" : "text-down"}`}>
                 {up ? "+" : ""}{fmt(change)} ({up ? "+" : ""}{changePct.toFixed(2)}%)
@@ -69,16 +69,16 @@ export default function QuoteCard({ symbol, symbolName, candles, liveQuote }: Qu
         <div className="flex gap-4 text-xs border-t border-border pt-2">
           <div>
             <div className="text-muted mb-0.5">Bid</div>
-            <div className="text-white font-mono">{quote.bid != null ? fmt(quote.bid) : "—"}</div>
+            <div className="text-fg font-mono">{quote.bid != null ? fmt(quote.bid) : "—"}</div>
           </div>
           <div>
             <div className="text-muted mb-0.5">Ask</div>
-            <div className="text-white font-mono">{quote.ask != null ? fmt(quote.ask) : "—"}</div>
+            <div className="text-fg font-mono">{quote.ask != null ? fmt(quote.ask) : "—"}</div>
           </div>
           {quote.bid != null && quote.ask != null && (
             <div>
               <div className="text-muted mb-0.5">Spread</div>
-              <div className="text-white font-mono">{fmt(quote.ask - quote.bid)}</div>
+              <div className="text-fg font-mono">{fmt(quote.ask - quote.bid)}</div>
             </div>
           )}
         </div>

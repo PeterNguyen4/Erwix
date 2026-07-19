@@ -22,12 +22,12 @@ function RuleRow({
         value={rule.indicator}
         onChange={(e) => onChange({ ...rule, indicator: e.target.value })}
         placeholder="rsi_14 / sma_50 / close"
-        className="w-28 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-white"
+        className="w-28 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-fg"
       />
       <select
         value={rule.comparator}
         onChange={(e) => onChange({ ...rule, comparator: e.target.value as BacktestRule["comparator"] })}
-        className="rounded-md border border-border bg-transparent px-1 py-1 text-xs text-white"
+        className="rounded-md border border-border bg-transparent px-1 py-1 text-xs text-fg"
       >
         {["<", "<=", ">", ">=", "==", "crosses_above", "crosses_below"].map((c) => (
           <option key={c} value={c} className="bg-panel">
@@ -39,7 +39,7 @@ function RuleRow({
         type="number"
         value={rule.value}
         onChange={(e) => onChange({ ...rule, value: Number(e.target.value) })}
-        className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-white"
+        className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-fg"
       />
       <button onClick={onRemove} className="text-xs text-muted hover:text-down">
         ✕
@@ -72,7 +72,7 @@ function RuleList({
 
 export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-3 text-white">
+    <div className="flex h-full flex-col gap-4 overflow-auto p-3 text-fg">
       <div className="flex items-center gap-2">
         <input
           value={config.name}
