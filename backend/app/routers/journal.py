@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,9 +8,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Trade
 from app.schemas import PnLSummaryOut, TradeNoteUpdate, TradeOut
-from app.services.trade_retrieval import compute_pnl_summary, embed_trade
-
-logger = logging.getLogger("entro.journal")
+from app.services.trade_retrieval import compute_pnl_summary, embed_trade_best_effort
 
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(require_auth)])
 
@@ -78,9 +75,5 @@ def update_trade_notes(
     trade.notes = body.notes
     db.commit()
     db.refresh(trade)
-    try:
-        embed_trade(db, trade)
-    except Exception:  # noqa: BLE001 — embedding is best-effort, never blocks the note save
-        db.rollback()
-        logger.warning("Failed to re-embed trade %s after notes update", trade.id, exc_info=True)
+    embed_trade_best_effort(db, trade)
     return trade

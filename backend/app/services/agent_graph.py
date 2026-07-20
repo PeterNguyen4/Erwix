@@ -121,6 +121,25 @@ class AgentState(TypedDict):
     primary_symbol: str | None
 
 
+def _initial_state(
+    user_id: str,
+    window_start: datetime,
+    window_end: datetime,
+    symbol: str | None,
+    query: str | None,
+) -> AgentState:
+    return {
+        "messages": [],
+        "user_id": user_id,
+        "window_start": window_start,
+        "window_end": window_end,
+        "symbol": symbol,
+        "query": query,
+        "annotations": [],
+        "primary_symbol": None,
+    }
+
+
 def _base_model() -> BaseChatModel:
     settings = get_settings()
     if settings.llm_provider == "ollama":
@@ -271,18 +290,7 @@ def run_review(
 ) -> tuple[str, list[dict]]:
     """Run the analyst graph and return (narrative, annotations)."""
     app = build_graph(db)
-    result = app.invoke(
-        {
-            "messages": [],
-            "user_id": user_id,
-            "window_start": window_start,
-            "window_end": window_end,
-            "symbol": symbol,
-            "query": query,
-            "annotations": [],
-            "primary_symbol": None,
-        }
-    )
+    result = app.invoke(_initial_state(user_id, window_start, window_end, symbol, query))
     narrative = result["messages"][-1].content
     if isinstance(narrative, list):
         narrative = "".join(block.get("text", "") for block in narrative if isinstance(block, dict))
@@ -381,16 +389,7 @@ async def agenerate_steps(
     but yields one finished step dict per trade (see _step_from_tool_events) instead
     of token-level events, so a caller can persist DebriefReport.steps incrementally
     without needing a live connection."""
-    state: AgentState = {
-        "messages": [],
-        "user_id": user_id,
-        "window_start": window_start,
-        "window_end": window_end,
-        "symbol": symbol,
-        "query": query,
-        "annotations": [],
-        "primary_symbol": None,
-    }
+    state = _initial_state(user_id, window_start, window_end, symbol, query)
     retrieved = _retrieve(state, db)
     context_messages = retrieved["messages"]
     trades: list[Trade] = retrieved["trades"]
@@ -449,16 +448,7 @@ async def arun_followup(
     rather than trusting only the stored narrative, so questions about specific
     trades can still be checked against real data). `history` is prior
     (role, content) DebriefMessage pairs in order. Returns (reply_text, tool_events)."""
-    state: AgentState = {
-        "messages": [],
-        "user_id": user_id,
-        "window_start": window_start,
-        "window_end": window_end,
-        "symbol": symbol,
-        "query": query,
-        "annotations": [],
-        "primary_symbol": None,
-    }
+    state = _initial_state(user_id, window_start, window_end, symbol, query)
     retrieved = _retrieve(state, db)
     context_messages = retrieved["messages"]
 
@@ -497,16 +487,7 @@ async def astream_review(
     as each trade's narration is generated, interleaved with that trade's
     {"type": "annotations"|"spotlight"|"zoom", ...} events, and finally {"type": "done"}.
     """
-    state: AgentState = {
-        "messages": [],
-        "user_id": user_id,
-        "window_start": window_start,
-        "window_end": window_end,
-        "symbol": symbol,
-        "query": query,
-        "annotations": [],
-        "primary_symbol": None,
-    }
+    state = _initial_state(user_id, window_start, window_end, symbol, query)
     retrieved = _retrieve(state, db)
     context_messages = retrieved["messages"]
     trades: list[Trade] = retrieved["trades"]

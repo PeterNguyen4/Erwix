@@ -76,16 +76,9 @@ def _trading_client() -> TradingClient:
 
 async def search_assets(q: str, limit: int = 10) -> list[dict]:
     """Search tickers via Yahoo Finance's public suggest API — no API key required."""
-    import httpx
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            "https://query1.finance.yahoo.com/v1/finance/search",
-            params={"q": q, "quotesCount": limit, "newsCount": 0, "enableFuzzyQuery": "true"},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=5.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    from app.services.yahoo_finance import yahoo_search
+
+    data = await yahoo_search({"q": q, "quotesCount": limit, "newsCount": 0, "enableFuzzyQuery": "true"})
     results = []
     for item in data.get("quotes", [])[:limit]:
         symbol = item.get("symbol", "")
