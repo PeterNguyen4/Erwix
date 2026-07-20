@@ -25,7 +25,7 @@ from app.alpaca_client import (
 from app.db import SessionLocal
 from app.models import Trade
 from app.schemas import OrderRequest, OrderResponse
-from app.services.trade_retrieval import embed_trade
+from app.services.trade_retrieval import embed_trade_best_effort
 from sqlalchemy import select
 
 logger = logging.getLogger("entro.execution_logger")
@@ -45,6 +45,37 @@ def _to_float(value, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _fill_only_trade(
+    *,
+    broker_order_id: str | None,
+    client_order_id: str | None,
+    symbol: str,
+    side: str,
+    order_type: str | None,
+    qty,
+    fill_price,
+    status: str,
+    filled_at,
+    raw,
+) -> Trade:
+    """Build a fill-only Trade row (no submission-time intent row exists for it) —
+    used both when a fill event arrives for an order the logger never saw
+    submitted, and when reconciling fills from Alpaca's order history."""
+    return Trade(
+        broker_order_id=broker_order_id,
+        client_order_id=client_order_id,
+        user_id=user_id_from_client_order_id(client_order_id),
+        symbol=symbol,
+        side=side,
+        order_type=order_type,
+        qty=_to_float(qty),
+        fill_price=_to_float(fill_price),
+        status=status,
+        filled_at=filled_at,
+        raw=json.dumps(raw, default=str),
+    )
 
 
 def log_order_intent(response: OrderResponse, request: OrderRequest, user_id: str) -> None:
@@ -135,10 +166,9 @@ async def _handle_trade_update(data) -> None:
             filled_at = getattr(order, "filled_at", None) or datetime.now(timezone.utc)
             price = getattr(data, "price", None) or getattr(order, "filled_avg_price", None)
             qty = getattr(data, "qty", None) or getattr(order, "filled_qty", None)
-            trade = Trade(
+            trade = _fill_only_trade(
                 broker_order_id=broker_order_id,
                 client_order_id=client_order_id,
-                user_id=user_id_from_client_order_id(client_order_id),
                 symbol=getattr(order, "symbol", ""),
                 side=getattr(getattr(order, "side", None), "value", str(getattr(order, "side", ""))),
                 order_type=getattr(
@@ -146,11 +176,11 @@ async def _handle_trade_update(data) -> None:
                     "value",
                     str(getattr(order, "order_type", "")) or None,
                 ),
-                qty=_to_float(qty),
-                fill_price=_to_float(price),
+                qty=qty,
+                fill_price=price,
                 status=status,
                 filled_at=filled_at,
-                raw=json.dumps(data, default=str),
+                raw=data,
             )
             db.add(trade)
         else:
@@ -166,11 +196,7 @@ async def _handle_trade_update(data) -> None:
         db.commit()
         logger.info("Logged %s: %s %s %s", event, trade.side, trade.qty, trade.symbol)
         if is_fill:
-            try:
-                embed_trade(db, trade)
-            except Exception:  # noqa: BLE001 — embedding is best-effort, never blocks fill logging
-                db.rollback()
-                logger.warning("Failed to embed trade %s", trade.id, exc_info=True)
+            embed_trade_best_effort(db, trade)
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.exception("Failed to log trade update")
@@ -210,18 +236,17 @@ def reconcile_recent_fills() -> None:
                     trade.filled_at = o.filled_at
                     updated += 1
                 continue
-            trade = Trade(
+            trade = _fill_only_trade(
                 broker_order_id=broker_order_id,
                 client_order_id=o.client_order_id,
-                user_id=user_id_from_client_order_id(o.client_order_id),
                 symbol=o.symbol,
                 side=getattr(o.side, "value", str(o.side)),
                 order_type=getattr(o.order_type, "value", str(o.order_type)) if o.order_type else None,
-                qty=_to_float(o.filled_qty),
-                fill_price=_to_float(o.filled_avg_price),
+                qty=o.filled_qty,
+                fill_price=o.filled_avg_price,
                 status="filled",
                 filled_at=o.filled_at,
-                raw=json.dumps(o, default=str),
+                raw=o,
             )
             db.add(trade)
             added += 1

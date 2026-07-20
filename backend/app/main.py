@@ -20,7 +20,6 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    '''Alembic-managed schema — run `alembic upgrade head` to resolve migrations'''
     task: asyncio.Task | None = None
     if settings.has_alpaca_creds:
         reconcile_recent_fills()
@@ -28,7 +27,7 @@ async def lifespan(app: FastAPI):
         logger.info("Started execution logger background task")
     else:
         logger.warning(
-            "Alpaca credentials not set — execution logger disabled. "
+            "Alpaca credentials not set. Execution logger disabled. "
             "Market/trading endpoints will return 503 until configured."
         )
     start_scheduler()

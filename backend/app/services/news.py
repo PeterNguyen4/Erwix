@@ -11,9 +11,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-logger = logging.getLogger("entro.news")
+from app.services.yahoo_finance import yahoo_search
 
-_SEARCH_URL = "https://query1.finance.yahoo.com/v1/finance/search"
+logger = logging.getLogger("entro.news")
 
 # Broad index proxies used to pull market-wide (not single-ticker) headlines —
 # S&P 500, Dow, Nasdaq, and the VIX (volatility/risk-sentiment stories).
@@ -30,17 +30,9 @@ class NewsArticle:
 
 
 async def _fetch_symbol_news(symbol: str, limit: int) -> list[NewsArticle]:
-    import httpx
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            _SEARCH_URL,
-            params={"q": symbol, "quotesCount": 0, "newsCount": limit, "enableFuzzyQuery": "false"},
-            headers={"User-Agent": "Mozilla/5.0"},
-            timeout=5.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    data = await yahoo_search(
+        {"q": symbol, "quotesCount": 0, "newsCount": limit, "enableFuzzyQuery": "false"}
+    )
 
     articles = []
     for item in data.get("news", [])[:limit]:

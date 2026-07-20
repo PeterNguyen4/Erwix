@@ -6,6 +6,7 @@ went wrong with the one where I panicked") embeds the query with Voyage and
 ranks trades by cosine distance in pgvector.
 """
 
+import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -15,6 +16,8 @@ from sqlalchemy.orm import Session
 
 from app.models import Trade
 from app.services.embeddings import EMBEDDING_MODEL, build_trade_text, embed_documents, embed_query
+
+logger = logging.getLogger("entro.trade_retrieval")
 
 
 @dataclass
@@ -175,6 +178,16 @@ def embed_trade(db: Session, trade: Trade) -> None:
     trade.embedding_model = EMBEDDING_MODEL
     trade.embedded_at = datetime.now(timezone.utc)
     db.commit()
+
+
+def embed_trade_best_effort(db: Session, trade: Trade) -> None:
+    """(Re-)embed a trade, logging and rolling back on failure instead of raising —
+    embedding must never block the fill/notes write it's attached to."""
+    try:
+        embed_trade(db, trade)
+    except Exception:  # noqa: BLE001 — embedding is best-effort, never blocks the caller's write
+        db.rollback()
+        logger.warning("Failed to embed trade %s", trade.id, exc_info=True)
 
 
 def backfill_embeddings(db: Session, user_id: str, batch_size: int = 50) -> int:
