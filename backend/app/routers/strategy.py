@@ -27,7 +27,7 @@ async def _regenerate_summary(db: Session, note) -> None:
     try:
         sections = await asummarize_strategy(note.archetype, note.body)
         note.structured_summary = json.dumps(sections)
-        note.summary_model = "agent_graph.asummarize_strategy"
+        note.summary_model = "strategy_agent.asummarize_strategy"
         note.summarized_at = datetime.now(timezone.utc)
         db.commit()
     except Exception:

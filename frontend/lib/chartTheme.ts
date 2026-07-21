@@ -1,3 +1,4 @@
+// Mirrors CSS custom properties as hex to override TV
 export interface ChartPalette {
   bg: string;
   panel: string;
