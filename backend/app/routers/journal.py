@@ -10,7 +10,7 @@ from app.models import Trade
 from app.schemas import PnLSummaryOut, TradeNoteUpdate, TradeOut
 from app.services.trade_retrieval import compute_pnl_summary, embed_trade_best_effort
 
-router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/journal", tags=["journal"])
 
 
 @router.get("/trades", response_model=list[TradeOut])

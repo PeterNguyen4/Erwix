@@ -9,7 +9,7 @@ from app.schemas import Account, OrderRequest, OrderResponse, PortfolioHistory, 
 from app.services.execution_logger import log_order_intent
 
 logger = logging.getLogger("entro.trading")
-router = APIRouter(prefix="/api/trading", tags=["trading"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/trading", tags=["trading"])
 
 
 @router.post("/orders", response_model=OrderResponse)
@@ -22,13 +22,13 @@ def create_order(order: OrderRequest, user_id: str = Depends(require_auth)) -> O
 
 @router.get("/positions", response_model=list[Position])
 @alpaca_errors(logger)
-def positions() -> list[Position]:
+def positions(_uid: str = Depends(require_auth)) -> list[Position]:
     return alpaca_client.get_positions()
 
 
 @router.get("/account", response_model=Account)
 @alpaca_errors(logger)
-def account() -> Account:
+def account(_uid: str = Depends(require_auth)) -> Account:
     return alpaca_client.get_account()
 
 
@@ -37,5 +37,6 @@ def account() -> Account:
 def portfolio_history(
     period: str = Query("1M", description="1D, 1W, 1M, 3M, 1A, all"),
     timeframe: str | None = Query(None, description="1Min, 5Min, 15Min, 1H, 1D"),
+    _uid: str = Depends(require_auth),
 ) -> PortfolioHistory:
     return alpaca_client.get_portfolio_history(period, timeframe)

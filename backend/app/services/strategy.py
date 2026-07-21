@@ -1,6 +1,6 @@
 """Strategy tab: archetype selection + either a free-form description (archetype
 "freeform") or answers to that archetype's tailored follow-up questions, distilled
-by agent_graph.asummarize_strategy into a structured playbook that the Analyst
+by strategy_agent.asummarize_strategy into a structured playbook that the Analyst
 agent (agent_graph._retrieve) reads as context."""
 
 from sqlalchemy import select
@@ -56,7 +56,7 @@ QUESTIONS: dict[str, list[dict]] = {
 }
 
 
-# Mandatory sections of a StrategyPlaybook (agent_graph.py), in display order.
+# Mandatory sections of a StrategyPlaybook (strategy_agent.py), in display order.
 SECTION_LABELS: dict[str, str] = {
     "goal": "Goal",
     "entry_rules": "Entry Rules",
