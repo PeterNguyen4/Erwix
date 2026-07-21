@@ -1,5 +1,4 @@
-// Mirrors app/globals.css's CSS variables as hex, for lightweight-charts and
-// canvas 2D drawing, neither of which can read Tailwind classes/CSS vars.
+// Mirrors CSS custom properties as hex to override TV
 export interface ChartPalette {
   bg: string;
   panel: string;
@@ -10,6 +9,9 @@ export interface ChartPalette {
   up: string;
   down: string;
 }
+
+export const TP_COLOR = "#38bdf8";
+export const SL_COLOR = "#f87171";
 
 export const CHART_PALETTES: Record<"dark" | "light", ChartPalette> = {
   dark: {

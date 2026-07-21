@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth import require_auth
 from app.db import get_db
 from app.schemas import ArchetypeOut, PlaybookUpdate, StrategyNoteOut, StrategyNoteUpdate
-from app.services.agent_graph import asummarize_strategy
+from app.services.strategy_agent import asummarize_strategy
 from app.services.strategy import archetypes_with_questions, get_active_strategy, upsert_strategy
 
 logger = logging.getLogger("entro.strategy")
@@ -20,14 +20,14 @@ _EMPTY = StrategyNoteOut(archetype=None, body=None, answers=None, structured_sum
 
 async def _regenerate_summary(db: Session, note) -> None:
     """Best-effort strategist-agent call — never blocks the save it's attached to,
-    matching execution_logger.py's embed_trade pattern."""
+    matching execution_logger.py's embed_trade_best_effort pattern."""
     if not (note.body or "").strip():
         return  # nothing to summarize yet (e.g. archetype picked, no answers filled in)
 
     try:
         sections = await asummarize_strategy(note.archetype, note.body)
         note.structured_summary = json.dumps(sections)
-        note.summary_model = "agent_graph.asummarize_strategy"
+        note.summary_model = "strategy_agent.asummarize_strategy"
         note.summarized_at = datetime.now(timezone.utc)
         db.commit()
     except Exception:

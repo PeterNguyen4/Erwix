@@ -17,7 +17,7 @@ import {
 import { MousePointer2, Trash2 } from "lucide-react";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
-import { CHART_PALETTES } from "@/lib/chartTheme";
+import { CHART_PALETTES, TP_COLOR, SL_COLOR } from "@/lib/chartTheme";
 import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
@@ -505,7 +505,7 @@ export default function Chart({
       bracketLinesRef.current.push(
         series.createPriceLine({
           price: bracket.takeProfitPrice,
-          color: "#38bdf8", // light blue
+          color: TP_COLOR,
           lineWidth: 2,
           lineStyle: 2, // dashed
           lineVisible: false,
@@ -518,7 +518,7 @@ export default function Chart({
       bracketLinesRef.current.push(
         series.createPriceLine({
           price: bracket.stopLossPrice,
-          color: "#f87171", // light red
+          color: SL_COLOR,
           lineWidth: 2,
           lineStyle: 2, // dashed
           lineVisible: false,
@@ -567,14 +567,14 @@ export default function Chart({
           if (bracket.takeProfitPrice != null) {
             const tpY = series.priceToCoordinate(bracket.takeProfitPrice);
             if (tpY != null) {
-              ctx.fillStyle = "rgba(56, 189, 248, 0.12)"; // light blue
+              ctx.fillStyle = hexToRgba(TP_COLOR, 0.12);
               ctx.fillRect(startX, Math.min(entryY, tpY), zoneWidth, Math.abs(entryY - tpY));
             }
           }
           if (bracket.stopLossPrice != null) {
             const slY = series.priceToCoordinate(bracket.stopLossPrice);
             if (slY != null) {
-              ctx.fillStyle = "rgba(248, 113, 113, 0.12)"; // light red
+              ctx.fillStyle = hexToRgba(SL_COLOR, 0.12);
               ctx.fillRect(startX, Math.min(entryY, slY), zoneWidth, Math.abs(entryY - slY));
             }
           }
@@ -594,8 +594,8 @@ export default function Chart({
           ctx.setLineDash([]);
         };
         drawLevelLine(entryY, palette.fg, false);
-        if (bracket.takeProfitPrice != null) drawLevelLine(series.priceToCoordinate(bracket.takeProfitPrice), "#38bdf8", true);
-        if (bracket.stopLossPrice != null) drawLevelLine(series.priceToCoordinate(bracket.stopLossPrice), "#f87171", true);
+        if (bracket.takeProfitPrice != null) drawLevelLine(series.priceToCoordinate(bracket.takeProfitPrice), TP_COLOR, true);
+        if (bracket.stopLossPrice != null) drawLevelLine(series.priceToCoordinate(bracket.stopLossPrice), SL_COLOR, true);
       }
     }
 
@@ -612,7 +612,7 @@ export default function Chart({
         const boxH = 20;
         const boxX = Math.min(mousePos.x + 10, canvas.width - boxW - 4);
         const boxY = mousePos.y - boxH / 2;
-        ctx.fillStyle = draggingBracketHandle === "tp" ? "#38bdf8" : "#f87171";
+        ctx.fillStyle = draggingBracketHandle === "tp" ? TP_COLOR : SL_COLOR;
         ctx.fillRect(boxX, boxY, boxW, boxH);
         ctx.fillStyle = "#0b0e14";
         ctx.textBaseline = "middle";
@@ -823,7 +823,6 @@ export default function Chart({
     if (bracket && drawingState.mode === "crosshair") {
       const series = seriesRef.current;
       const startX = getBracketStartX();
-      const HANDLE_LINE_TOLERANCE = 6;
       const onLine = startX != null && x >= startX;
       const tpY = onLine && bracket.takeProfitPrice != null ? series?.priceToCoordinate(bracket.takeProfitPrice) : null;
       const slY = onLine && bracket.stopLossPrice != null ? series?.priceToCoordinate(bracket.stopLossPrice) : null;
@@ -901,6 +900,7 @@ export default function Chart({
 
   // Fib retracement is click-and-drag with 2 anchor points
   const HANDLE_HIT_RADIUS = 8;
+  const HANDLE_LINE_TOLERANCE = 6; // px tolerance for hovering/grabbing a TP/SL price line
 
   const handleMouseDown = () => {
     if (!mousePos) return;
@@ -911,7 +911,6 @@ export default function Chart({
     if (drawingState.mode === "crosshair") {
       const bracketStartX = getBracketStartX();
       if (bracket && bracketStartX != null && mousePos.x >= bracketStartX) {
-        const HANDLE_LINE_TOLERANCE = 6;
         if (bracket.takeProfitPrice != null) {
           const tpY = series.priceToCoordinate(bracket.takeProfitPrice);
           if (tpY != null && Math.abs(mousePos.y - tpY) <= HANDLE_LINE_TOLERANCE) {
