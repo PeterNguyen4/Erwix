@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSock
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import alpaca_client
 from app.auth import require_auth, require_ws_auth
 from app.db import get_db
 from app.models import DebriefMessage, DebriefReport, UserPreference
@@ -20,6 +21,8 @@ from app.schemas import (
 from app.config import get_settings
 from app.services.agent_graph import arun_followup, astream_review, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
+from app.services.rule_engine import evaluate_rules, rules_just_fired
+from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
 
 logger = logging.getLogger("entro.agent")
@@ -126,6 +129,72 @@ async def debrief(
         logger.exception("debrief stream failed for user %s", user_id)
         try:
             await websocket.send_json({"type": "error", "detail": "debrief failed"})
+        except Exception:  # noqa: BLE001
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@router.websocket("/watch/{symbol}")
+async def watch(
+    websocket: WebSocket,
+    symbol: str,
+    timeframe: str = Query("1Day"),
+    poll_seconds: int = Query(30, ge=5, le=300),
+    user_id: str = Depends(require_ws_auth),
+    db: Session = Depends(get_db),
+) -> None:
+    """Poll-driven live evaluation of the user's compiled strategy rules: no LLM
+    call in the loop, just evaluate_rules() re-run on fresh candles. Emits a
+    `signal` event only on a false->true transition (rules_just_fired) so an
+    already-true condition at connect time doesn't immediately fire."""
+    symbol = symbol.upper()
+    await websocket.accept()
+
+    rule_set = load_rule_set(db, user_id)
+    if rule_set is None or (not rule_set.entry_rules and not rule_set.exit_rules):
+        await websocket.send_json({"type": "error", "detail": "no compiled rules"})
+        await websocket.close()
+        return
+
+    rules = [(r, "entry") for r in rule_set.entry_rules] + [(r, "exit") for r in rule_set.exit_rules]
+    all_rules = [r for r, _ in rules]
+
+    try:
+        candles = alpaca_client.get_candles(symbol, timeframe)
+        was_firing = evaluate_rules(candles, all_rules)
+
+        while True:
+            await asyncio.sleep(poll_seconds)
+            candles = alpaca_client.get_candles(symbol, timeframe)
+            now_firing = evaluate_rules(candles, all_rules)
+
+            for i in rules_just_fired(was_firing, now_firing):
+                rule, kind = rules[i]
+                candle = candles[-1]
+                await websocket.send_json({
+                    "type": "signal",
+                    "kind": kind,
+                    "description": rule.description,
+                    "annotation": {
+                        "type": "marker",
+                        "time": candle.time,
+                        "price": candle.close,
+                        "label": rule.description,
+                        "color": ENTRY_COLOR if kind == "entry" else EXIT_COLOR,
+                    },
+                })
+
+            was_firing = now_firing
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001
+        logger.exception("rule watch loop failed for user %s symbol %s", user_id, symbol)
+        try:
+            await websocket.send_json({"type": "error", "detail": "watch loop failed"})
         except Exception:  # noqa: BLE001
             pass
     finally:

@@ -51,3 +51,9 @@ def evaluate_rules(candles: list[Candle], rules: list[StrategyRule]) -> list[boo
         return [False] * len(rules)
     i = len(candles) - 1
     return [rule_holds(rule, candles, i) for rule in rules]
+
+
+def rules_just_fired(prev: list[bool], curr: list[bool]) -> list[int]:
+    """Indices that transitioned false->true — edge-triggered so a live watch
+    loop signals once per transition instead of on every poll while still true."""
+    return [i for i, (p, c) in enumerate(zip(prev, curr)) if not p and c]
