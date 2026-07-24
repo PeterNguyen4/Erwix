@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { createPortal } from "react-dom";
 import type { RuleSignal } from "@/lib/useRuleWatch";
 
 const AUTO_DISMISS_MS = 8000;
@@ -11,16 +10,17 @@ interface RuleSignalToastStackProps {
   onDismiss: (id: string) => void;
 }
 
+/** Anchored top-center over the chart itself (parent must be `relative`) so a
+ * fired signal lands in the trader's eyeline instead of a page corner. */
 export default function RuleSignalToastStack({ signals, onDismiss }: RuleSignalToastStackProps) {
-  if (typeof document === "undefined" || signals.length === 0) return null;
+  if (signals.length === 0) return null;
 
-  return createPortal(
-    <div className="fixed right-4 top-16 z-50 flex flex-col gap-2">
+  return (
+    <div className="pointer-events-none absolute left-1/2 top-3 z-40 flex -translate-x-1/2 flex-col items-center gap-2">
       {signals.map((s) => (
         <ToastItem key={s.id} signal={s} onDismiss={() => onDismiss(s.id)} />
       ))}
-    </div>,
-    document.body,
+    </div>
   );
 }
 
@@ -35,7 +35,7 @@ function ToastItem({ signal, onDismiss }: { signal: RuleSignal; onDismiss: () =>
   return (
     <button
       onClick={onDismiss}
-      className="w-72 animate-fade-in-up rounded-xl border bg-panel/95 px-3 py-2.5 text-left text-xs shadow-xl backdrop-blur-sm"
+      className="pointer-events-auto w-72 animate-fade-in-up rounded-xl border bg-panel/95 px-3 py-2.5 text-left text-xs shadow-xl backdrop-blur-sm"
       style={{ borderColor: signal.annotation.color ?? (isEntry ? "#26a69a" : "#ef5350") }}
     >
       <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: signal.annotation.color ?? (isEntry ? "#26a69a" : "#ef5350") }}>

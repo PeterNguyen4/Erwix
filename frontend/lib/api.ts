@@ -420,10 +420,11 @@ export const api = {
     if (token) q.set("token", token);
     return `${WS}/api/agent/debrief?${q.toString()}`;
   },
-  ruleWatchUrl: async (symbol: string, timeframe: string) => {
+  ruleWatchUrl: async (symbol: string, timeframe: string, refreshSeconds = 30) => {
     const token = await _getToken?.();
     const q = new URLSearchParams();
     q.set("timeframe", timeframe);
+    q.set("refresh_seconds", String(refreshSeconds));
     if (token) q.set("token", token);
     return `${WS}/api/agent/watch/${encodeURIComponent(symbol)}?${q.toString()}`;
   },

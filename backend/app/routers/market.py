@@ -8,6 +8,7 @@ from app import alpaca_client
 from app.auth import require_auth, require_ws_auth
 from app.error_handling import alpaca_errors
 from app.schemas import Candle, Quote
+from app.services import live_feed
 
 logger = logging.getLogger("entro.market")
 router = APIRouter(prefix="/api/market", tags=["market"])
@@ -109,8 +110,8 @@ async def stream(websocket: WebSocket, symbol: str, _uid: str = Depends(require_
         finally:
             alpaca_client.reset_data_stream()
 
-    data_stream.subscribe_bars(on_bar, symbol)
-    data_stream.subscribe_quotes(on_quote, symbol)
+    live_feed.subscribe_bars(symbol, on_bar)
+    live_feed.subscribe_quotes(symbol, on_quote)
     global _stream_task
     if not data_stream._running:
         _stream_task = asyncio.create_task(run_stream())
@@ -129,7 +130,7 @@ async def stream(websocket: WebSocket, symbol: str, _uid: str = Depends(require_
     except Exception:  # noqa: BLE001
         logger.exception("stream error for %s", symbol)
     finally:
-        data_stream.unsubscribe_bars(symbol)
-        data_stream.unsubscribe_quotes(symbol)
+        live_feed.unsubscribe_bars(symbol, on_bar)
+        live_feed.unsubscribe_quotes(symbol, on_quote)
         if stream_task:
             stream_task.cancel()

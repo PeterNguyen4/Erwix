@@ -186,7 +186,7 @@ function ChartPage() {
     };
   }, [symbol]);
 
-  const { signals: ruleSignals, dismiss: dismissRuleSignal } = useRuleWatch(symbol, timeframe);
+  const { signals: ruleSignals, dismiss: dismissRuleSignal } = useRuleWatch(symbol, timeframe, bracketPreview);
   const ruleAnnotations = ruleSignals.map((s) => s.annotation);
 
   const onOrderPlaced = () => {
