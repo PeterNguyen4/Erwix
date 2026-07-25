@@ -194,6 +194,14 @@ async def watch(
         "stop_loss_price": None,
         "take_profit_price": None,
     }
+    try:
+        open_levels = alpaca_client.get_open_bracket_levels(symbol, user_id)
+    except Exception:  # noqa: BLE001
+        logger.exception("failed to seed levels from open position for user %s symbol %s", user_id, symbol)
+        open_levels = None
+    if open_levels:
+        levels.update(open_levels)
+
     candles = alpaca_client.get_candles(symbol, timeframe)
     was_firing = evaluate_rules(candles, all_rules) if all_rules else []
     was_level_hit: str | None = None
