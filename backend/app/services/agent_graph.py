@@ -423,6 +423,46 @@ async def agenerate_steps(
         yield _step_from_tool_events(trade, narrative, events)
 
 
+EXIT_GUIDANCE_SYSTEM_PROMPT = (
+    "You are uWick, a trading mentor watching a trader's open position live. Their "
+    "stop-loss or take-profit level was just breached. Give exit guidance in 1-2 "
+    "sentences: direct, concrete, no hedging filler. Reference the numbers you're "
+    "given rather than restating them generically."
+)
+
+
+async def exit_guidance(
+    db: Session,
+    user_id: str,
+    symbol: str,
+    level_hit: str,
+    price: float,
+    entry_price: float,
+    stop_loss_price: float | None,
+    take_profit_price: float | None,
+) -> str:
+    """Narrates stop-loss/take-profit just-breached for the live rule-watch loop."""
+    strategy = get_active_strategy(db, user_id)
+    strategy_line = ""
+    if strategy and strategy.structured_summary:
+        label = archetype_name(strategy.archetype) or "Custom"
+        strategy_line = f"\nTrader's stated strategy ({label}) — weigh this if it's relevant to the call."
+
+    kind_label = "take-profit target" if level_hit == "take_profit" else "stop-loss"
+    prompt = (
+        f"{symbol}: {kind_label} just breached. Current price {price:.2f}, entry "
+        f"{entry_price:.2f}, stop-loss {stop_loss_price if stop_loss_price is not None else 'unset'}, "
+        f"take-profit {take_profit_price if take_profit_price is not None else 'unset'}."
+        f"{strategy_line}"
+    )
+    messages: list[AnyMessage] = [SystemMessage(EXIT_GUIDANCE_SYSTEM_PROMPT), HumanMessage(prompt)]
+    response = await _base_model().ainvoke(messages)
+    text = response.content
+    if isinstance(text, list):
+        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
+    return text.strip().strip('"“”')
+
+
 FOLLOWUP_SYSTEM_PROMPT = (
     "You are uWick, continuing a debrief conversation. The trade window and your original "
     "report are in context below. Answer the trader's follow-up question directly and "

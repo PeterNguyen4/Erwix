@@ -19,7 +19,7 @@ from app.schemas import (
     DebriefStatus,
 )
 from app.config import get_settings
-from app.services.agent_graph import arun_followup, astream_review, run_review
+from app.services.agent_graph import arun_followup, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
 from app.services.rule_engine import evaluate_rules, price_level_signal, rules_just_fired
@@ -275,11 +275,25 @@ async def watch(
                 levels["take_profit_price"],
             )
             if level_hit and level_hit != was_level_hit:
-                description = (
+                static_description = (
                     "Take-profit target hit — consider closing the position"
                     if level_hit == "take_profit"
                     else "Stop-loss hit — consider exiting to limit further loss"
                 )
+                try:
+                    description = await exit_guidance(
+                        db,
+                        user_id,
+                        symbol,
+                        level_hit,
+                        candle.close,
+                        levels["entry_price"],
+                        levels["stop_loss_price"],
+                        levels["take_profit_price"],
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.exception("exit guidance narration failed for user %s symbol %s", user_id, symbol)
+                    description = static_description
                 await websocket.send_json({
                     "type": "signal",
                     "kind": "exit",
