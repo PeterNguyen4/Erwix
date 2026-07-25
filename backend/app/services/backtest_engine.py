@@ -8,81 +8,9 @@ so hint-options snippets map 1:1 onto what the chart already draws.
 
 from app.schemas import Candle
 from app.schemas_backtest import BacktestConfig, BacktestResult, BacktestRule, BacktestTrade
+from app.services.indicators import indicator_series as _indicator_series
 
 _INITIAL_EQUITY = 100_000.0
-
-
-def _sma(closes: list[float], period: int) -> list[float | None]:
-    out: list[float | None] = [None] * len(closes)
-    running = 0.0
-    for i, c in enumerate(closes):
-        running += c
-        if i >= period:
-            running -= closes[i - period]
-        if i >= period - 1:
-            out[i] = running / period
-    return out
-
-
-def _ema(closes: list[float], period: int) -> list[float | None]:
-    out: list[float | None] = [None] * len(closes)
-    if len(closes) < period:
-        return out
-    k = 2 / (period + 1)
-    seed = sum(closes[:period]) / period
-    out[period - 1] = seed
-    prev = seed
-    for i in range(period, len(closes)):
-        prev = closes[i] * k + prev * (1 - k)
-        out[i] = prev
-    return out
-
-
-def _rsi(closes: list[float], period: int = 14) -> list[float | None]:
-    out: list[float | None] = [None] * len(closes)
-    if len(closes) <= period:
-        return out
-    gains = 0.0
-    losses = 0.0
-    for i in range(1, period + 1):
-        delta = closes[i] - closes[i - 1]
-        gains += max(delta, 0.0)
-        losses += max(-delta, 0.0)
-    avg_gain = gains / period
-    avg_loss = losses / period
-    out[period] = 100.0 if avg_loss == 0 else 100 - 100 / (1 + avg_gain / avg_loss)
-    for i in range(period + 1, len(closes)):
-        delta = closes[i] - closes[i - 1]
-        gain = max(delta, 0.0)
-        loss = max(-delta, 0.0)
-        avg_gain = (avg_gain * (period - 1) + gain) / period
-        avg_loss = (avg_loss * (period - 1) + loss) / period
-        out[i] = 100.0 if avg_loss == 0 else 100 - 100 / (1 + avg_gain / avg_loss)
-    return out
-
-
-def _macd_line(closes: list[float]) -> list[float | None]:
-    fast = _ema(closes, 12)
-    slow = _ema(closes, 26)
-    return [
-        (f - s) if f is not None and s is not None else None
-        for f, s in zip(fast, slow)
-    ]
-
-
-def _indicator_series(candles: list[Candle], name: str) -> list[float | None]:
-    closes = [c.close for c in candles]
-    if name == "close":
-        return list(closes)
-    if name.startswith("sma_"):
-        return _sma(closes, int(name.split("_")[1]))
-    if name.startswith("ema_"):
-        return _ema(closes, int(name.split("_")[1]))
-    if name.startswith("rsi_"):
-        return _rsi(closes, int(name.split("_")[1]))
-    if name == "macd":
-        return _macd_line(closes)
-    raise ValueError(f"Unknown indicator: {name!r}")
 
 
 def _rule_holds(rule: BacktestRule, series: list[float | None], i: int) -> bool:

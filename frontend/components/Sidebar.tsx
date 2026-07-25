@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { UserButton } from "@clerk/nextjs";
+import { ClerkLoaded, UserButton } from "@clerk/nextjs";
 import { useDebriefStatus } from "@/lib/useDebriefStatus";
 import {
   LineChart,
@@ -59,7 +59,9 @@ export default function Sidebar() {
       })}
       <div className="flex-1" />
       <div className="mb-2">
-        <UserButton afterSignOutUrl="/login" />
+        <ClerkLoaded>
+          <UserButton />
+        </ClerkLoaded>
       </div>
     </nav>
   );

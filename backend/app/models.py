@@ -165,6 +165,29 @@ class StrategyNote(Base):
     )
 
 
+class StrategyRuleSet(Base):
+    """Compiled machine-checkable rules derived from a StrategyNote's body."""
+
+    __tablename__ = "strategy_rule_sets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(128), index=True, unique=True)
+    note_id: Mapped[int] = mapped_column(ForeignKey("strategy_notes.id"), index=True)
+
+    rules: Mapped[dict] = mapped_column(JSON)
+    compiled_model: Mapped[str | None] = mapped_column(String(64))
+    compiled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # sha256 of the StrategyNote.body used to compile — lets us flag staleness after an edit
+    source_body_hash: Mapped[str | None] = mapped_column(String(64))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class BacktestConfig(Base):
     """A saved backtest rule config"""
 

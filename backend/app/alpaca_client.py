@@ -243,6 +243,37 @@ def get_positions() -> list[Position]:
     return out
 
 
+def get_open_bracket_levels(symbol: str, user_id: str) -> dict[str, float | None] | None:
+    """Entry price from the user's open position. None if no open position."""
+    from alpaca.trading.requests import GetOrdersRequest
+    from alpaca.trading.enums import QueryOrderStatus
+
+    client = _trading_client()
+    symbol = symbol.upper()
+
+    position = next((p for p in client.get_all_positions() if p.symbol == symbol), None)
+    if position is None:
+        return None
+
+    req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[symbol], nested=True, limit=500)
+    stop_loss_price: float | None = None
+    take_profit_price: float | None = None
+    for o in client.get_orders(req):
+        if user_id_from_client_order_id(o.client_order_id) != user_id:
+            continue
+        for leg in getattr(o, "legs", None) or []:
+            if leg.stop_price is not None:
+                stop_loss_price = float(leg.stop_price)
+            elif leg.limit_price is not None:
+                take_profit_price = float(leg.limit_price)
+
+    return {
+        "entry_price": float(position.avg_entry_price),
+        "stop_loss_price": stop_loss_price,
+        "take_profit_price": take_profit_price,
+    }
+
+
 def get_recent_filled_orders(after: datetime) -> list:
     """Raw Alpaca orders with a fill, submitted after `after` (UTC). Used to
     reconcile the trades table against fills the live stream may have missed."""

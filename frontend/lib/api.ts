@@ -314,6 +314,10 @@ export interface DebriefMessage {
   created_at: string;
 }
 
+export type RuleWatchEvent =
+  | { type: "signal"; kind: "entry" | "exit"; description: string; annotation: ChartAnnotation }
+  | { type: "error"; detail: string };
+
 export type DebriefEvent =
   | { type: "token"; text: string }
   | { type: "annotations"; annotations: ChartAnnotation[] }
@@ -415,6 +419,14 @@ export const api = {
     if (params.query) q.set("query", params.query);
     if (token) q.set("token", token);
     return `${WS}/api/agent/debrief?${q.toString()}`;
+  },
+  ruleWatchUrl: async (symbol: string, timeframe: string, refreshSeconds = 30) => {
+    const token = await _getToken?.();
+    const q = new URLSearchParams();
+    q.set("timeframe", timeframe);
+    q.set("refresh_seconds", String(refreshSeconds));
+    if (token) q.set("token", token);
+    return `${WS}/api/agent/watch/${encodeURIComponent(symbol)}?${q.toString()}`;
   },
   generateDebriefNow: () => postJSON<DebriefReport>("/api/agent/debrief/generate", {}),
   latestDebriefReport: () => getJSON<DebriefReport | null>("/api/agent/debrief/latest"),

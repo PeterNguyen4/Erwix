@@ -10,6 +10,8 @@ import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
 import type { BracketLevels } from "@/components/Chart";
 import { Search } from "lucide-react";
+import { useRuleWatch } from "@/lib/useRuleWatch";
+import RuleSignalToastStack from "@/components/RuleSignalToast";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -184,6 +186,9 @@ function ChartPage() {
     };
   }, [symbol]);
 
+  const { signals: ruleSignals, dismiss: dismissRuleSignal } = useRuleWatch(symbol, timeframe, bracketPreview);
+  const ruleAnnotations = ruleSignals.map((s) => s.annotation);
+
   const onOrderPlaced = () => {
     loadAccount();
     setTimeout(() => setRefreshKey((k) => k + 1), 1500);
@@ -326,12 +331,14 @@ function ChartPage() {
                 liveCandle={liveCandle}
                 symbol={symbol}
                 bracket={bracketPreview}
+                annotations={ruleAnnotations}
                 onBracketDrag={(which, newPrice) =>
                   which === "tp" ? setTakeProfitPrice(newPrice) : setStopLossPrice(newPrice)
                 }
                 onQuickOrder={handleQuickOrder}
               />
             )}
+            <RuleSignalToastStack signals={ruleSignals} onDismiss={dismissRuleSignal} />
             {quickOrderStatus && (
               <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-border bg-[#151a24] px-3 py-1.5 text-xs font-medium text-fg shadow-lg">
                 {quickOrderStatus}

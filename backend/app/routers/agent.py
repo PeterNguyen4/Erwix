@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSock
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import alpaca_client
 from app.auth import require_auth, require_ws_auth
 from app.db import get_db
 from app.models import DebriefMessage, DebriefReport, UserPreference
@@ -18,8 +19,11 @@ from app.schemas import (
     DebriefStatus,
 )
 from app.config import get_settings
-from app.services.agent_graph import arun_followup, astream_review, run_review
+from app.services.agent_graph import arun_followup, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
+from app.services import live_feed
+from app.services.rule_engine import evaluate_rules, price_level_signal, rules_just_fired
+from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
 
 logger = logging.getLogger("entro.agent")
@@ -129,6 +133,205 @@ async def debrief(
         except Exception:  # noqa: BLE001
             pass
     finally:
+        try:
+            await websocket.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+
+@router.websocket("/watch/{symbol}")
+async def watch(
+    websocket: WebSocket,
+    symbol: str,
+    timeframe: str = Query("1Day"),
+    refresh_seconds: int = Query(30, ge=10, le=300),
+    user_id: str = Depends(require_ws_auth),
+    db: Session = Depends(get_db),
+) -> None:
+    """Real-time evaluation of the user's compiled strategy rules plus,
+    independently, stop-loss/take-profit awareness for whatever bracket the
+    client currently has active (pre-trade draft or an open position) — no LLM
+    call in the loop, just evaluate_rules()/price_level_signal() re-run on the
+    latest price.
+
+    Driven by Alpaca's live quote stream (via `live_feed`, which fans out a
+    single alpaca-py subscription per symbol so this doesn't collide with the
+    chart's own `WS /api/market/stream/{symbol}` subscription on the same
+    symbol) rather than REST polling: each quote tick updates the in-memory
+    candle series' latest close/high/low and re-evaluates immediately, so a
+    signal reaches the client within roughly one tick instead of waiting out a
+    poll interval. The historical candle series is still refetched via REST
+    every `refresh_seconds` as a correctness backstop (new bars land, indicator
+    windows stay accurate) — that timer no longer gates signal latency.
+
+    Emits a `signal` event only on a transition (rules_just_fired for
+    indicator crosses, edge-triggering on change for level breaches) so an
+    already-true condition at connect time doesn't immediately fire.
+
+    The client pushes/updates bracket levels by sending
+    `{"type": "set_levels", "entry_price", "stop_loss_price", "take_profit_price"}`
+    over the same socket at any time — in particular while the trader is
+    dragging the TP/SL lines on the chart — so evaluation always uses the
+    latest values without needing to reconnect."""
+    symbol = symbol.upper()
+    await websocket.accept()
+
+    if not alpaca_client.is_stream_available():
+        await websocket.send_json({"type": "error", "detail": "live stream unavailable"})
+        await websocket.close()
+        return
+
+    rule_set = load_rule_set(db, user_id)
+    rules = (
+        [(r, "entry") for r in rule_set.entry_rules] + [(r, "exit") for r in rule_set.exit_rules]
+        if rule_set is not None
+        else []
+    )
+    all_rules = [r for r, _ in rules]
+
+    levels: dict[str, float | None] = {
+        "entry_price": None,
+        "stop_loss_price": None,
+        "take_profit_price": None,
+    }
+    try:
+        open_levels = alpaca_client.get_open_bracket_levels(symbol, user_id)
+    except Exception:  # noqa: BLE001
+        logger.exception("failed to seed levels from open position for user %s symbol %s", user_id, symbol)
+        open_levels = None
+    if open_levels:
+        levels.update(open_levels)
+
+    candles = alpaca_client.get_candles(symbol, timeframe)
+    was_firing = evaluate_rules(candles, all_rules) if all_rules else []
+    was_level_hit: str | None = None
+
+    tick_queue: asyncio.Queue = asyncio.Queue()
+
+    async def on_quote(q) -> None:
+        mid = None
+        if q.bid_price and q.ask_price:
+            mid = (q.bid_price + q.ask_price) / 2
+        elif q.ask_price or q.bid_price:
+            mid = q.ask_price or q.bid_price
+        if mid is not None:
+            await tick_queue.put(mid)
+
+    live_feed.subscribe_quotes(symbol, on_quote)
+
+    async def receive_levels() -> None:
+        try:
+            while True:
+                msg = await websocket.receive_json()
+                if msg.get("type") == "set_levels":
+                    levels["entry_price"] = msg.get("entry_price")
+                    levels["stop_loss_price"] = msg.get("stop_loss_price")
+                    levels["take_profit_price"] = msg.get("take_profit_price")
+                    if candles:
+                        await tick_queue.put(candles[-1].close)
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+
+    async def refresh_candles() -> None:
+        nonlocal candles
+        while True:
+            await asyncio.sleep(refresh_seconds)
+            try:
+                fresh = alpaca_client.get_candles(symbol, timeframe)
+            except Exception:  # noqa: BLE001
+                continue
+            if fresh:
+                candles = fresh
+
+    receiver_task = asyncio.create_task(receive_levels())
+    refresh_task = asyncio.create_task(refresh_candles())
+
+    try:
+        while True:
+            price = await tick_queue.get()
+            if not candles:
+                continue
+            candles[-1] = candles[-1].model_copy(update={
+                "close": price,
+                "high": max(candles[-1].high, price),
+                "low": min(candles[-1].low, price),
+            })
+            candle = candles[-1]
+
+            if all_rules:
+                now_firing = evaluate_rules(candles, all_rules)
+                for i in rules_just_fired(was_firing, now_firing):
+                    rule, kind = rules[i]
+                    await websocket.send_json({
+                        "type": "signal",
+                        "kind": kind,
+                        "description": rule.description,
+                        "annotation": {
+                            "type": "marker",
+                            "time": candle.time,
+                            "price": candle.close,
+                            "label": rule.description,
+                            "color": ENTRY_COLOR if kind == "entry" else EXIT_COLOR,
+                        },
+                    })
+                was_firing = now_firing
+
+            level_hit = price_level_signal(
+                candle.close,
+                levels["entry_price"],
+                levels["stop_loss_price"],
+                levels["take_profit_price"],
+            )
+            if level_hit and level_hit != was_level_hit:
+                static_description = (
+                    "Take-profit target hit — consider closing the position"
+                    if level_hit == "take_profit"
+                    else "Stop-loss hit — consider exiting to limit further loss"
+                )
+                try:
+                    description = await exit_guidance(
+                        db,
+                        user_id,
+                        symbol,
+                        level_hit,
+                        candle.close,
+                        levels["entry_price"],
+                        levels["stop_loss_price"],
+                        levels["take_profit_price"],
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.exception("exit guidance narration failed for user %s symbol %s", user_id, symbol)
+                    description = static_description
+                await websocket.send_json({
+                    "type": "signal",
+                    "kind": "exit",
+                    "description": description,
+                    "annotation": {
+                        "type": "marker",
+                        "time": candle.time,
+                        "price": candle.close,
+                        "label": description,
+                        "color": EXIT_COLOR,
+                    },
+                })
+            was_level_hit = level_hit
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001
+        logger.exception("rule watch loop failed for user %s symbol %s", user_id, symbol)
+        try:
+            await websocket.send_json({"type": "error", "detail": "watch loop failed"})
+        except Exception:  # noqa: BLE001
+            pass
+    finally:
+        live_feed.unsubscribe_quotes(symbol, on_quote)
+        for task in (receiver_task, refresh_task):
+            task.cancel()
+        for task in (receiver_task, refresh_task):
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):  # noqa: BLE001
+                pass
         try:
             await websocket.close()
         except Exception:  # noqa: BLE001

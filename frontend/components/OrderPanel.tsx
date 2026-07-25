@@ -40,6 +40,7 @@ export default function OrderPanel({
   const [limitPrice, setLimitPrice] = useState<number>(0);
   const [bracket, setBracket] = useState(false);
   const [entryTime, setEntryTime] = useState<number | null>(null);
+  const [fixedEntryPrice, setFixedEntryPrice] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -54,12 +55,12 @@ export default function OrderPanel({
 
   // Live-preview the bracket levels on the chart while the trader is setting them up.
   useEffect(() => {
-    if (!bracket || estPrice == null) {
+    if (!bracket || fixedEntryPrice == null) {
       onBracketChange?.(null);
       return;
     }
     onBracketChange?.({
-      entryPrice: estPrice,
+      entryPrice: fixedEntryPrice,
       takeProfitPrice: takeProfitPrice > 0 ? takeProfitPrice : null,
       stopLossPrice: stopLossPrice > 0 ? stopLossPrice : null,
       // Fixed at the moment the bracket was set up, so the chart's lines
@@ -69,7 +70,7 @@ export default function OrderPanel({
       entryTime: entryTime ?? currentTime ?? Math.floor(Date.now() / 1000),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bracket, estPrice, takeProfitPrice, stopLossPrice, entryTime, currentTime]);
+  }, [bracket, fixedEntryPrice, takeProfitPrice, stopLossPrice, entryTime, currentTime]);
 
   useEffect(() => () => onBracketChange?.(null), []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -157,6 +158,7 @@ export default function OrderPanel({
             setBracket(checked);
             if (checked) {
               setEntryTime(currentTime ?? Math.floor(Date.now() / 1000));
+              setFixedEntryPrice(estPrice);
               // Default to a 1:1 risk/reward band (1% of entry each side) so the
               // trader has a starting point instead of blank TP/SL fields.
               if (estPrice != null && takeProfitPrice === 0 && stopLossPrice === 0) {
@@ -166,6 +168,7 @@ export default function OrderPanel({
               }
             } else {
               setEntryTime(null);
+              setFixedEntryPrice(null);
             }
           }}
         />
