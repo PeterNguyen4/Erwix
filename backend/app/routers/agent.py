@@ -219,6 +219,8 @@ async def watch(
                     levels["entry_price"] = msg.get("entry_price")
                     levels["stop_loss_price"] = msg.get("stop_loss_price")
                     levels["take_profit_price"] = msg.get("take_profit_price")
+                    if candles:
+                        await tick_queue.put(candles[-1].close)
         except (WebSocketDisconnect, RuntimeError):
             pass
 

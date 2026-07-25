@@ -66,25 +66,16 @@ def price_level_signal(
     take_profit_price: float | None,
 ) -> str | None:
     """Whether `price` has breached the stop-loss or take-profit level of a
-    bracket, inferring long/short from which side of entry the take-profit
-    (or failing that, the stop-loss) sits. Returns "stop_loss", "take_profit",
-    or None — callers should edge-trigger on this (only act when it changes
-    from the previous poll) rather than re-firing every poll while breached."""
+    bracket. Independently flag breaches for each level"""
     if entry_price is None:
-        return None
-    if take_profit_price is not None:
-        is_long = take_profit_price >= entry_price
-    elif stop_loss_price is not None:
-        is_long = stop_loss_price <= entry_price
-    else:
         return None
 
     if stop_loss_price is not None:
-        breached = price <= stop_loss_price if is_long else price >= stop_loss_price
+        breached = price <= stop_loss_price if stop_loss_price <= entry_price else price >= stop_loss_price
         if breached:
             return "stop_loss"
     if take_profit_price is not None:
-        breached = price >= take_profit_price if is_long else price <= take_profit_price
+        breached = price >= take_profit_price if take_profit_price >= entry_price else price <= take_profit_price
         if breached:
             return "take_profit"
     return None
