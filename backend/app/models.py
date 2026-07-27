@@ -13,6 +13,7 @@ class User(Base):
     __tablename__ = 'users'
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
