@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import agent, analysis, news, backtest, journal, market, strategy, trading, user
+from app.routers import agent, analysis, news, backtest, journal, market, strategy, trading, users
 from app.routers.market import cancel_stream_task
 from app.services.debrief_jobs import start_scheduler, stop_scheduler
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
         engine.dispose()
 
 
-app = FastAPI(title="Entro API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -58,7 +58,7 @@ app.add_middleware(
 app.include_router(market.router)
 app.include_router(trading.router)
 app.include_router(journal.router)
-app.include_router(user.router)
+app.include_router(users.router)
 app.include_router(analysis.router)
 app.include_router(agent.router)
 app.include_router(strategy.router)
