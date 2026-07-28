@@ -28,6 +28,15 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=120)
 
 
+class AlpacaConnectUrlOut(BaseModel):
+    url: str
+
+
+class AlpacaStatusOut(BaseModel):
+    connected: bool
+    env: str | None = None
+
+
 class Candle(BaseModel):
     time: int  # unix seconds (lightweight-charts UTCTimestamp)
     open: float

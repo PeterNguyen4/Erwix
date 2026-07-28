@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     alpaca_oauth_client_id: str = ""
     alpaca_oauth_client_secret: str = ""
     alpaca_oauth_redirect_uri: str = ""
+    frontend_base_url: str = ""
 
     token_encryption_key: SecretStr = SecretStr("")
 

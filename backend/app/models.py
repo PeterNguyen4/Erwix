@@ -33,9 +33,6 @@ class RefreshToken(Base):
 
 
 class AlpacaAccount(Base):
-    """A user's linked Alpaca account (via Connect API OAuth). access_token is
-    stored encrypted (see app.services.token_crypto) since, unlike refresh
-    tokens, the raw value is needed later to call Alpaca on the user's behalf."""
     __tablename__ = "alpaca_accounts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True)
