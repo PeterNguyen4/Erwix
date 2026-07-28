@@ -112,7 +112,7 @@ def quote_note(trade_id: int, text: str) -> str:
 
 class AgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
-    user_id: str
+    user_id: int
     window_start: datetime
     window_end: datetime
     symbol: str | None
@@ -122,7 +122,7 @@ class AgentState(TypedDict):
 
 
 def _initial_state(
-    user_id: str,
+    user_id: int,
     window_start: datetime,
     window_end: datetime,
     symbol: str | None,
@@ -216,7 +216,7 @@ def _extract_tool_events(response) -> list[dict]:
     return events
 
 
-def _system_prompt(db: Session, user_id: str) -> str:
+def _system_prompt(db: Session, user_id: int) -> str:
     """Base analyst system prompt, plus the trader's own stated strategy
     (Strategy tab) when one exists, so the review can reference whether the
     trader is following their own rules."""
@@ -282,7 +282,7 @@ def build_graph(db: Session) -> StateGraph:
 
 def run_review(
     db: Session,
-    user_id: str,
+    user_id: int,
     window_start: datetime,
     window_end: datetime,
     symbol: str | None = None,
@@ -378,7 +378,7 @@ def _step_from_tool_events(trade: Trade, narrative: str, events: list[dict]) -> 
 
 async def agenerate_steps(
     db: Session,
-    user_id: str,
+    user_id: int,
     window_start: datetime,
     window_end: datetime,
     symbol: str | None = None,
@@ -433,7 +433,7 @@ EXIT_GUIDANCE_SYSTEM_PROMPT = (
 
 async def exit_guidance(
     db: Session,
-    user_id: str,
+    user_id: int,
     symbol: str,
     level_hit: str,
     price: float,
@@ -474,7 +474,7 @@ FOLLOWUP_SYSTEM_PROMPT = (
 
 async def arun_followup(
     db: Session,
-    user_id: str,
+    user_id: int,
     window_start: datetime,
     window_end: datetime,
     report_narrative: str,
@@ -512,7 +512,7 @@ async def arun_followup(
 
 async def astream_review(
     db: Session,
-    user_id: str,
+    user_id: int,
     window_start: datetime,
     window_end: datetime,
     symbol: str | None = None,

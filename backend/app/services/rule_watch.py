@@ -12,6 +12,6 @@ ENTRY_COLOR = "#26a69a"
 EXIT_COLOR = "#ef5350"
 
 
-def load_rule_set(db: Session, user_id: str) -> StrategyRuleSet | None:
+def load_rule_set(db: Session, user_id: int) -> StrategyRuleSet | None:
     row = db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == user_id))
     return StrategyRuleSet(**row.rules) if row else None

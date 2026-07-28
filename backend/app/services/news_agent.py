@@ -46,7 +46,7 @@ def _headlines_block(articles: list[NewsArticle]) -> str:
     return "\n".join(f"- [{a.publisher}] {a.title} ({a.url})" for a in articles)
 
 
-def _strategy_block(db: Session, user_id: str) -> str:
+def _strategy_block(db: Session, user_id: int) -> str:
     strategy = get_active_strategy(db, user_id)
     if strategy and strategy.structured_summary:
         try:
@@ -63,7 +63,7 @@ def _normalize_sentiment(raw: str) -> str:
     return sentiment if sentiment in ("bullish", "bearish", "neutral") else "neutral"
 
 
-async def build_market_insight(db: Session, user_id: str, articles: list[NewsArticle]) -> MarketInsight:
+async def build_market_insight(db: Session, user_id: int, articles: list[NewsArticle]) -> MarketInsight:
     prompt = f"Recent market-wide headlines:\n{_headlines_block(articles)}\n\n{_strategy_block(db, user_id)}"
     model = _base_model().with_structured_output(MarketInsight)
     result = await model.ainvoke([SystemMessage(MARKET_SYSTEM_PROMPT), HumanMessage(prompt)])
