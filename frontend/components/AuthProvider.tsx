@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { api, clearToken, getToken, setToken, UserPrivate } from "@/lib/api";
+import { api, UserPrivate } from "@/lib/api";
 
 interface AuthContextValue {
   user: UserPrivate | null;
@@ -25,15 +25,11 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     let cancelled = false;
     async function loadUser() {
-      if (!getToken()) {
-        setIsLoading(false);
-        return;
-      }
       try {
         const me = await api.me();
         if (!cancelled) setUser(me);
       } catch {
-        clearToken();
+        // no valid cookie
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -51,16 +47,15 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }, [isLoading, user, isPublicPath, router]);
 
   async function login(email: string, password: string) {
-    const token = await api.login(email, password);
-    setToken(token.access_token);
-    const me = await api.me();
+    const me = await api.login(email, password);
     setUser(me);
   }
 
   function logout() {
-    clearToken();
-    setUser(null);
-    router.replace("/login");
+    api.logout().finally(() => {
+      setUser(null);
+      router.replace("/login");
+    });
   }
 
   return (

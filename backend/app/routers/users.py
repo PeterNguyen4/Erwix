@@ -1,12 +1,13 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import models
 from app.auth import (
+    COOKIE_NAME,
     create_access_token,
     get_current_user_id,
     hash_password,
@@ -16,7 +17,6 @@ from app.config import get_settings
 from app.db import get_db
 from app.models import UserPreference
 from app.schemas import (
-    Token,
     UserCreate,
     UserPreferenceOut,
     UserPreferenceUpdate,
@@ -56,11 +56,12 @@ def register(user: UserCreate, db: Session = Depends(get_db)) -> models.User:
     return new_user
 
 
-@router.post("/token", response_model=Token)
+@router.post("/token", response_model=UserPrivate)
 def login_for_access_token(
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
-) -> Token:
+) -> models.User:
     user = db.execute(
         select(models.User).where(func.lower(models.User.email) == form_data.username.lower())
     ).scalars().first()
@@ -69,14 +70,25 @@ def login_for_access_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token(
-        data={"sub": str(user.id)},
-        expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
+    expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token = create_access_token(data={"sub": str(user.id)}, expires_delta=expires_delta)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=access_token,
+        max_age=int(expires_delta.total_seconds()),
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
     )
-    return Token(access_token=access_token, token_type="bearer")
+    return user
+
+
+@router.post("/logout")
+def logout(response: Response) -> dict:
+    response.delete_cookie(key=COOKIE_NAME)
+    return {"success": True}
 
 
 @router.get("/me", response_model=UserPrivate)
@@ -89,7 +101,6 @@ def get_me(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
         )
     return user
 

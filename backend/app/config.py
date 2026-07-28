@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     secret_key: SecretStr
     algorithm: str = ""
     access_token_expire_minutes: int = 60
+    cookie_secure: bool = False
 
     database_url: str
 

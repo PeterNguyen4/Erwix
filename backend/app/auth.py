@@ -4,8 +4,8 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from jwt import PyJWKClient
-from fastapi import Depends, HTTPException, Query, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, OAuth2PasswordBearer
+from fastapi import Cookie, Depends, HTTPException, Query, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pwdlib import PasswordHash
 
 from .config import get_settings
@@ -15,7 +15,8 @@ settings = get_settings()
 
 logger = logging.getLogger("entro.auth")
 bearer = HTTPBearer()
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/users/token")
+
+COOKIE_NAME = "token"
 
 _jwks_client: PyJWKClient | None = None
 
@@ -84,8 +85,10 @@ def _decode_token(token: str) -> str:
     return user_id
 
 
-async def get_current_user_id(token: Annotated[str, Depends(oauth2_scheme)]) -> int:
-    user_id = verify_access_token(token)
+async def get_current_user_id(
+    token: Annotated[str | None, Cookie(alias=COOKIE_NAME)] = None,
+) -> int:
+    user_id = verify_access_token(token) if token else None
     if user_id is not None:
         try:
             return int(user_id)
@@ -94,7 +97,6 @@ async def get_current_user_id(token: Annotated[str, Depends(oauth2_scheme)]) -> 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
-        headers={"WWW-Authenticate": "Bearer"},
     )
 
 

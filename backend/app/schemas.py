@@ -28,11 +28,6 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=120)
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-
 class Candle(BaseModel):
     time: int  # unix seconds (lightweight-charts UTCTimestamp)
     open: float
