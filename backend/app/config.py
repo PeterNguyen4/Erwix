@@ -24,8 +24,6 @@ class Settings(BaseSettings):
 
     cors_origins: list[str]
 
-    clerk_jwks_url: str = ""
-
     alpaca_api_key: str = ""
     alpaca_secret_key: str = ""
     alpaca_paper: bool = True
