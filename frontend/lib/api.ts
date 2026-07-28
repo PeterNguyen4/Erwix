@@ -210,6 +210,23 @@ export interface SymbolResult {
   name: string;
 }
 
+export interface UserPrivate {
+  id: number;
+  username: string;
+  email: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
+}
+
 export interface UserPreference {
   last_symbol: string;
   last_symbol_name?: string | null;
@@ -328,28 +345,24 @@ export type DebriefEvent =
   | { type: "done" }
   | { type: "error"; detail: string };
 
-let _getToken: (() => Promise<string | null>) | null = null;
-let _resolveReady: (() => void) | null = null;
-// Resolves when AuthBridge confirms a signed-in session is available.
-// Races against a 3s timeout so sign-in page requests don't hang forever.
-const _ready = Promise.race([
-  new Promise<void>((res) => { _resolveReady = res; }),
-  new Promise<void>((res) => setTimeout(res, 3000)),
-]);
+const TOKEN_KEY = "token";
 
-export function setTokenGetter(fn: () => Promise<string | null>) {
-  _getToken = fn;
-  _resolveReady?.();
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 async function authHeaders(): Promise<HeadersInit> {
-  await _ready;
-  try {
-    const token = await _getToken?.();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
-  }
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -374,7 +387,26 @@ async function postJSON<T>(path: string, body: unknown, method = "POST"): Promis
   return res.json();
 }
 
+async function login(email: string, password: string): Promise<TokenResponse> {
+  const body = new URLSearchParams();
+  body.set("username", email);
+  body.set("password", password);
+  const res = await fetch(`${API}/api/users/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+  });
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`${res.status}: ${detail}`);
+  }
+  return res.json();
+}
+
 export const api = {
+  login,
+  register: (body: RegisterRequest) => postJSON<UserPrivate>("/api/users/register", body),
+  me: () => getJSON<UserPrivate>("/api/users/me"),
   candles: (symbol: string, timeframe = "1Day") =>
     getJSON<Candle[]>(
       `/api/market/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`,
@@ -411,7 +443,7 @@ export const api = {
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
   resetDebrief: () => postJSON<DebriefStatus>("/api/agent/debrief/reset", {}),
   debriefStreamUrl: async (params: DebriefRequest) => {
-    const token = await _getToken?.();
+    const token = getToken();
     const q = new URLSearchParams();
     q.set("from", params.from);
     q.set("to", params.to);
@@ -421,7 +453,7 @@ export const api = {
     return `${WS}/api/agent/debrief?${q.toString()}`;
   },
   ruleWatchUrl: async (symbol: string, timeframe: string, refreshSeconds = 30) => {
-    const token = await _getToken?.();
+    const token = getToken();
     const q = new URLSearchParams();
     q.set("timeframe", timeframe);
     q.set("refresh_seconds", String(refreshSeconds));
@@ -441,9 +473,9 @@ export const api = {
   regenerateStrategy: () => postJSON<StrategyNote>("/api/strategy/regenerate", {}),
   updatePlaybook: (sections: Record<string, string[]>) =>
     postJSON<StrategyNote>("/api/strategy/playbook", { sections }, "PUT"),
-  getPreferences: () => getJSON<UserPreference>("/api/user/preferences"),
+  getPreferences: () => getJSON<UserPreference>("/api/users/preferences"),
   savePreferences: (prefs: Partial<UserPreference>) =>
-    postJSON<UserPreference>("/api/user/preferences", prefs, "PATCH"),
+    postJSON<UserPreference>("/api/users/preferences", prefs, "PATCH"),
   saveBacktestConfig: (config: BacktestConfig) =>
     config.id
       ? postJSON<BacktestConfig>(`/api/backtest/configs/${config.id}`, config, "PATCH")
@@ -453,7 +485,7 @@ export const api = {
     return postJSON<BacktestRun>(`/api/backtest/configs/${configId}/run?${q.toString()}`, {});
   },
   backtestChatStreamUrl: async (config: BacktestConfig, message: string) => {
-    const token = await _getToken?.();
+    const token = getToken();
     const q = new URLSearchParams();
     q.set("message", message);
     q.set("config", JSON.stringify(config));
@@ -461,7 +493,7 @@ export const api = {
     return `${WS}/api/backtest/chat?${q.toString()}`;
   },
   streamUrl: async (symbol: string) => {
-    const token = await _getToken?.();
+    const token = getToken();
     const base = `${WS}/api/market/stream/${encodeURIComponent(symbol)}`;
     return token ? `${base}?token=${encodeURIComponent(token)}` : base;
   },
