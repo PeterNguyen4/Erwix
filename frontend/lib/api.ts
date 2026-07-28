@@ -222,6 +222,11 @@ export interface RegisterRequest {
   password: string;
 }
 
+export interface AlpacaStatus {
+  connected: boolean;
+  env: "paper" | "live" | null;
+}
+
 export interface UserPreference {
   last_symbol: string;
   last_symbol_name?: string | null;
@@ -490,4 +495,10 @@ export const api = {
   streamUrl: async (symbol: string) => {
     return `${WS}/api/market/stream/${encodeURIComponent(symbol)}`;
   },
+  alpacaStatus: () => getJSON<AlpacaStatus>("/api/alpaca/status"),
+  connectAlpaca: async (env: "paper" | "live" = "paper") => {
+    const { url } = await getJSON<{ url: string }>(`/api/alpaca/connect?env=${env}`);
+    window.location.href = url;
+  },
+  disconnectAlpaca: () => postJSON<{ success: boolean }>("/api/alpaca/disconnect", {}),
 };

@@ -70,6 +70,34 @@ def hash_refresh_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode()).hexdigest()
 
 
+def create_oauth_state(user_id: int, env: str) -> str:
+    """Token issued to connect to Alpaca"""
+    expire = datetime.now(UTC) + timedelta(minutes=10)
+    return jwt.encode(
+        {"sub": str(user_id), "env": env, "purpose": "alpaca_oauth", "exp": expire},
+        settings.secret_key.get_secret_value(),
+        algorithm=settings.algorithm,
+    )
+
+
+def verify_oauth_state(state: str) -> tuple[int, str] | None:
+    try:
+        payload = jwt.decode(
+            state,
+            settings.secret_key.get_secret_value(),
+            algorithms=[settings.algorithm],
+            options={"require": ["exp", "sub", "env"]},
+        )
+    except jwt.InvalidTokenError:
+        return None
+    if payload.get("purpose") != "alpaca_oauth":
+        return None
+    try:
+        return int(payload["sub"]), payload["env"]
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
 async def get_current_user_id(
     token: Annotated[str | None, Cookie(alias=COOKIE_NAME)] = None,
 ) -> int:

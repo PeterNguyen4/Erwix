@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     alpaca_secret_key: str = ""
     alpaca_paper: bool = True
 
+    # Alpaca Connection per user
+    alpaca_oauth_client_id: str = ""
+    alpaca_oauth_client_secret: str = ""
+    alpaca_oauth_redirect_uri: str = ""
+    frontend_base_url: str = ""
+
+    token_encryption_key: SecretStr = SecretStr("")
+
     # Embeddings for RAG
     voyage_api_key: str = ""
 
@@ -44,6 +52,15 @@ class Settings(BaseSettings):
     @property
     def has_alpaca_creds(self) -> bool:
         return bool(self.alpaca_api_key and self.alpaca_secret_key)
+
+    @property
+    def has_alpaca_oauth_creds(self) -> bool:
+        return bool(
+            self.alpaca_oauth_client_id
+            and self.alpaca_oauth_client_secret
+            and self.alpaca_oauth_redirect_uri
+            and self.token_encryption_key.get_secret_value()
+        )
 
     @property
     def has_voyage_creds(self) -> bool:
