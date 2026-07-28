@@ -5,7 +5,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
 from app import alpaca_client
-from app.auth import require_auth, require_ws_auth
+from app.auth import get_current_user_id
 from app.error_handling import alpaca_errors
 from app.schemas import Candle, Quote
 from app.services import live_feed
@@ -27,7 +27,7 @@ def cancel_stream_task() -> None:
 
 @router.get("/search")
 @alpaca_errors(logger)
-async def search(q: str = Query(..., min_length=1), _uid: str = Depends(require_auth)) -> list[dict]:
+async def search(q: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)) -> list[dict]:
     return await alpaca_client.search_assets(q)
 
 
@@ -38,19 +38,19 @@ def candles(
     timeframe: str = Query("1Day"),
     start: datetime | None = None,
     end: datetime | None = None,
-    _uid: str = Depends(require_auth),
+    _uid: int = Depends(get_current_user_id),
 ) -> list[Candle]:
     return alpaca_client.get_candles(symbol, timeframe, start, end)
 
 
 @router.get("/quote", response_model=Quote)
 @alpaca_errors(logger)
-def quote(symbol: str = Query(..., min_length=1), _uid: str = Depends(require_auth)) -> Quote:
+def quote(symbol: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)) -> Quote:
     return alpaca_client.get_quote(symbol)
 
 
 @router.websocket("/stream/{symbol}")
-async def stream(websocket: WebSocket, symbol: str, _uid: str = Depends(require_ws_auth)) -> None:
+async def stream(websocket: WebSocket, symbol: str, _uid: int = Depends(get_current_user_id)) -> None:
     """Relay live bar updates for `symbol` from Alpaca to the browser."""
     await websocket.accept()
     symbol = symbol.upper()

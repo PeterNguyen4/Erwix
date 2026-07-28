@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from app.auth import require_auth
+from app.auth import get_current_user_id
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -10,13 +10,13 @@ from app.models import Trade
 from app.schemas import PnLSummaryOut, TradeNoteUpdate, TradeOut
 from app.services.trade_retrieval import compute_pnl_summary, embed_trade_best_effort
 
-router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(get_current_user_id)])
 
 
 @router.get("/trades", response_model=list[TradeOut])
 def list_trades(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
     symbol: str | None = None,
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = None,
@@ -45,7 +45,7 @@ def list_trades(
 @router.get("/pnl-summary", response_model=PnLSummaryOut)
 def pnl_summary(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = None,
 ) -> PnLSummaryOut:
@@ -55,7 +55,7 @@ def pnl_summary(
 
 
 @router.get("/trades/{trade_id}", response_model=TradeOut)
-def get_trade(trade_id: int, db: Session = Depends(get_db), user_id: str = Depends(require_auth)) -> Trade:
+def get_trade(trade_id: int, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)) -> Trade:
     trade = db.get(Trade, trade_id)
     if trade is None or trade.user_id != user_id:
         raise HTTPException(status_code=404, detail="Trade not found")
@@ -67,7 +67,7 @@ def update_trade_notes(
     trade_id: int,
     body: TradeNoteUpdate,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> Trade:
     trade = db.get(Trade, trade_id)
     if trade is None or trade.user_id != user_id:

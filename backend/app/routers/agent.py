@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import alpaca_client
-from app.auth import require_auth, require_ws_auth
+from app.auth import get_current_user_id
 from app.db import get_db
 from app.models import DebriefMessage, DebriefReport, UserPreference
 from app.schemas import (
@@ -59,7 +59,7 @@ def _report_out(report: DebriefReport) -> DebriefReportOut:
 def review_trades(
     body: AgentReviewRequest,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> AgentReviewResponse:
     """Run the LangGraph analyst over a trade window and return a narrative
     plus chart annotations. Pass `query` to also pull semantically similar
@@ -76,7 +76,7 @@ def review_trades(
 @router.get("/status", response_model=DebriefStatus)
 def debrief_status(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> DebriefStatus:
     """Whether the user has fills since their last debrief, for the sidebar badge."""
     pref = db.get(UserPreference, user_id)
@@ -89,7 +89,7 @@ def debrief_status(
 @router.post("/debrief/reset", response_model=DebriefStatus)
 def reset_debrief(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> DebriefStatus:
     """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
     for new fills. Not linked from any production UI path."""
@@ -107,7 +107,7 @@ async def debrief(
     to: datetime = Query(...),
     symbol: str | None = Query(None),
     query: str | None = Query(None),
-    user_id: str = Depends(require_ws_auth),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> None:
     """Stream the LangGraph analyst's debrief: token/annotations/spotlight/done events."""
@@ -145,7 +145,7 @@ async def watch(
     symbol: str,
     timeframe: str = Query("1Day"),
     refresh_seconds: int = Query(30, ge=10, le=300),
-    user_id: str = Depends(require_ws_auth),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> None:
     """Real-time evaluation of the user's compiled strategy rules plus,
@@ -341,7 +341,7 @@ async def watch(
 @router.post("/debrief/generate", response_model=DebriefReportOut)
 async def generate_debrief_now(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> DebriefReportOut:
     """Dev/manual trigger: creates (or returns the already in-flight)
     DebriefReport for the current window and starts generation immediately,
@@ -356,7 +356,7 @@ async def generate_debrief_now(
 @router.get("/debrief/latest", response_model=DebriefReportOut | None)
 def latest_debrief_report(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> DebriefReportOut | None:
     """Most recent background-generated DebriefReport for the sidebar/banner:
     pending/running (with an ETA) while cooking, ready once done."""
@@ -373,7 +373,7 @@ def latest_debrief_report(
 def get_debrief_report(
     report_id: int,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> DebriefReportOut:
     report = db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id:
@@ -385,7 +385,7 @@ def get_debrief_report(
 def list_debrief_messages(
     report_id: int,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> list[DebriefMessage]:
     report = db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id:
@@ -404,7 +404,7 @@ async def post_debrief_message(
     report_id: int,
     body: DebriefMessageIn,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> DebriefMessage:
     """Ask a follow-up question about a completed DebriefReport. Grounded in the
     same trade window/retrieval context used to generate the report (re-fetched,
