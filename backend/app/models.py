@@ -20,6 +20,18 @@ class User(Base):
     )
 
 
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class UserPreference(Base):
     __tablename__ = "user_preferences"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
