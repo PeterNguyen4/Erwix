@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app import alpaca_client
-from app.auth import require_auth, require_ws_auth
+from app.auth import get_current_user_id
 from app.db import get_db
 from app.error_handling import alpaca_errors
 from app.models import BacktestConfig as BacktestConfigModel
@@ -39,7 +39,7 @@ def _run_out(row: BacktestRunModel) -> dict:
 @router.get("/configs")
 def list_configs(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> list[BacktestConfig]:
     rows = db.scalars(
         select(BacktestConfigModel).where(BacktestConfigModel.user_id == user_id)
@@ -51,7 +51,7 @@ def list_configs(
 def create_config(
     body: BacktestConfig,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> BacktestConfig:
     payload = body.model_dump(exclude={"id", "name", "symbol", "timeframe"})
     row = BacktestConfigModel(
@@ -68,7 +68,7 @@ def update_config(
     config_id: int,
     body: BacktestConfig,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> BacktestConfig:
     row = db.get(BacktestConfigModel, config_id)
     if row is None or row.user_id != user_id:
@@ -89,7 +89,7 @@ def run_config(
     start: datetime,
     end: datetime,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> dict:
     row = db.get(BacktestConfigModel, config_id)
     if row is None or row.user_id != user_id:
@@ -124,7 +124,7 @@ def run_config(
 def get_run(
     run_id: int,
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> dict:
     row = db.get(BacktestRunModel, run_id)
     if row is None or row.user_id != user_id:
@@ -137,7 +137,7 @@ async def backtest_chat(
     websocket: WebSocket,
     message: str = Query(...),
     config: str = Query(...),
-    user_id: str = Depends(require_ws_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> None:
     """Stream the config-chat agent's reply: token deltas, then a final config/done event."""
     await websocket.accept()

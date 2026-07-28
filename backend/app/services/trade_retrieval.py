@@ -101,7 +101,7 @@ def _fifo_match(trades: list[Trade]) -> list[ClosedTrade]:
 
 def compute_pnl_summary(
     db: Session,
-    user_id: str,
+    user_id: int,
     start: datetime | None = None,
     end: datetime | None = None,
 ) -> PnLSummary:
@@ -140,7 +140,7 @@ def compute_pnl_summary(
     )
 
 
-def count_trades_since(db: Session, user_id: str, since: datetime) -> int:
+def count_trades_since(db: Session, user_id: int, since: datetime) -> int:
     """Number of a user's fills strictly after `since` — used both by the sidebar
     badge (GET /api/agent/status) and the scheduler's "anything new to debrief?"
     check (app.services.debrief_jobs)."""
@@ -160,7 +160,7 @@ def primary_symbol(trades: list[Trade]) -> str | None:
     return max(counts, key=counts.get)
 
 
-def get_trades_window(db: Session, user_id: str, start: datetime, end: datetime) -> list[Trade]:
+def get_trades_window(db: Session, user_id: int, start: datetime, end: datetime) -> list[Trade]:
     """All of a user's fills in [start, end], oldest first — the window the
     Phase-2 analyst agent reviews."""
     stmt = (
@@ -190,7 +190,7 @@ def embed_trade_best_effort(db: Session, trade: Trade) -> None:
         logger.warning("Failed to embed trade %s", trade.id, exc_info=True)
 
 
-def backfill_embeddings(db: Session, user_id: str, batch_size: int = 50) -> int:
+def backfill_embeddings(db: Session, user_id: int, batch_size: int = 50) -> int:
     """Embed any of the user's trades that don't yet have one (new fills, or
     trades logged before this pipeline existed, or a stale embedding model).
     Returns the number embedded."""
@@ -213,7 +213,7 @@ def backfill_embeddings(db: Session, user_id: str, batch_size: int = 50) -> int:
     return len(trades)
 
 
-def semantic_search(db: Session, user_id: str, query: str, limit: int = 5) -> list[Trade]:
+def semantic_search(db: Session, user_id: int, query: str, limit: int = 5) -> list[Trade]:
     """Find the user's trades whose embedded text is closest in meaning to `query`."""
     query_vector = embed_query(query)
     stmt = (

@@ -104,7 +104,7 @@ def compose_body(archetype: str | None, body: str | None, answers: dict[str, str
     return "\n\n".join(lines)
 
 
-def get_active_strategy(db: Session, user_id: str) -> StrategyNote | None:
+def get_active_strategy(db: Session, user_id: int) -> StrategyNote | None:
     """The user's saved strategy note, if any — used by the Analyst agent to
     ground its review in the trader's own stated rules."""
     return db.scalar(select(StrategyNote).where(StrategyNote.user_id == user_id))
@@ -112,7 +112,7 @@ def get_active_strategy(db: Session, user_id: str) -> StrategyNote | None:
 
 def upsert_strategy(
     db: Session,
-    user_id: str,
+    user_id: int,
     archetype: str | None,
     body: str | None,
     answers: dict[str, str] | None,

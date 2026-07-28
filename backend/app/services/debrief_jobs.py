@@ -66,7 +66,7 @@ async def run_debrief_job(db: Session, report: DebriefReport) -> None:
         db.commit()
 
 
-def create_pending_report(db: Session, user_id: str) -> DebriefReport:
+def create_pending_report(db: Session, user_id: int) -> DebriefReport:
     """Dev/manual trigger support: creates a pending DebriefReport for the
     current window (or returns the one already in flight, so double-clicking
     "generate now" doesn't spawn duplicates), bypassing the day/time schedule."""

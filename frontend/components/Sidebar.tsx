@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { ClerkLoaded, UserButton } from "@clerk/nextjs";
+import { useAuth } from "@/components/AuthProvider";
 import { useDebriefStatus } from "@/lib/useDebriefStatus";
 import {
   LineChart,
@@ -11,6 +11,7 @@ import {
   Compass,
   FlaskConical,
   Settings,
+  LogOut,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -27,6 +28,7 @@ export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { hasNewTrades } = useDebriefStatus();
+  const { logout } = useAuth();
 
   return (
     <nav className="flex flex-col items-center gap-1 border-r border-border bg-panel w-16 py-4 z-30 shrink-0">
@@ -59,9 +61,13 @@ export default function Sidebar() {
       })}
       <div className="flex-1" />
       <div className="mb-2">
-        <ClerkLoaded>
-          <UserButton />
-        </ClerkLoaded>
+        <button
+          onClick={logout}
+          title="Sign out"
+          className="flex flex-col items-center gap-1 w-full py-2 px-1 text-muted hover:text-fg hover:bg-accent/10 transition-colors"
+        >
+          <LogOut size={20} strokeWidth={2} />
+        </button>
       </div>
     </nav>
   );

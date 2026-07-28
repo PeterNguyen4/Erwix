@@ -1,19 +1,41 @@
 from datetime import datetime, time
-
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, Time, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db import Base
+from .db import Base
 
 # Must match app.services.embeddings.EMBEDDING_DIMENSIONS
 TRADE_EMBEDDING_DIM = 512
 
 
+class User(Base):
+    __tablename__ = 'users'
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    username: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(120), unique=True, index=True)
+    hashed_password: Mapped[str] = mapped_column(String(256))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class UserPreference(Base):
     __tablename__ = "user_preferences"
-
-    user_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     last_symbol: Mapped[str] = mapped_column(String(16), default="AAPL")
     last_symbol_name: Mapped[str | None] = mapped_column(String(128), default="Apple Inc.")
     last_timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
@@ -23,32 +45,20 @@ class UserPreference(Base):
 
     # Scheduled background debrief (see app.services.debrief_jobs)
     debrief_enabled: Mapped[bool] = mapped_column(default=True)
-    debrief_day_of_week: Mapped[int | None] = mapped_column(Integer)  # 0=Mon .. 6=Sun
+    debrief_day_of_week: Mapped[int | None] = mapped_column(Integer)  # 0=Mon -> 6=Sun
     debrief_time: Mapped[time | None] = mapped_column(Time)
 
 
 class Trade(Base):
-    """
-    An auto-logged order — intent, lifecycle updates, and fills. Written by
-    the execution_logger: a row is created at submission time (status="new")
-    and updated in place as Alpaca reports further trade-update events
-    (partial_fill, fill, canceled, expired, rejected, replaced, ...). Bracket
-    orders produce one row for the entry leg plus one row per child leg
-    (take_profit / stop_loss), linked via parent_client_order_id.
-    """
-
     __tablename__ = "trades"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     # Alpaca identifiers
     broker_order_id: Mapped[str | None] = mapped_column(String(64), index=True)
     client_order_id: Mapped[str | None] = mapped_column(String(128), index=True)
     # Set on bracket child legs (take_profit/stop_loss) to link back to the entry order's
     # client_order_id. Null for simple orders and for the entry leg itself.
     parent_client_order_id: Mapped[str | None] = mapped_column(String(128), index=True)
-
-    # Clerk user_id
-    user_id: Mapped[str | None] = mapped_column(String(128), index=True)
 
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(8))  # buy | sell
@@ -75,7 +85,6 @@ class Trade(Base):
     # User's reflection on this trade
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    # Fill time (null until the order fills)
     filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -95,10 +104,8 @@ class DebriefReport(Base):
     """
 
     __tablename__ = "debrief_reports"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(128), index=True)
-
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     symbol: Mapped[str | None] = mapped_column(String(16))
@@ -125,7 +132,6 @@ class DebriefMessage(Base):
     """A persisted follow-up chat turn tied to a completed DebriefReport"""
 
     __tablename__ = "debrief_messages"
-
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     report_id: Mapped[int] = mapped_column(ForeignKey("debrief_reports.id"), index=True)
     role: Mapped[str] = mapped_column(String(16))  # user | assistant
@@ -141,10 +147,8 @@ class StrategyNote(Base):
     """
 
     __tablename__ = "strategy_notes"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(128), index=True, unique=True)
-
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     archetype: Mapped[str | None] = mapped_column(String(32))
     # Freeform text (archetype="freeform"/None). For question-driven archetypes this
     # holds the composed "Q: ... A: ..." text sent to the strategist agent, derived
@@ -169,9 +173,8 @@ class StrategyRuleSet(Base):
     """Compiled machine-checkable rules derived from a StrategyNote's body."""
 
     __tablename__ = "strategy_rule_sets"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(128), index=True, unique=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     note_id: Mapped[int] = mapped_column(ForeignKey("strategy_notes.id"), index=True)
 
     rules: Mapped[dict] = mapped_column(JSON)
@@ -192,10 +195,8 @@ class BacktestConfig(Base):
     """A saved backtest rule config"""
 
     __tablename__ = "backtest_configs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(128), index=True)
-
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(128))
     symbol: Mapped[str] = mapped_column(String(16))
     timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
@@ -213,9 +214,8 @@ class BacktestRun(Base):
     """A single execution of a BacktestConfig over a historical window"""
 
     __tablename__ = "backtest_runs"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(128), index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     config_id: Mapped[int] = mapped_column(ForeignKey("backtest_configs.id"), index=True)
 
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|running|ready|error

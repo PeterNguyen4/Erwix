@@ -78,7 +78,7 @@ def _fill_only_trade(
     )
 
 
-def log_order_intent(response: OrderResponse, request: OrderRequest, user_id: str) -> None:
+def log_order_intent(response: OrderResponse, request: OrderRequest, user_id: int) -> None:
     """Log an order the instant it's accepted by Alpaca, before any fill.
 
     Writes one row for the entry leg and, for bracket orders, one additional

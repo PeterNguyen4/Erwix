@@ -4,7 +4,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.auth import require_auth
+from app.auth import get_current_user_id
 from app.db import get_db
 from app.schemas import MarketInsightOut, NewsArticleOut
 from app.services.news import fetch_market_news
@@ -12,7 +12,7 @@ from app.services.news_agent import build_market_insight
 
 logger = logging.getLogger("entro.news")
 
-router = APIRouter(prefix="/api/news", tags=["news"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/news", tags=["news"], dependencies=[Depends(get_current_user_id)])
 
 
 @router.get("/market-articles", response_model=list[NewsArticleOut])
@@ -33,7 +33,7 @@ async def market_articles() -> list[NewsArticleOut]:
 @router.get("/market-insight", response_model=MarketInsightOut)
 async def market_insight(
     db: Session = Depends(get_db),
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
 ) -> MarketInsightOut:
     """The agent's read on the current market-wide headline pool: picks out
     the most compelling stories and judges them against the trader's stated

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.auth import require_auth
+from app.auth import get_current_user_id
 from app.db import get_db
 from app.models import StrategyRuleSet as StrategyRuleSetModel
 from app.schemas import ArchetypeOut, PlaybookUpdate, StrategyNoteOut, StrategyNoteUpdate
@@ -17,7 +17,7 @@ from app.services.strategy import archetypes_with_questions, get_active_strategy
 
 logger = logging.getLogger("entro.strategy")
 
-router = APIRouter(prefix="/api/strategy", tags=["strategy"], dependencies=[Depends(require_auth)])
+router = APIRouter(prefix="/api/strategy", tags=["strategy"], dependencies=[Depends(get_current_user_id)])
 
 _EMPTY = StrategyNoteOut(archetype=None, body=None, answers=None, structured_summary=None, summarized_at=None)
 
@@ -68,7 +68,7 @@ def list_archetypes() -> list[dict]:
 
 @router.get("", response_model=StrategyNoteOut)
 def get_strategy(
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> StrategyNoteOut:
     note = get_active_strategy(db, user_id)
@@ -78,7 +78,7 @@ def get_strategy(
 @router.put("", response_model=StrategyNoteOut)
 async def save_strategy(
     body: StrategyNoteUpdate,
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> StrategyNoteOut:
     note = upsert_strategy(db, user_id, body.archetype, body.body, body.answers)
@@ -89,7 +89,7 @@ async def save_strategy(
 
 @router.post("/regenerate", response_model=StrategyNoteOut)
 async def regenerate_strategy(
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> StrategyNoteOut:
     note = get_active_strategy(db, user_id)
@@ -102,7 +102,7 @@ async def regenerate_strategy(
 
 @router.get("/rules", response_model=StrategyRuleSetOut)
 def get_rules(
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> StrategyRuleSetOut:
     row = db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == user_id))
@@ -124,7 +124,7 @@ def get_rules(
 @router.put("/playbook", response_model=StrategyNoteOut)
 def update_playbook(
     body: PlaybookUpdate,
-    user_id: str = Depends(require_auth),
+    user_id: int = Depends(get_current_user_id),
     db: Session = Depends(get_db),
 ) -> StrategyNoteOut:
     """Manual pencil-icon edit of the generated playbook, bypassing the strategist

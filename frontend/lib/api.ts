@@ -210,6 +210,18 @@ export interface SymbolResult {
   name: string;
 }
 
+export interface UserPrivate {
+  id: number;
+  username: string;
+  email: string;
+}
+
+export interface RegisterRequest {
+  username: string;
+  email: string;
+  password: string;
+}
+
 export interface UserPreference {
   last_symbol: string;
   last_symbol_name?: string | null;
@@ -328,32 +340,28 @@ export type DebriefEvent =
   | { type: "done" }
   | { type: "error"; detail: string };
 
-let _getToken: (() => Promise<string | null>) | null = null;
-let _resolveReady: (() => void) | null = null;
-// Resolves when AuthBridge confirms a signed-in session is available.
-// Races against a 3s timeout so sign-in page requests don't hang forever.
-const _ready = Promise.race([
-  new Promise<void>((res) => { _resolveReady = res; }),
-  new Promise<void>((res) => setTimeout(res, 3000)),
-]);
+let _refreshInFlight: Promise<boolean> | null = null;
 
-export function setTokenGetter(fn: () => Promise<string | null>) {
-  _getToken = fn;
-  _resolveReady?.();
-}
-
-async function authHeaders(): Promise<HeadersInit> {
-  await _ready;
-  try {
-    const token = await _getToken?.();
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  } catch {
-    return {};
+async function tryRefresh(): Promise<boolean> {
+  if (!_refreshInFlight) {
+    _refreshInFlight = fetch(`${API}/api/users/refresh`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        _refreshInFlight = null;
+      });
   }
+  return _refreshInFlight;
 }
 
-async function getJSON<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`, { headers: await authHeaders() });
+async function getJSON<T>(path: string, _retried = false): Promise<T> {
+  const res = await fetch(`${API}${path}`, { credentials: "include" });
+  if (res.status === 401 && !_retried && (await tryRefresh())) {
+    return getJSON<T>(path, true);
+  }
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`${res.status}: ${detail}`);
@@ -361,11 +369,32 @@ async function getJSON<T>(path: string): Promise<T> {
   return res.json();
 }
 
-async function postJSON<T>(path: string, body: unknown, method = "POST"): Promise<T> {
+async function postJSON<T>(path: string, body: unknown, method = "POST", _retried = false): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method,
-    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+  if (res.status === 401 && !_retried && (await tryRefresh())) {
+    return postJSON<T>(path, body, method, true);
+  }
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`${res.status}: ${detail}`);
+  }
+  return res.json();
+}
+
+async function login(email: string, password: string): Promise<UserPrivate> {
+  const body = new URLSearchParams();
+  body.set("username", email);
+  body.set("password", password);
+  const res = await fetch(`${API}/api/users/token`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
   });
   if (!res.ok) {
     const detail = await res.text();
@@ -375,6 +404,10 @@ async function postJSON<T>(path: string, body: unknown, method = "POST"): Promis
 }
 
 export const api = {
+  login,
+  logout: () => postJSON<{ success: boolean }>("/api/users/logout", {}),
+  register: (body: RegisterRequest) => postJSON<UserPrivate>("/api/users/register", body),
+  me: () => getJSON<UserPrivate>("/api/users/me"),
   candles: (symbol: string, timeframe = "1Day") =>
     getJSON<Candle[]>(
       `/api/market/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`,
@@ -411,21 +444,17 @@ export const api = {
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
   resetDebrief: () => postJSON<DebriefStatus>("/api/agent/debrief/reset", {}),
   debriefStreamUrl: async (params: DebriefRequest) => {
-    const token = await _getToken?.();
     const q = new URLSearchParams();
     q.set("from", params.from);
     q.set("to", params.to);
     if (params.symbol) q.set("symbol", params.symbol);
     if (params.query) q.set("query", params.query);
-    if (token) q.set("token", token);
     return `${WS}/api/agent/debrief?${q.toString()}`;
   },
   ruleWatchUrl: async (symbol: string, timeframe: string, refreshSeconds = 30) => {
-    const token = await _getToken?.();
     const q = new URLSearchParams();
     q.set("timeframe", timeframe);
     q.set("refresh_seconds", String(refreshSeconds));
-    if (token) q.set("token", token);
     return `${WS}/api/agent/watch/${encodeURIComponent(symbol)}?${q.toString()}`;
   },
   generateDebriefNow: () => postJSON<DebriefReport>("/api/agent/debrief/generate", {}),
@@ -441,9 +470,9 @@ export const api = {
   regenerateStrategy: () => postJSON<StrategyNote>("/api/strategy/regenerate", {}),
   updatePlaybook: (sections: Record<string, string[]>) =>
     postJSON<StrategyNote>("/api/strategy/playbook", { sections }, "PUT"),
-  getPreferences: () => getJSON<UserPreference>("/api/user/preferences"),
+  getPreferences: () => getJSON<UserPreference>("/api/users/preferences"),
   savePreferences: (prefs: Partial<UserPreference>) =>
-    postJSON<UserPreference>("/api/user/preferences", prefs, "PATCH"),
+    postJSON<UserPreference>("/api/users/preferences", prefs, "PATCH"),
   saveBacktestConfig: (config: BacktestConfig) =>
     config.id
       ? postJSON<BacktestConfig>(`/api/backtest/configs/${config.id}`, config, "PATCH")
@@ -453,16 +482,12 @@ export const api = {
     return postJSON<BacktestRun>(`/api/backtest/configs/${configId}/run?${q.toString()}`, {});
   },
   backtestChatStreamUrl: async (config: BacktestConfig, message: string) => {
-    const token = await _getToken?.();
     const q = new URLSearchParams();
     q.set("message", message);
     q.set("config", JSON.stringify(config));
-    if (token) q.set("token", token);
     return `${WS}/api/backtest/chat?${q.toString()}`;
   },
   streamUrl: async (symbol: string) => {
-    const token = await _getToken?.();
-    const base = `${WS}/api/market/stream/${encodeURIComponent(symbol)}`;
-    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+    return `${WS}/api/market/stream/${encodeURIComponent(symbol)}`;
   },
 };
