@@ -340,8 +340,28 @@ export type DebriefEvent =
   | { type: "done" }
   | { type: "error"; detail: string };
 
-async function getJSON<T>(path: string): Promise<T> {
+let _refreshInFlight: Promise<boolean> | null = null;
+
+async function tryRefresh(): Promise<boolean> {
+  if (!_refreshInFlight) {
+    _refreshInFlight = fetch(`${API}/api/users/refresh`, {
+      method: "POST",
+      credentials: "include",
+    })
+      .then((res) => res.ok)
+      .catch(() => false)
+      .finally(() => {
+        _refreshInFlight = null;
+      });
+  }
+  return _refreshInFlight;
+}
+
+async function getJSON<T>(path: string, _retried = false): Promise<T> {
   const res = await fetch(`${API}${path}`, { credentials: "include" });
+  if (res.status === 401 && !_retried && (await tryRefresh())) {
+    return getJSON<T>(path, true);
+  }
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`${res.status}: ${detail}`);
@@ -349,13 +369,16 @@ async function getJSON<T>(path: string): Promise<T> {
   return res.json();
 }
 
-async function postJSON<T>(path: string, body: unknown, method = "POST"): Promise<T> {
+async function postJSON<T>(path: string, body: unknown, method = "POST", _retried = false): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     method,
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+  if (res.status === 401 && !_retried && (await tryRefresh())) {
+    return postJSON<T>(path, body, method, true);
+  }
   if (!res.ok) {
     const detail = await res.text();
     throw new Error(`${res.status}: ${detail}`);

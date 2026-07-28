@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import secrets
 from typing import Annotated
 from datetime import UTC, datetime, timedelta
 
@@ -17,6 +19,8 @@ logger = logging.getLogger("entro.auth")
 bearer = HTTPBearer()
 
 COOKIE_NAME = "token"
+REFRESH_COOKIE_NAME = "refresh_token"
+REFRESH_COOKIE_PATH = "/api/users"
 
 _jwks_client: PyJWKClient | None = None
 
@@ -58,6 +62,17 @@ def verify_access_token(token: str) -> str | None:
         return None
     else:
         return payload.get("sub")
+
+
+def generate_refresh_token() -> tuple[str, str, datetime]:
+    raw_token = secrets.token_urlsafe(48)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
+    return raw_token, token_hash, expires_at
+
+
+def hash_refresh_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode()).hexdigest()
 
 
 def _get_jwks_client() -> PyJWKClient:

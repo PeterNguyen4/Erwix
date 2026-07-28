@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -8,14 +9,18 @@ from sqlalchemy.orm import Session
 from app import models
 from app.auth import (
     COOKIE_NAME,
+    REFRESH_COOKIE_NAME,
+    REFRESH_COOKIE_PATH,
     create_access_token,
+    generate_refresh_token,
     get_current_user_id,
     hash_password,
+    hash_refresh_token,
     verify_password,
 )
 from app.config import get_settings
 from app.db import get_db
-from app.models import UserPreference
+from app.models import RefreshToken, UserPreference
 from app.schemas import (
     UserCreate,
     UserPreferenceOut,
@@ -27,6 +32,34 @@ from app.schemas import (
 settings = get_settings()
 
 router = APIRouter(prefix="/api/users", tags=["users"])
+
+
+def _set_access_cookie(response: Response, user_id: int) -> None:
+    expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
+    access_token = create_access_token(data={"sub": str(user_id)}, expires_delta=expires_delta)
+    response.set_cookie(
+        key=COOKIE_NAME,
+        value=access_token,
+        max_age=int(expires_delta.total_seconds()),
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+    )
+
+
+def _issue_refresh_token(response: Response, db: Session, user_id: int) -> None:
+    raw_token, token_hash, expires_at = generate_refresh_token()
+    db.add(RefreshToken(user_id=user_id, token_hash=token_hash, expires_at=expires_at))
+    db.commit()
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=raw_token,
+        max_age=int(timedelta(days=settings.refresh_token_expire_days).total_seconds()),
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite="lax",
+        path=REFRESH_COOKIE_PATH,
+    )
 
 
 @router.post("/register", response_model=UserPrivate, status_code=status.HTTP_201_CREATED)
@@ -72,22 +105,61 @@ def login_for_access_token(
             detail="Incorrect email or password",
         )
 
-    expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = create_access_token(data={"sub": str(user.id)}, expires_delta=expires_delta)
-    response.set_cookie(
-        key=COOKIE_NAME,
-        value=access_token,
-        max_age=int(expires_delta.total_seconds()),
-        httponly=True,
-        secure=settings.cookie_secure,
-        samesite="lax",
-    )
+    _set_access_cookie(response, user.id)
+    _issue_refresh_token(response, db, user.id)
+    return user
+
+
+@router.post("/refresh", response_model=UserPrivate)
+def refresh_access_token(
+    response: Response,
+    db: Session = Depends(get_db),
+    refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
+) -> models.User:
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
+
+    token_hash = hash_refresh_token(refresh_token)
+    stored = db.execute(
+        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    ).scalars().first()
+
+    if (
+        not stored
+        or stored.revoked_at is not None
+        or stored.expires_at < datetime.now(UTC)
+    ):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+
+    user = db.get(models.User, stored.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+
+    stored.revoked_at = datetime.now(UTC)
+    db.commit()
+
+    _set_access_cookie(response, user.id)
+    _issue_refresh_token(response, db, user.id)
     return user
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict:
+def logout(
+    response: Response,
+    db: Session = Depends(get_db),
+    refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
+) -> dict:
+    if refresh_token:
+        token_hash = hash_refresh_token(refresh_token)
+        stored = db.execute(
+            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        ).scalars().first()
+        if stored and stored.revoked_at is None:
+            stored.revoked_at = datetime.now(UTC)
+            db.commit()
+
     response.delete_cookie(key=COOKIE_NAME)
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
     return {"success": True}
 
 
