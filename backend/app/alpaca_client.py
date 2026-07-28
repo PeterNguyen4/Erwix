@@ -152,13 +152,17 @@ def get_quote(symbol: str) -> Quote:
 _CLIENT_ORDER_ID_SEP = ":"
 
 
-def user_id_from_client_order_id(client_order_id: str | None) -> str | None:
+def user_id_from_client_order_id(client_order_id: str | None) -> int | None:
     if not client_order_id or _CLIENT_ORDER_ID_SEP not in client_order_id:
         return None
-    return client_order_id.split(_CLIENT_ORDER_ID_SEP, 1)[0]
+    raw = client_order_id.split(_CLIENT_ORDER_ID_SEP, 1)[0]
+    try:
+        return int(raw)
+    except ValueError:
+        return None
 
 
-def submit_order(order: OrderRequest, user_id: str) -> OrderResponse:
+def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
     import uuid
 
     client = _trading_client()
@@ -243,7 +247,7 @@ def get_positions() -> list[Position]:
     return out
 
 
-def get_open_bracket_levels(symbol: str, user_id: str) -> dict[str, float | None] | None:
+def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None] | None:
     """Entry price from the user's open position. None if no open position."""
     from alpaca.trading.requests import GetOrdersRequest
     from alpaca.trading.enums import QueryOrderStatus
