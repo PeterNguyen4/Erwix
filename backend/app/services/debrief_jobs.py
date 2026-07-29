@@ -14,9 +14,9 @@ DebriefReport.steps per trade so progress/ETA are queryable mid-run.
 import logging
 from datetime import datetime, timedelta, timezone
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import SessionLocal
@@ -29,17 +29,17 @@ logger = logging.getLogger("entro.debrief_jobs")
 DEFAULT_WINDOW = timedelta(days=30)
 
 
-async def run_debrief_job(db: Session, report: DebriefReport) -> None:
+async def run_debrief_job(db: AsyncSession, report: DebriefReport) -> None:
     """Runs a pending DebriefReport to completion, persisting steps as they finish."""
     report.status = "running"
     report.started_at = datetime.now(timezone.utc)
-    trades = get_trades_window(db, report.user_id, report.window_start, report.window_end)
+    trades = await get_trades_window(db, report.user_id, report.window_start, report.window_end)
     if report.symbol:
         trades = [t for t in trades if t.symbol == report.symbol.upper()]
     else:
         report.symbol = primary_symbol(trades)  # so the report viewer knows what chart to load
     report.total_steps = len(trades)
-    db.commit()
+    await db.commit()
 
     try:
         async for step in agenerate_steps(
@@ -48,29 +48,29 @@ async def run_debrief_job(db: Session, report: DebriefReport) -> None:
         ):
             report.steps = [*report.steps, step]
             report.current_step += 1
-            db.commit()
+            await db.commit()
 
         report.status = "ready"
         report.completed_at = datetime.now(timezone.utc)
-        pref = db.get(UserPreference, report.user_id)
+        pref = await db.get(UserPreference, report.user_id)
         if pref is None:
             pref = UserPreference(user_id=report.user_id)
             db.add(pref)
         pref.last_debrief_at = report.completed_at
-        db.commit()
+        await db.commit()
     except Exception as exc:  # noqa: BLE001
         logger.exception("debrief job failed for user %s report %s", report.user_id, report.id)
-        db.rollback()
+        await db.rollback()
         report.status = "error"
         report.error_detail = str(exc)
-        db.commit()
+        await db.commit()
 
 
-def create_pending_report(db: Session, user_id: int) -> DebriefReport:
+async def create_pending_report(db: AsyncSession, user_id: int) -> DebriefReport:
     """Dev/manual trigger support: creates a pending DebriefReport for the
     current window (or returns the one already in flight, so double-clicking
     "generate now" doesn't spawn duplicates), bypassing the day/time schedule."""
-    existing = db.scalar(
+    existing = await db.scalar(
         select(DebriefReport).where(
             DebriefReport.user_id == user_id, DebriefReport.status.in_(["pending", "running"])
         )
@@ -78,14 +78,14 @@ def create_pending_report(db: Session, user_id: int) -> DebriefReport:
     if existing:
         return existing
     now = datetime.now(timezone.utc)
-    pref = db.get(UserPreference, user_id)
+    pref = await db.get(UserPreference, user_id)
     window_start = (pref.last_debrief_at if pref else None) or (now - DEFAULT_WINDOW)
     report = DebriefReport(
         user_id=user_id, window_start=window_start, window_end=now, scheduled_for=now, status="pending"
     )
     db.add(report)
-    db.commit()
-    db.refresh(report)
+    await db.commit()
+    await db.refresh(report)
     return report
 
 
@@ -93,13 +93,10 @@ async def run_debrief_job_by_id(report_id: int) -> None:
     """Runs a report job under its own DB session — used when generation is
     kicked off from a request handler via asyncio.create_task, since the
     request's own session closes as soon as the response is sent."""
-    db = SessionLocal()
-    try:
-        report = db.get(DebriefReport, report_id)
+    async with SessionLocal() as db:
+        report = await db.get(DebriefReport, report_id)
         if report is not None:
             await run_debrief_job(db, report)
-    finally:
-        db.close()
 
 
 def _slot_due(pref: UserPreference, now: datetime, interval: timedelta) -> bool:
@@ -116,28 +113,23 @@ def _slot_due(pref: UserPreference, now: datetime, interval: timedelta) -> bool:
     return now - candidate < interval
 
 
-def check_and_schedule_debriefs() -> None:
+async def check_and_schedule_debriefs() -> None:
     """Poll tick: create + run a DebriefReport for any user whose scheduled slot
-    just passed and who has new fills since their last debrief. Synchronous entry
-    point (APScheduler calls this directly); spins up its own event loop for the
-    async generation pipeline."""
-    import asyncio
-
+    just passed and who has new fills since their last debrief."""
     settings = get_settings()
     interval = timedelta(minutes=settings.debrief_poll_interval_minutes)
     now = datetime.now(timezone.utc)
-    db = SessionLocal()
-    try:
-        prefs = db.scalars(
-            select(UserPreference).where(UserPreference.debrief_enabled.is_(True))
+    async with SessionLocal() as db:
+        prefs = (
+            await db.scalars(select(UserPreference).where(UserPreference.debrief_enabled.is_(True)))
         ).all()
         for pref in prefs:
             if not _slot_due(pref, now, interval):
                 continue
             window_start = pref.last_debrief_at or (now - DEFAULT_WINDOW)
-            if count_trades_since(db, pref.user_id, window_start) == 0:
+            if await count_trades_since(db, pref.user_id, window_start) == 0:
                 continue
-            existing = db.scalar(
+            existing = await db.scalar(
                 select(DebriefReport).where(
                     DebriefReport.user_id == pref.user_id,
                     DebriefReport.window_start == window_start,
@@ -154,13 +146,11 @@ def check_and_schedule_debriefs() -> None:
                 status="pending",
             )
             db.add(report)
-            db.commit()
-            asyncio.run(run_debrief_job(db, report))
-    finally:
-        db.close()
+            await db.commit()
+            await run_debrief_job(db, report)
 
 
-_scheduler: BackgroundScheduler | None = None
+_scheduler: AsyncIOScheduler | None = None
 
 
 def start_scheduler() -> None:
@@ -168,7 +158,7 @@ def start_scheduler() -> None:
     if _scheduler is not None:
         return
     settings = get_settings()
-    _scheduler = BackgroundScheduler()
+    _scheduler = AsyncIOScheduler()
     _scheduler.add_job(
         check_and_schedule_debriefs,
         "interval",
