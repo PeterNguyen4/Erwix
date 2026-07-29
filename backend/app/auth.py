@@ -5,10 +5,13 @@ from typing import Annotated
 from datetime import UTC, datetime, timedelta
 
 import jwt
-from fastapi import Cookie, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from pwdlib import PasswordHash
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_settings
+from .db import get_db
+from .models import User
 
 password_hash = PasswordHash.recommended()
 settings = get_settings()
@@ -45,18 +48,18 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     return encoded_jwt
 
 
-def verify_access_token(token: str) -> str | None:
+def verify_access_token(token: str) -> tuple[str, int] | None:
     try:
         payload = jwt.decode(
             token,
             settings.secret_key.get_secret_value(),
             algorithms=[settings.algorithm],
-            options={"require": ["exp", "sub"]}
+            options={"require": ["exp", "sub", "tv"]}
         )
     except jwt.InvalidTokenError:
         return None
     else:
-        return payload.get("sub")
+        return payload.get("sub"), payload.get("tv")
 
 
 def generate_refresh_token() -> tuple[str, str, datetime]:
@@ -100,14 +103,22 @@ def verify_oauth_state(state: str) -> tuple[int, str] | None:
 
 async def get_current_user_id(
     token: Annotated[str | None, Cookie(alias=COOKIE_NAME)] = None,
+    db: AsyncSession = Depends(get_db),
 ) -> int:
-    user_id = verify_access_token(token) if token else None
-    if user_id is not None:
-        try:
-            return int(user_id)
-        except (TypeError, ValueError):
-            pass
-    raise HTTPException(
+    unauthorized = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid or expired token",
     )
+    decoded = verify_access_token(token) if token else None
+    if decoded is None:
+        raise unauthorized
+    raw_user_id, token_version = decoded
+    try:
+        user_id = int(raw_user_id)
+    except (TypeError, ValueError):
+        raise unauthorized from None
+
+    user = await db.get(User, user_id)
+    if user is None or user.token_version != token_version:
+        raise unauthorized
+    return user_id

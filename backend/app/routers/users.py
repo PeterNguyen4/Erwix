@@ -34,9 +34,12 @@ settings = get_settings()
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-def _set_access_cookie(response: Response, user_id: int) -> None:
+def _set_access_cookie(response: Response, user: models.User) -> None:
     expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
-    access_token = create_access_token(data={"sub": str(user_id)}, expires_delta=expires_delta)
+    access_token = create_access_token(
+        data={"sub": str(user.id), "tv": user.token_version},
+        expires_delta=expires_delta,
+    )
     response.set_cookie(
         key=COOKIE_NAME,
         value=access_token,
@@ -109,7 +112,7 @@ async def login_for_access_token(
             detail="Incorrect email or password",
         )
 
-    _set_access_cookie(response, user.id)
+    _set_access_cookie(response, user)
     await _issue_refresh_token(response, db, user.id)
     return user
 
@@ -142,7 +145,7 @@ async def refresh_access_token(
     stored.revoked_at = datetime.now(UTC)
     await db.commit()
 
-    _set_access_cookie(response, user.id)
+    _set_access_cookie(response, user)
     await _issue_refresh_token(response, db, user.id)
     return user
 
@@ -161,6 +164,30 @@ async def logout(
         if stored and stored.revoked_at is None:
             stored.revoked_at = datetime.now(UTC)
             await db.commit()
+
+    response.delete_cookie(key=COOKIE_NAME)
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+    return {"success": True}
+
+
+@router.post("/logout-all")
+async def logout_all(
+    response: Response,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Revoke refresh token"""
+    user = await db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+
+    user.token_version += 1
+    await db.execute(
+        RefreshToken.__table__.update()
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
+    await db.commit()
 
     response.delete_cookie(key=COOKIE_NAME)
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
