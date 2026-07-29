@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import get_current_user_id
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
 from app.models import Trade
@@ -14,8 +14,8 @@ router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depend
 
 
 @router.get("/trades", response_model=list[TradeOut])
-def list_trades(
-    db: Session = Depends(get_db),
+async def list_trades(
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
     symbol: str | None = None,
     from_: datetime | None = Query(None, alias="from"),
@@ -39,41 +39,41 @@ def list_trades(
     if to:
         stmt = stmt.where(Trade.filled_at <= to)
     stmt = stmt.limit(limit)
-    return list(db.scalars(stmt).all())
+    return list((await db.scalars(stmt)).all())
 
 
 @router.get("/pnl-summary", response_model=PnLSummaryOut)
-def pnl_summary(
-    db: Session = Depends(get_db),
+async def pnl_summary(
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
     from_: datetime | None = Query(None, alias="from"),
     to: datetime | None = None,
 ) -> PnLSummaryOut:
     """Realized PnL + win/loss stats for round-trips closed in [from, to]."""
-    summary = compute_pnl_summary(db, user_id, from_, to)
+    summary = await compute_pnl_summary(db, user_id, from_, to)
     return PnLSummaryOut.model_validate(summary)
 
 
 @router.get("/trades/{trade_id}", response_model=TradeOut)
-def get_trade(trade_id: int, db: Session = Depends(get_db), user_id: int = Depends(get_current_user_id)) -> Trade:
-    trade = db.get(Trade, trade_id)
+async def get_trade(trade_id: int, db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)) -> Trade:
+    trade = await db.get(Trade, trade_id)
     if trade is None or trade.user_id != user_id:
         raise HTTPException(status_code=404, detail="Trade not found")
     return trade
 
 
 @router.patch("/trades/{trade_id}/notes", response_model=TradeOut)
-def update_trade_notes(
+async def update_trade_notes(
     trade_id: int,
     body: TradeNoteUpdate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> Trade:
-    trade = db.get(Trade, trade_id)
+    trade = await db.get(Trade, trade_id)
     if trade is None or trade.user_id != user_id:
         raise HTTPException(status_code=404, detail="Trade not found")
     trade.notes = body.notes
-    db.commit()
-    db.refresh(trade)
-    embed_trade_best_effort(db, trade)
+    await db.commit()
+    await db.refresh(trade)
+    await embed_trade_best_effort(db, trade)
     return trade

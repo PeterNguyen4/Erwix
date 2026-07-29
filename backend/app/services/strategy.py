@@ -4,7 +4,7 @@ by strategy_agent.asummarize_strategy into a structured playbook that the Analys
 agent (agent_graph._retrieve) reads as context."""
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import StrategyNote
 
@@ -104,21 +104,21 @@ def compose_body(archetype: str | None, body: str | None, answers: dict[str, str
     return "\n\n".join(lines)
 
 
-def get_active_strategy(db: Session, user_id: int) -> StrategyNote | None:
+async def get_active_strategy(db: AsyncSession, user_id: int) -> StrategyNote | None:
     """The user's saved strategy note, if any — used by the Analyst agent to
     ground its review in the trader's own stated rules."""
-    return db.scalar(select(StrategyNote).where(StrategyNote.user_id == user_id))
+    return await db.scalar(select(StrategyNote).where(StrategyNote.user_id == user_id))
 
 
-def upsert_strategy(
-    db: Session,
+async def upsert_strategy(
+    db: AsyncSession,
     user_id: int,
     archetype: str | None,
     body: str | None,
     answers: dict[str, str] | None,
 ) -> StrategyNote:
     composed_body = compose_body(archetype, body, answers)
-    note = get_active_strategy(db, user_id)
+    note = await get_active_strategy(db, user_id)
     if note is None:
         note = StrategyNote(user_id=user_id, archetype=archetype, body=composed_body, answers=answers)
         db.add(note)
@@ -127,6 +127,6 @@ def upsert_strategy(
         note.body = composed_body
         note.answers = answers
         note.structured_summary = None  # stale until regenerated below
-    db.commit()
-    db.refresh(note)
+    await db.commit()
+    await db.refresh(note)
     return note

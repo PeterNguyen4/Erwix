@@ -22,7 +22,7 @@ from langchain_ollama import ChatOllama
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import Trade
@@ -216,11 +216,11 @@ def _extract_tool_events(response) -> list[dict]:
     return events
 
 
-def _system_prompt(db: Session, user_id: int) -> str:
+async def _system_prompt(db: AsyncSession, user_id: int) -> str:
     """Base analyst system prompt, plus the trader's own stated strategy
     (Strategy tab) when one exists, so the review can reference whether the
     trader is following their own rules."""
-    strategy = get_active_strategy(db, user_id)
+    strategy = await get_active_strategy(db, user_id)
     if strategy and strategy.structured_summary:
         try:
             rendered = render_playbook(json.loads(strategy.structured_summary))
@@ -236,8 +236,8 @@ def _system_prompt(db: Session, user_id: int) -> str:
     return SYSTEM_PROMPT
 
 
-def _retrieve(state: AgentState, db: Session) -> dict:
-    trades = get_trades_window(db, state["user_id"], state["window_start"], state["window_end"])
+async def _retrieve(state: AgentState, db: AsyncSession) -> dict:
+    trades = await get_trades_window(db, state["user_id"], state["window_start"], state["window_end"])
     if state["symbol"]:
         trades = [t for t in trades if t.symbol == state["symbol"].upper()]
 
@@ -245,14 +245,15 @@ def _retrieve(state: AgentState, db: Session) -> dict:
     context = "\n".join(lines) if lines else "No fills in this window."
 
     if state["query"]:
-        similar = [t for t in semantic_search(db, state["user_id"], state["query"]) if t.id not in {tr.id for tr in trades}]
+        found = await semantic_search(db, state["user_id"], state["query"])
+        similar = [t for t in found if t.id not in {tr.id for tr in trades}]
         if similar:
             context += "\n\nSimilar past trades (semantic match on: {!r}):\n".format(state["query"])
             context += "\n".join(f"- (trade_id={t.id}) {build_trade_text(t)}" for t in similar)
 
     prompt = f"Trade window {state['window_start']:%Y-%m-%d} to {state['window_end']:%Y-%m-%d}:\n{context}"
     return {
-        "messages": [SystemMessage(_system_prompt(db, state["user_id"])), HumanMessage(prompt)],
+        "messages": [SystemMessage(await _system_prompt(db, state["user_id"])), HumanMessage(prompt)],
         "primary_symbol": state["symbol"] or primary_symbol(trades),
         "trades": trades,
     }
@@ -270,7 +271,7 @@ def _analyze(state: AgentState) -> dict:
     return {"messages": [narrative_response], "annotations": annotations}
 
 
-def build_graph(db: Session) -> StateGraph:
+def build_graph(db: AsyncSession) -> StateGraph:
     graph = StateGraph(AgentState)
     graph.add_node("retrieve", lambda state: _retrieve(state, db))
     graph.add_node("analyze", _analyze)
@@ -280,8 +281,8 @@ def build_graph(db: Session) -> StateGraph:
     return graph.compile()
 
 
-def run_review(
-    db: Session,
+async def run_review(
+    db: AsyncSession,
     user_id: int,
     window_start: datetime,
     window_end: datetime,
@@ -290,7 +291,7 @@ def run_review(
 ) -> tuple[str, list[dict]]:
     """Run the analyst graph and return (narrative, annotations)."""
     app = build_graph(db)
-    result = app.invoke(_initial_state(user_id, window_start, window_end, symbol, query))
+    result = await app.ainvoke(_initial_state(user_id, window_start, window_end, symbol, query))
     narrative = result["messages"][-1].content
     if isinstance(narrative, list):
         narrative = "".join(block.get("text", "") for block in narrative if isinstance(block, dict))
@@ -377,7 +378,7 @@ def _step_from_tool_events(trade: Trade, narrative: str, events: list[dict]) -> 
 
 
 async def agenerate_steps(
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     window_start: datetime,
     window_end: datetime,
@@ -390,7 +391,7 @@ async def agenerate_steps(
     of token-level events, so a caller can persist DebriefReport.steps incrementally
     without needing a live connection."""
     state = _initial_state(user_id, window_start, window_end, symbol, query)
-    retrieved = _retrieve(state, db)
+    retrieved = await _retrieve(state, db)
     context_messages = retrieved["messages"]
     trades: list[Trade] = retrieved["trades"]
 
@@ -432,7 +433,7 @@ EXIT_GUIDANCE_SYSTEM_PROMPT = (
 
 
 async def exit_guidance(
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     symbol: str,
     level_hit: str,
@@ -442,7 +443,7 @@ async def exit_guidance(
     take_profit_price: float | None,
 ) -> str:
     """Narrates stop-loss/take-profit just-breached for the live rule-watch loop."""
-    strategy = get_active_strategy(db, user_id)
+    strategy = await get_active_strategy(db, user_id)
     strategy_line = ""
     if strategy and strategy.structured_summary:
         label = archetype_name(strategy.archetype) or "Custom"
@@ -473,7 +474,7 @@ FOLLOWUP_SYSTEM_PROMPT = (
 
 
 async def arun_followup(
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     window_start: datetime,
     window_end: datetime,
@@ -489,7 +490,7 @@ async def arun_followup(
     trades can still be checked against real data). `history` is prior
     (role, content) DebriefMessage pairs in order. Returns (reply_text, tool_events)."""
     state = _initial_state(user_id, window_start, window_end, symbol, query)
-    retrieved = _retrieve(state, db)
+    retrieved = await _retrieve(state, db)
     context_messages = retrieved["messages"]
 
     messages: list[AnyMessage] = [
@@ -511,7 +512,7 @@ async def arun_followup(
 
 
 async def astream_review(
-    db: Session,
+    db: AsyncSession,
     user_id: int,
     window_start: datetime,
     window_end: datetime,
@@ -528,7 +529,7 @@ async def astream_review(
     {"type": "annotations"|"spotlight"|"zoom", ...} events, and finally {"type": "done"}.
     """
     state = _initial_state(user_id, window_start, window_end, symbol, query)
-    retrieved = _retrieve(state, db)
+    retrieved = await _retrieve(state, db)
     context_messages = retrieved["messages"]
     trades: list[Trade] = retrieved["trades"]
 
