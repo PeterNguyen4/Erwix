@@ -22,7 +22,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     task: asyncio.Task | None = None
     if settings.has_alpaca_creds:
-        reconcile_recent_fills()
+        await reconcile_recent_fills()
         task = asyncio.create_task(run_execution_logger())
         logger.info("Started execution logger background task")
     else:
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
                 await task
             except (asyncio.CancelledError, Exception):
                 pass
-        engine.dispose()
+        await engine.dispose()
 
 
 app = FastAPI(lifespan=lifespan)

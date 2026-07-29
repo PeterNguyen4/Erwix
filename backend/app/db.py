@@ -1,7 +1,7 @@
-from collections.abc import Generator
+from collections.abc import AsyncGenerator
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 from .config import get_settings
 
@@ -11,17 +11,17 @@ class Base(DeclarativeBase):
 
 
 _settings = get_settings()
-engine = create_engine(_settings.database_url, pool_pre_ping=True, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+_async_url = _settings.database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+engine = create_async_engine(_async_url, pool_pre_ping=True, future=True)
+SessionLocal = async_sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 
-def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with SessionLocal() as db:
         try:
-            db.rollback()
-        except Exception:
-            pass
-        db.close()
+            yield db
+        finally:
+            try:
+                await db.rollback()
+            except Exception:
+                pass
