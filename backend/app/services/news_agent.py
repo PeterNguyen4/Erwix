@@ -11,7 +11,7 @@ import json
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.agent_graph import _base_model
 from app.services.news import NewsArticle
@@ -46,8 +46,8 @@ def _headlines_block(articles: list[NewsArticle]) -> str:
     return "\n".join(f"- [{a.publisher}] {a.title} ({a.url})" for a in articles)
 
 
-def _strategy_block(db: Session, user_id: int) -> str:
-    strategy = get_active_strategy(db, user_id)
+async def _strategy_block(db: AsyncSession, user_id: int) -> str:
+    strategy = await get_active_strategy(db, user_id)
     if strategy and strategy.structured_summary:
         try:
             rendered = render_playbook(json.loads(strategy.structured_summary))
@@ -63,8 +63,8 @@ def _normalize_sentiment(raw: str) -> str:
     return sentiment if sentiment in ("bullish", "bearish", "neutral") else "neutral"
 
 
-async def build_market_insight(db: Session, user_id: int, articles: list[NewsArticle]) -> MarketInsight:
-    prompt = f"Recent market-wide headlines:\n{_headlines_block(articles)}\n\n{_strategy_block(db, user_id)}"
+async def build_market_insight(db: AsyncSession, user_id: int, articles: list[NewsArticle]) -> MarketInsight:
+    prompt = f"Recent market-wide headlines:\n{_headlines_block(articles)}\n\n{await _strategy_block(db, user_id)}"
     model = _base_model().with_structured_output(MarketInsight)
     result = await model.ainvoke([SystemMessage(MARKET_SYSTEM_PROMPT), HumanMessage(prompt)])
     known_urls = {a.url for a in articles}

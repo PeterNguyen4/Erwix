@@ -1,11 +1,11 @@
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_id
 from app.db import get_db
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/api/strategy", tags=["strategy"], dependencies=[Depe
 _EMPTY = StrategyNoteOut(archetype=None, body=None, answers=None, structured_summary=None, summarized_at=None)
 
 
-async def _regenerate_summary(db: Session, note) -> None:
+async def _regenerate_summary(db: AsyncSession, note) -> None:
     """Best-effort strategist-agent call — never blocks the save it's attached to,
     matching execution_logger.py's embed_trade_best_effort pattern."""
     if not (note.body or "").strip():
@@ -33,12 +33,12 @@ async def _regenerate_summary(db: Session, note) -> None:
         note.structured_summary = json.dumps(sections)
         note.summary_model = "strategy_agent.asummarize_strategy"
         note.summarized_at = datetime.now(timezone.utc)
-        db.commit()
+        await db.commit()
     except Exception:
         logger.exception("strategy summarization failed for user %s", note.user_id)
 
 
-async def _regenerate_rules(db: Session, note) -> None:
+async def _regenerate_rules(db: AsyncSession, note) -> None:
     """Best-effort rule-compile call, independent of _regenerate_summary so a
     failure here never blocks the strategy save."""
     if not (note.body or "").strip():
@@ -47,7 +47,7 @@ async def _regenerate_rules(db: Session, note) -> None:
     try:
         rule_set = await acompile_rules(note.archetype, note.body)
         body_hash = hashlib.sha256(note.body.encode()).hexdigest()
-        row = db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == note.user_id))
+        row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == note.user_id))
         if row is None:
             row = StrategyRuleSetModel(user_id=note.user_id, note_id=note.id)
             db.add(row)
@@ -56,7 +56,7 @@ async def _regenerate_rules(db: Session, note) -> None:
         row.compiled_model = "strategy_agent.acompile_rules"
         row.compiled_at = datetime.now(timezone.utc)
         row.source_body_hash = body_hash
-        db.commit()
+        await db.commit()
     except Exception:
         logger.exception("strategy rule compilation failed for user %s", note.user_id)
 
@@ -67,11 +67,11 @@ def list_archetypes() -> list[dict]:
 
 
 @router.get("", response_model=StrategyNoteOut)
-def get_strategy(
+async def get_strategy(
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> StrategyNoteOut:
-    note = get_active_strategy(db, user_id)
+    note = await get_active_strategy(db, user_id)
     return note if note is not None else _EMPTY
 
 
@@ -79,9 +79,9 @@ def get_strategy(
 async def save_strategy(
     body: StrategyNoteUpdate,
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> StrategyNoteOut:
-    note = upsert_strategy(db, user_id, body.archetype, body.body, body.answers)
+    note = await upsert_strategy(db, user_id, body.archetype, body.body, body.answers)
     await _regenerate_summary(db, note)
     await _regenerate_rules(db, note)
     return note
@@ -90,9 +90,9 @@ async def save_strategy(
 @router.post("/regenerate", response_model=StrategyNoteOut)
 async def regenerate_strategy(
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> StrategyNoteOut:
-    note = get_active_strategy(db, user_id)
+    note = await get_active_strategy(db, user_id)
     if note is None:
         return _EMPTY
     await _regenerate_summary(db, note)
@@ -101,15 +101,15 @@ async def regenerate_strategy(
 
 
 @router.get("/rules", response_model=StrategyRuleSetOut)
-def get_rules(
+async def get_rules(
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> StrategyRuleSetOut:
-    row = db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == user_id))
+    row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == user_id))
     if row is None:
         return StrategyRuleSetOut(rules=None, compiled_model=None, compiled_at=None, is_stale=False)
 
-    note = get_active_strategy(db, user_id)
+    note = await get_active_strategy(db, user_id)
     current_hash = hashlib.sha256((note.body or "").encode()).hexdigest() if note else None
     is_stale = current_hash != row.source_body_hash
 
@@ -122,19 +122,19 @@ def get_rules(
 
 
 @router.put("/playbook", response_model=StrategyNoteOut)
-def update_playbook(
+async def update_playbook(
     body: PlaybookUpdate,
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> StrategyNoteOut:
     """Manual pencil-icon edit of the generated playbook, bypassing the strategist
     agent — overwrites structured_summary directly with the user's own wording."""
-    note = get_active_strategy(db, user_id)
+    note = await get_active_strategy(db, user_id)
     if note is None:
         raise HTTPException(404, "no strategy saved yet")
     note.structured_summary = json.dumps(body.sections)
     note.summary_model = "user-edited"
     note.summarized_at = datetime.now(timezone.utc)
-    db.commit()
-    db.refresh(note)
+    await db.commit()
+    await db.refresh(note)
     return note

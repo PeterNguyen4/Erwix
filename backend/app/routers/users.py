@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models
 from app.auth import (
@@ -47,10 +47,10 @@ def _set_access_cookie(response: Response, user_id: int) -> None:
     )
 
 
-def _issue_refresh_token(response: Response, db: Session, user_id: int) -> None:
+async def _issue_refresh_token(response: Response, db: AsyncSession, user_id: int) -> None:
     raw_token, token_hash, expires_at = generate_refresh_token()
     db.add(RefreshToken(user_id=user_id, token_hash=token_hash, expires_at=expires_at))
-    db.commit()
+    await db.commit()
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=raw_token,
@@ -63,11 +63,13 @@ def _issue_refresh_token(response: Response, db: Session, user_id: int) -> None:
 
 
 @router.post("/register", response_model=UserPrivate, status_code=status.HTTP_201_CREATED)
-def register(user: UserCreate, db: Session = Depends(get_db)) -> models.User:
-    existing = db.execute(
-        select(models.User).where(
-            (func.lower(models.User.username) == user.username.lower())
-            | (func.lower(models.User.email) == user.email.lower())
+async def register(user: UserCreate, db: AsyncSession = Depends(get_db)) -> models.User:
+    existing = (
+        await db.execute(
+            select(models.User).where(
+                (func.lower(models.User.username) == user.username.lower())
+                | (func.lower(models.User.email) == user.email.lower())
+            )
         )
     ).scalars().first()
     if existing:
@@ -84,19 +86,21 @@ def register(user: UserCreate, db: Session = Depends(get_db)) -> models.User:
         hashed_password=hash_password(user.password),
     )
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    await db.commit()
+    await db.refresh(new_user)
     return new_user
 
 
 @router.post("/token", response_model=UserPrivate)
-def login_for_access_token(
+async def login_for_access_token(
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> models.User:
-    user = db.execute(
-        select(models.User).where(func.lower(models.User.email) == form_data.username.lower())
+    user = (
+        await db.execute(
+            select(models.User).where(func.lower(models.User.email) == form_data.username.lower())
+        )
     ).scalars().first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -106,22 +110,22 @@ def login_for_access_token(
         )
 
     _set_access_cookie(response, user.id)
-    _issue_refresh_token(response, db, user.id)
+    await _issue_refresh_token(response, db, user.id)
     return user
 
 
 @router.post("/refresh", response_model=UserPrivate)
-def refresh_access_token(
+async def refresh_access_token(
     response: Response,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
 ) -> models.User:
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
 
     token_hash = hash_refresh_token(refresh_token)
-    stored = db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+    stored = (
+        await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
     ).scalars().first()
 
     if (
@@ -131,32 +135,32 @@ def refresh_access_token(
     ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
 
-    user = db.get(models.User, stored.user_id)
+    user = await db.get(models.User, stored.user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
 
     stored.revoked_at = datetime.now(UTC)
-    db.commit()
+    await db.commit()
 
     _set_access_cookie(response, user.id)
-    _issue_refresh_token(response, db, user.id)
+    await _issue_refresh_token(response, db, user.id)
     return user
 
 
 @router.post("/logout")
-def logout(
+async def logout(
     response: Response,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE_NAME)] = None,
 ) -> dict:
     if refresh_token:
         token_hash = hash_refresh_token(refresh_token)
-        stored = db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        stored = (
+            await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
         ).scalars().first()
         if stored and stored.revoked_at is None:
             stored.revoked_at = datetime.now(UTC)
-            db.commit()
+            await db.commit()
 
     response.delete_cookie(key=COOKIE_NAME)
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
@@ -164,11 +168,11 @@ def logout(
 
 
 @router.get("/me", response_model=UserPrivate)
-def get_me(
+async def get_me(
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> models.User:
-    user = db.get(models.User, user_id)
+    user = await db.get(models.User, user_id)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -178,63 +182,67 @@ def get_me(
 
 
 @router.patch("/me", response_model=UserPrivate)
-def update_me(
+async def update_me(
     user_update: UserUpdate,
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> models.User:
-    user = db.get(models.User, user_id)
+    user = await db.get(models.User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     if user_update.username is not None and user_update.username.lower() != user.username.lower():
-        existing = db.execute(
-            select(models.User).where(func.lower(models.User.username) == user_update.username.lower())
+        existing = (
+            await db.execute(
+                select(models.User).where(func.lower(models.User.username) == user_update.username.lower())
+            )
         ).scalars().first()
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username already exists")
         user.username = user_update.username
 
     if user_update.email is not None and user_update.email.lower() != user.email.lower():
-        existing = db.execute(
-            select(models.User).where(func.lower(models.User.email) == user_update.email.lower())
+        existing = (
+            await db.execute(
+                select(models.User).where(func.lower(models.User.email) == user_update.email.lower())
+            )
         ).scalars().first()
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
         user.email = user_update.email.lower()
 
-    db.commit()
-    db.refresh(user)
+    await db.commit()
+    await db.refresh(user)
     return user
 
 
-def _get_or_create_preferences(db: Session, user_id: int) -> UserPreference:
-    pref = db.execute(
-        select(UserPreference).where(UserPreference.user_id == user_id)
+async def _get_or_create_preferences(db: AsyncSession, user_id: int) -> UserPreference:
+    pref = (
+        await db.execute(select(UserPreference).where(UserPreference.user_id == user_id))
     ).scalars().first()
     if pref is None:
         pref = UserPreference(user_id=user_id)
         db.add(pref)
-        db.commit()
-        db.refresh(pref)
+        await db.commit()
+        await db.refresh(pref)
     return pref
 
 
 @router.get("/preferences", response_model=UserPreferenceOut)
-def get_preferences(
+async def get_preferences(
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> UserPreference:
-    return _get_or_create_preferences(db, user_id)
+    return await _get_or_create_preferences(db, user_id)
 
 
 @router.patch("/preferences", response_model=UserPreferenceOut)
-def update_preferences(
+async def update_preferences(
     body: UserPreferenceUpdate,
     user_id: int = Depends(get_current_user_id),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> UserPreference:
-    pref = _get_or_create_preferences(db, user_id)
+    pref = await _get_or_create_preferences(db, user_id)
     if body.last_symbol is not None:
         pref.last_symbol = body.last_symbol.upper()
     if body.last_symbol_name is not None:
@@ -247,5 +255,5 @@ def update_preferences(
         pref.debrief_day_of_week = body.debrief_day_of_week
     if body.debrief_time is not None:
         pref.debrief_time = body.debrief_time
-    db.commit()
+    await db.commit()
     return pref

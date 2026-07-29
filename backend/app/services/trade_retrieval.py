@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Trade
 from app.services.embeddings import EMBEDDING_MODEL, build_trade_text, embed_documents, embed_query
@@ -99,8 +99,8 @@ def _fifo_match(trades: list[Trade]) -> list[ClosedTrade]:
     return closed
 
 
-def compute_pnl_summary(
-    db: Session,
+async def compute_pnl_summary(
+    db: AsyncSession,
     user_id: int,
     start: datetime | None = None,
     end: datetime | None = None,
@@ -113,7 +113,11 @@ def compute_pnl_summary(
     against the window.
     """
     all_trades = list(
-        db.scalars(select(Trade).where(Trade.user_id == user_id, Trade.filled_at.isnot(None))).all()
+        (
+            await db.scalars(
+                select(Trade).where(Trade.user_id == user_id, Trade.filled_at.isnot(None))
+            )
+        ).all()
     )
     closed = _fifo_match(all_trades)
     if start is not None:
@@ -140,11 +144,11 @@ def compute_pnl_summary(
     )
 
 
-def count_trades_since(db: Session, user_id: int, since: datetime) -> int:
+async def count_trades_since(db: AsyncSession, user_id: int, since: datetime) -> int:
     """Number of a user's fills strictly after `since` — used both by the sidebar
     badge (GET /api/agent/status) and the scheduler's "anything new to debrief?"
     check (app.services.debrief_jobs)."""
-    return db.scalar(
+    return await db.scalar(
         select(func.count()).select_from(Trade).where(Trade.user_id == user_id, Trade.filled_at > since)
     ) or 0
 
@@ -160,7 +164,7 @@ def primary_symbol(trades: list[Trade]) -> str | None:
     return max(counts, key=counts.get)
 
 
-def get_trades_window(db: Session, user_id: int, start: datetime, end: datetime) -> list[Trade]:
+async def get_trades_window(db: AsyncSession, user_id: int, start: datetime, end: datetime) -> list[Trade]:
     """All of a user's fills in [start, end], oldest first — the window the
     Phase-2 analyst agent reviews."""
     stmt = (
@@ -168,29 +172,29 @@ def get_trades_window(db: Session, user_id: int, start: datetime, end: datetime)
         .where(Trade.user_id == user_id, Trade.filled_at >= start, Trade.filled_at <= end)
         .order_by(Trade.filled_at.asc())
     )
-    return list(db.scalars(stmt).all())
+    return list((await db.scalars(stmt)).all())
 
 
-def embed_trade(db: Session, trade: Trade) -> None:
+async def embed_trade(db: AsyncSession, trade: Trade) -> None:
     """(Re-)embed a single trade — e.g. right after its notes change — and commit."""
     vector = embed_documents([build_trade_text(trade)])[0]
     trade.embedding = vector
     trade.embedding_model = EMBEDDING_MODEL
     trade.embedded_at = datetime.now(timezone.utc)
-    db.commit()
+    await db.commit()
 
 
-def embed_trade_best_effort(db: Session, trade: Trade) -> None:
+async def embed_trade_best_effort(db: AsyncSession, trade: Trade) -> None:
     """(Re-)embed a trade, logging and rolling back on failure instead of raising —
     embedding must never block the fill/notes write it's attached to."""
     try:
-        embed_trade(db, trade)
+        await embed_trade(db, trade)
     except Exception:  # noqa: BLE001 — embedding is best-effort, never blocks the caller's write
-        db.rollback()
+        await db.rollback()
         logger.warning("Failed to embed trade %s", trade.id, exc_info=True)
 
 
-def backfill_embeddings(db: Session, user_id: int, batch_size: int = 50) -> int:
+async def backfill_embeddings(db: AsyncSession, user_id: int, batch_size: int = 50) -> int:
     """Embed any of the user's trades that don't yet have one (new fills, or
     trades logged before this pipeline existed, or a stale embedding model).
     Returns the number embedded."""
@@ -200,7 +204,7 @@ def backfill_embeddings(db: Session, user_id: int, batch_size: int = 50) -> int:
         .where((Trade.embedding.is_(None)) | (Trade.embedding_model != EMBEDDING_MODEL))
         .limit(batch_size)
     )
-    trades = list(db.scalars(stmt).all())
+    trades = list((await db.scalars(stmt)).all())
     if not trades:
         return 0
     vectors = embed_documents([build_trade_text(t) for t in trades])
@@ -209,11 +213,11 @@ def backfill_embeddings(db: Session, user_id: int, batch_size: int = 50) -> int:
         trade.embedding = vector
         trade.embedding_model = EMBEDDING_MODEL
         trade.embedded_at = now
-    db.commit()
+    await db.commit()
     return len(trades)
 
 
-def semantic_search(db: Session, user_id: int, query: str, limit: int = 5) -> list[Trade]:
+async def semantic_search(db: AsyncSession, user_id: int, query: str, limit: int = 5) -> list[Trade]:
     """Find the user's trades whose embedded text is closest in meaning to `query`."""
     query_vector = embed_query(query)
     stmt = (
@@ -222,4 +226,4 @@ def semantic_search(db: Session, user_id: int, query: str, limit: int = 5) -> li
         .order_by(Trade.embedding.cosine_distance(query_vector))
         .limit(limit)
     )
-    return list(db.scalars(stmt).all())
+    return list((await db.scalars(stmt)).all())

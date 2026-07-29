@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import alpaca_client
 from app.auth import get_current_user_id
@@ -37,20 +37,20 @@ def _run_out(row: BacktestRunModel) -> dict:
 
 
 @router.get("/configs")
-def list_configs(
-    db: Session = Depends(get_db),
+async def list_configs(
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> list[BacktestConfig]:
-    rows = db.scalars(
-        select(BacktestConfigModel).where(BacktestConfigModel.user_id == user_id)
+    rows = (
+        await db.scalars(select(BacktestConfigModel).where(BacktestConfigModel.user_id == user_id))
     ).all()
     return [_config_out(r) for r in rows]
 
 
 @router.post("/configs")
-def create_config(
+async def create_config(
     body: BacktestConfig,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> BacktestConfig:
     payload = body.model_dump(exclude={"id", "name", "symbol", "timeframe"})
@@ -58,40 +58,40 @@ def create_config(
         user_id=user_id, name=body.name, symbol=body.symbol, timeframe=body.timeframe, config=payload
     )
     db.add(row)
-    db.commit()
-    db.refresh(row)
+    await db.commit()
+    await db.refresh(row)
     return _config_out(row)
 
 
 @router.patch("/configs/{config_id}")
-def update_config(
+async def update_config(
     config_id: int,
     body: BacktestConfig,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> BacktestConfig:
-    row = db.get(BacktestConfigModel, config_id)
+    row = await db.get(BacktestConfigModel, config_id)
     if row is None or row.user_id != user_id:
         raise HTTPException(status_code=404, detail="config not found")
     row.name = body.name
     row.symbol = body.symbol
     row.timeframe = body.timeframe
     row.config = body.model_dump(exclude={"id", "name", "symbol", "timeframe"})
-    db.commit()
-    db.refresh(row)
+    await db.commit()
+    await db.refresh(row)
     return _config_out(row)
 
 
 @router.post("/configs/{config_id}/run")
 @alpaca_errors(logger)
-def run_config(
+async def run_config(
     config_id: int,
     start: datetime,
     end: datetime,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> dict:
-    row = db.get(BacktestConfigModel, config_id)
+    row = await db.get(BacktestConfigModel, config_id)
     if row is None or row.user_id != user_id:
         raise HTTPException(status_code=404, detail="config not found")
 
@@ -102,31 +102,31 @@ def run_config(
         user_id=user_id, config_id=config_id, status="running", start=start, end=end
     )
     db.add(run_row)
-    db.commit()
-    db.refresh(run_row)
+    await db.commit()
+    await db.refresh(run_row)
 
     try:
         result: BacktestResult = run_backtest(candles, config)
     except Exception as exc:  # noqa: BLE001
         run_row.status = "error"
         run_row.error_detail = str(exc)
-        db.commit()
+        await db.commit()
         raise
 
     run_row.status = "ready"
     run_row.result = result.model_dump()
-    db.commit()
-    db.refresh(run_row)
+    await db.commit()
+    await db.refresh(run_row)
     return _run_out(run_row)
 
 
 @router.get("/runs/{run_id}")
-def get_run(
+async def get_run(
     run_id: int,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> dict:
-    row = db.get(BacktestRunModel, run_id)
+    row = await db.get(BacktestRunModel, run_id)
     if row is None or row.user_id != user_id:
         raise HTTPException(status_code=404, detail="run not found")
     return _run_out(row)

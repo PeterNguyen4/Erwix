@@ -2,7 +2,7 @@ import logging
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_id
 from app.db import get_db
@@ -32,7 +32,7 @@ async def market_articles() -> list[NewsArticleOut]:
 
 @router.get("/market-insight", response_model=MarketInsightOut)
 async def market_insight(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> MarketInsightOut:
     """The agent's read on the current market-wide headline pool: picks out

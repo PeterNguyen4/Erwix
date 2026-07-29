@@ -14,9 +14,9 @@ router = APIRouter(prefix="/api/trading", tags=["trading"], dependencies=[Depend
 
 @router.post("/orders", response_model=OrderResponse)
 @alpaca_errors(logger)
-def create_order(order: OrderRequest, user_id: int = Depends(get_current_user_id)) -> OrderResponse:
+async def create_order(order: OrderRequest, user_id: int = Depends(get_current_user_id)) -> OrderResponse:
     response = alpaca_client.submit_order(order, user_id)
-    log_order_intent(response, order, user_id)
+    await log_order_intent(response, order, user_id)
     return response
 
 

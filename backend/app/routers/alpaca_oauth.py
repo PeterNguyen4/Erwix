@@ -5,7 +5,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import create_oauth_state, get_current_user_id, verify_oauth_state
 from app.config import get_settings
@@ -48,7 +48,7 @@ def connect(
 async def callback(
     code: str = Query(...),
     state: str = Query(...),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
     """Alpaca redirects the user's browser here after they approve the
     connection. Identity comes from `state` (signed, short-lived), not the
@@ -79,36 +79,36 @@ async def callback(
         return RedirectResponse(f"{settings_url}?alpaca=error")
 
     encrypted = encrypt_token(access_token)
-    account = db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
+    account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
     if account is None:
         account = AlpacaAccount(user_id=user_id, access_token=encrypted, env=env)
         db.add(account)
     else:
         account.access_token = encrypted
         account.env = env
-    db.commit()
+    await db.commit()
 
     return RedirectResponse(f"{settings_url}?alpaca=connected")
 
 
 @router.get("/status", response_model=AlpacaStatusOut)
-def status(
-    db: Session = Depends(get_db),
+async def status(
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> AlpacaStatusOut:
-    account = db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
+    account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
     if account is None:
         return AlpacaStatusOut(connected=False)
     return AlpacaStatusOut(connected=True, env=account.env)
 
 
 @router.post("/disconnect")
-def disconnect(
-    db: Session = Depends(get_db),
+async def disconnect(
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> dict:
-    account = db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
+    account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
     if account is not None:
-        db.delete(account)
-        db.commit()
+        await db.delete(account)
+        await db.commit()
     return {"success": True}
