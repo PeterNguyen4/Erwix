@@ -209,11 +209,7 @@ async def watch(
     tick_queue: asyncio.Queue = asyncio.Queue()
 
     async def on_quote(q) -> None:
-        mid = None
-        if q.bid_price and q.ask_price:
-            mid = (q.bid_price + q.ask_price) / 2
-        elif q.ask_price or q.bid_price:
-            mid = q.ask_price or q.bid_price
+        mid = alpaca_client.sanitized_mid_price(q.bid_price, q.ask_price)
         if mid is not None:
             await tick_queue.put(mid)
 

@@ -128,15 +128,20 @@ def get_candles(
     return out
 
 
+def sanitized_mid_price(bid: float | None, ask: float | None) -> float | None:
+    """Ignore placeholder bids"""
+    if bid and ask and bid > 0 and ask > 0 and bid / ask > 0.5:
+        return (bid + ask) / 2
+    return ask or bid or None
+
+
 def get_quote(symbol: str) -> Quote:
     req = StockLatestQuoteRequest(symbol_or_symbols=symbol.upper())
     res = _data_client().get_stock_latest_quote(req)
     q = res.get(symbol.upper())
     if q is None:
         return Quote(symbol=symbol.upper())
-    mid = None
-    if q.bid_price and q.ask_price:
-        mid = (q.bid_price + q.ask_price) / 2
+    mid = sanitized_mid_price(q.bid_price, q.ask_price)
     return Quote(
         symbol=symbol.upper(),
         bid=q.bid_price,

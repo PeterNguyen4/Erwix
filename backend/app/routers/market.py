@@ -84,9 +84,7 @@ async def stream(websocket: WebSocket, symbol: str, _uid: int = Depends(get_curr
         )
 
     async def on_quote(q) -> None:
-        mid = None
-        if q.bid_price and q.ask_price:
-            mid = (q.bid_price + q.ask_price) / 2
+        mid = alpaca_client.sanitized_mid_price(q.bid_price, q.ask_price)
         await queue.put(
             {
                 "type": "quote",
