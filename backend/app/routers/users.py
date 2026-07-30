@@ -12,22 +12,27 @@ from app.auth import (
     REFRESH_COOKIE_NAME,
     REFRESH_COOKIE_PATH,
     create_access_token,
+    generate_password_reset_token,
     generate_refresh_token,
     get_current_user_id,
     hash_password,
+    hash_password_reset_token,
     hash_refresh_token,
     verify_password,
 )
 from app.config import get_settings
 from app.db import get_db
-from app.models import RefreshToken, UserPreference
+from app.models import PasswordResetToken, RefreshToken, UserPreference
 from app.schemas import (
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
     UserCreate,
     UserPreferenceOut,
     UserPreferenceUpdate,
     UserPrivate,
     UserUpdate,
 )
+from app.services.email import send_password_reset_email
 
 settings = get_settings()
 
@@ -170,27 +175,81 @@ async def logout(
     return {"success": True}
 
 
+async def _invalidate_all_sessions(db: AsyncSession, user: models.User) -> None:
+    """Revoke refresh token."""
+    user.token_version += 1
+    await db.execute(
+        RefreshToken.__table__.update()
+        .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
+
+
 @router.post("/logout-all")
 async def logout_all(
     response: Response,
     user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Revoke refresh token"""
     user = await db.get(models.User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
-    user.token_version += 1
-    await db.execute(
-        RefreshToken.__table__.update()
-        .where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(UTC))
-    )
+    await _invalidate_all_sessions(db, user)
     await db.commit()
 
     response.delete_cookie(key=COOKIE_NAME)
     response.delete_cookie(key=REFRESH_COOKIE_NAME, path=REFRESH_COOKIE_PATH)
+    return {"success": True}
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    user = (
+        await db.execute(
+            select(models.User).where(func.lower(models.User.email) == body.email.lower())
+        )
+    ).scalars().first()
+
+    if user:
+        raw_token, token_hash, expires_at = generate_password_reset_token()
+        db.add(PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at))
+        await db.commit()
+        reset_url = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
+        await send_password_reset_email(user.email, reset_url)
+
+    return {"success": True}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    token_hash = hash_password_reset_token(body.token)
+    stored = (
+        await db.execute(select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash))
+    ).scalars().first()
+
+    if (
+        not stored
+        or stored.used_at is not None
+        or stored.expires_at < datetime.now(UTC)
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    user = await db.get(models.User, stored.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
+
+    user.hashed_password = hash_password(body.new_password)
+    stored.used_at = datetime.now(UTC)
+    await _invalidate_all_sessions(db, user)
+    await db.commit()
+
     return {"success": True}
 
 

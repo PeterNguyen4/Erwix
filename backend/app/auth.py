@@ -73,6 +73,17 @@ def hash_refresh_token(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode()).hexdigest()
 
 
+def generate_password_reset_token() -> tuple[str, str, datetime]:
+    raw_token = secrets.token_urlsafe(48)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    expires_at = datetime.now(UTC) + timedelta(minutes=settings.password_reset_token_expire_minutes)
+    return raw_token, token_hash, expires_at
+
+
+def hash_password_reset_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
 def create_oauth_state(user_id: int, env: str) -> str:
     """Token issued to connect to Alpaca"""
     expire = datetime.now(UTC) + timedelta(minutes=10)
