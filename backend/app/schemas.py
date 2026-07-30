@@ -28,6 +28,15 @@ class UserUpdate(BaseModel):
     email: EmailStr | None = Field(default=None, max_length=120)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr = Field(max_length=120)
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+
 class AlpacaConnectUrlOut(BaseModel):
     url: str
 

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
 
     token_encryption_key: SecretStr = SecretStr("")
 
+    resend_api_key: str = ""
+    resend_from_email: str = "Entro <onboarding@resend.dev>"
+    password_reset_token_expire_minutes: int = 30
+
     # Embeddings for RAG
     voyage_api_key: str = ""
 
@@ -69,6 +73,10 @@ class Settings(BaseSettings):
     @property
     def has_anthropic_creds(self) -> bool:
         return bool(self.anthropic_api_key)
+
+    @property
+    def has_resend_creds(self) -> bool:
+        return bool(self.resend_api_key)
 
 
 @lru_cache

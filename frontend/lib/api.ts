@@ -412,6 +412,10 @@ export const api = {
   login,
   logout: () => postJSON<{ success: boolean }>("/api/users/logout", {}),
   register: (body: RegisterRequest) => postJSON<UserPrivate>("/api/users/register", body),
+  forgotPassword: (email: string) =>
+    postJSON<{ success: boolean }>("/api/users/forgot-password", { email }),
+  resetPassword: (token: string, new_password: string) =>
+    postJSON<{ success: boolean }>("/api/users/reset-password", { token, new_password }),
   me: () => getJSON<UserPrivate>("/api/users/me"),
   candles: (symbol: string, timeframe = "1Day") =>
     getJSON<Candle[]>(
