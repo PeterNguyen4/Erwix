@@ -33,7 +33,7 @@ async def _check(request: Request, key: str, limit: int, window_ms: int, fail_op
 
 
 def rate_limit(route_class: str, limit: int, window_ms: int, fail_open: bool | None = None):
-    """Sliding window rate limiting per-user + per-route-class."""
+    """Per-user + per-route-class."""
 
     async def dependency(request: Request, user_id: int = Depends(get_current_user_id)) -> None:
         key = f"ratelimit:{user_id}:{route_class}"
@@ -43,7 +43,7 @@ def rate_limit(route_class: str, limit: int, window_ms: int, fail_open: bool | N
 
 
 def rate_limit_by_ip(route_class: str, limit: int, window_ms: int, fail_open: bool | None = None):
-    """Sliding window rate limiting per-client-IP + per-route-class for auth flow"""
+    """Per-client-IP + per-route-class for auth flow"""
 
     async def dependency(request: Request) -> None:
         client_ip = request.client.host if request.client else "unknown"
@@ -51,3 +51,19 @@ def rate_limit_by_ip(route_class: str, limit: int, window_ms: int, fail_open: bo
         await _check(request, key, limit, window_ms, fail_open)
 
     return dependency
+
+
+async def check_ws_rate_limit(
+    user_id: int, route_class: str, limit: int, window_ms: int, fail_open: bool | None = None
+) -> str | None:
+    """Per-user + per-route-class for WebSocket routes to gracefully close."""
+    settings = get_settings()
+    open_on_error = settings.rate_limit_fail_open if fail_open is None else fail_open
+    key = f"ratelimit:{user_id}:{route_class}"
+    try:
+        result = await get_rate_limiter().check(key, limit=limit, window_ms=window_ms)
+    except Exception:
+        logger.exception("rate limiter unavailable for %s", key)
+        return None if open_on_error else "rate limiter unavailable"
+
+    return None if result.allowed else "rate limit exceeded"

@@ -19,7 +19,7 @@ from app.schemas import (
     DebriefStatus,
 )
 from app.config import get_settings
-from app.dependencies.rate_limit import rate_limit
+from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.services.agent_graph import arun_followup, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
@@ -115,6 +115,13 @@ async def debrief(
 ) -> None:
     """Stream the LangGraph analyst's debrief: token/annotations/spotlight/done events."""
     await websocket.accept()
+
+    rate_limit_error = await check_ws_rate_limit(user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False)
+    if rate_limit_error:
+        await websocket.send_json({"type": "error", "detail": rate_limit_error})
+        await websocket.close(code=1008)
+        return
+
     try:
         async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
             await websocket.send_json(event)

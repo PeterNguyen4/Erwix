@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import alpaca_client
 from app.auth import get_current_user_id
 from app.db import get_db
+from app.dependencies.rate_limit import check_ws_rate_limit
 from app.error_handling import alpaca_errors
 from app.models import BacktestConfig as BacktestConfigModel
 from app.models import BacktestRun as BacktestRunModel
@@ -141,6 +142,13 @@ async def backtest_chat(
 ) -> None:
     """Stream the config-chat agent's reply: token deltas, then a final config/done event."""
     await websocket.accept()
+
+    rate_limit_error = await check_ws_rate_limit(user_id, "backtest-chat", limit=10, window_ms=60_000, fail_open=False)
+    if rate_limit_error:
+        await websocket.send_json({"type": "error", "detail": rate_limit_error})
+        await websocket.close(code=1008)
+        return
+
     try:
         current_config = BacktestConfig.model_validate_json(config)
         async for event in astream_config_chat(current_config, message):
