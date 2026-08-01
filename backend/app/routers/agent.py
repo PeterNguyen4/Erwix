@@ -19,6 +19,7 @@ from app.schemas import (
     DebriefStatus,
 )
 from app.config import get_settings
+from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.services.agent_graph import arun_followup, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
@@ -31,6 +32,8 @@ logger = logging.getLogger("entro.agent")
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
 DEFAULT_LOOKBACK = timedelta(days=30)
+
+_llm_rate_limit = rate_limit("agent-llm", limit=10, window_ms=60_000, fail_open=False)
 
 
 def _report_out(report: DebriefReport) -> DebriefReportOut:
@@ -55,7 +58,7 @@ def _report_out(report: DebriefReport) -> DebriefReportOut:
     )
 
 
-@router.post("/review", response_model=AgentReviewResponse)
+@router.post("/review", response_model=AgentReviewResponse, dependencies=[Depends(_llm_rate_limit)])
 async def review_trades(
     body: AgentReviewRequest,
     db: AsyncSession = Depends(get_db),
@@ -112,6 +115,13 @@ async def debrief(
 ) -> None:
     """Stream the LangGraph analyst's debrief: token/annotations/spotlight/done events."""
     await websocket.accept()
+
+    rate_limit_error = await check_ws_rate_limit(user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False)
+    if rate_limit_error:
+        await websocket.send_json({"type": "error", "detail": rate_limit_error})
+        await websocket.close(code=1008)
+        return
+
     try:
         async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
             await websocket.send_json(event)
@@ -334,7 +344,7 @@ async def watch(
             pass
 
 
-@router.post("/debrief/generate", response_model=DebriefReportOut)
+@router.post("/debrief/generate", response_model=DebriefReportOut, dependencies=[Depends(_llm_rate_limit)])
 async def generate_debrief_now(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
@@ -397,7 +407,11 @@ async def list_debrief_messages(
     )
 
 
-@router.post("/debrief/{report_id}/messages", response_model=DebriefMessageOut)
+@router.post(
+    "/debrief/{report_id}/messages",
+    response_model=DebriefMessageOut,
+    dependencies=[Depends(_llm_rate_limit)],
+)
 async def post_debrief_message(
     report_id: int,
     body: DebriefMessageIn,

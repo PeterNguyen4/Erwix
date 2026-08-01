@@ -2,7 +2,7 @@ import logging
 from urllib.parse import urlencode
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import create_oauth_state, get_current_user_id, verify_oauth_state
 from app.config import get_settings
 from app.db import get_db
+from app.dependencies.rate_limit import check_ip_rate_limit
 from app.models import AlpacaAccount
 from app.schemas import AlpacaConnectUrlOut, AlpacaStatusOut
 from app.services.token_crypto import encrypt_token
@@ -46,6 +47,7 @@ def connect(
 
 @router.get("/callback")
 async def callback(
+    request: Request,
     code: str = Query(...),
     state: str = Query(...),
     db: AsyncSession = Depends(get_db),
@@ -54,6 +56,14 @@ async def callback(
     connection. Identity comes from `state` (signed, short-lived), not the
     session cookie, since this is a top-level redirect from a third party."""
     settings_url = f"{settings.frontend_base_url}/settings"
+
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit_error = await check_ip_rate_limit(
+        client_ip, "alpaca-oauth-callback", limit=10, window_ms=60_000, fail_open=False
+    )
+    if rate_limit_error:
+        return RedirectResponse(f"{settings_url}?alpaca=error")
+
     verified = verify_oauth_state(state)
     if verified is None:
         return RedirectResponse(f"{settings_url}?alpaca=error")

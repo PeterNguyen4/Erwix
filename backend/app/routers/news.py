@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_id
 from app.db import get_db
+from app.dependencies.rate_limit import rate_limit
 from app.schemas import MarketInsightOut, NewsArticleOut
 from app.services.news import fetch_market_news
 from app.services.news_agent import build_market_insight
@@ -13,6 +14,8 @@ from app.services.news_agent import build_market_insight
 logger = logging.getLogger("entro.news")
 
 router = APIRouter(prefix="/api/news", tags=["news"], dependencies=[Depends(get_current_user_id)])
+
+_insight_rate_limit = rate_limit("news-insight", limit=15, window_ms=60_000, fail_open=False)
 
 
 @router.get("/market-articles", response_model=list[NewsArticleOut])
@@ -30,7 +33,7 @@ async def market_articles() -> list[NewsArticleOut]:
     ]
 
 
-@router.get("/market-insight", response_model=MarketInsightOut)
+@router.get("/market-insight", response_model=MarketInsightOut, dependencies=[Depends(_insight_rate_limit)])
 async def market_insight(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
