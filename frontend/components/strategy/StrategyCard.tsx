@@ -133,7 +133,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
                 onChange={(e) => setDraft((prev) => ({ ...prev, [s.key]: e.target.value }))}
                 rows={2}
                 placeholder="One bullet per line"
-                className="w-full resize-y rounded-lg border border-border bg-bg p-2 text-xs text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
+                className="w-full resize-y rounded-lg border border-border bg-field p-2 text-xs text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
               />
             </div>
           ))}

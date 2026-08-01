@@ -125,7 +125,7 @@ function SettingsPageInner() {
                 <div className="text-sm font-medium text-fg">Theme</div>
                 <div className="text-xs text-muted">Choose how Entro looks on this device</div>
               </div>
-              <div className="flex items-center gap-1 rounded-lg border border-border bg-bg p-1">
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-field p-1">
                 <button
                   type="button"
                   onClick={() => setTheme("dark")}

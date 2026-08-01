@@ -45,7 +45,7 @@ export default function Sidebar() {
             title={showBadge ? `${label} — analyst debrief ready` : label}
             className={`relative flex flex-col items-center gap-1 w-[calc(100%-0.75rem)] mx-1.5 py-2 px-1 rounded-lg transition-colors ${
               active
-                ? "text-violet-400 bg-violet-500/20"
+                ? "text-violet-700 dark:text-violet-400 bg-violet-500/20"
                 : "text-muted hover:text-fg hover:bg-violet-500/10"
             }`}
           >

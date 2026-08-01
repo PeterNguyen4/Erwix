@@ -9,7 +9,7 @@ import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
 import type { BracketLevels } from "@/components/Chart";
-import { Search } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 import { useRuleWatch } from "@/lib/useRuleWatch";
 import RuleSignalToastStack from "@/components/RuleSignalToast";
 
@@ -86,6 +86,7 @@ function ChartPage() {
   const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
+  const [tfOpen, setTfOpen] = useState(false);
   const [bracketPreview, setBracketPreview] = useState<BracketLevels | null>(null);
   const [takeProfitPrice, setTakeProfitPrice] = useState(0);
   const [stopLossPrice, setStopLossPrice] = useState(0);
@@ -241,26 +242,44 @@ function ChartPage() {
     <main className="flex h-full flex-col bg-gradient-to-b from-auth-bg/15 via-transparent to-transparent">
       <header className="flex items-center justify-between border-b border-auth-field/40 bg-panel px-4 py-3 gap-4 shrink-0">
         {/* Left: Timeframe selector */}
-        <div className="flex items-center gap-3">
-          <select
-            value={timeframe}
-            onChange={(e) => {
-              setTimeframe(e.target.value);
-              const params = new URLSearchParams(searchParams.toString());
-              params.set("tf", e.target.value);
-              router.replace(`/chart?${params.toString()}`);
-            }}
-            className="rounded border border-auth-field/50 bg-bg px-2 py-2 text-sm text-fg outline-none focus:border-violet-400 cursor-pointer"
+        <div className="relative flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setTfOpen((o) => !o)}
+            onBlur={() => setTimeout(() => setTfOpen(false), 150)}
+            className="flex items-center gap-1 rounded border border-transparent px-2 py-2 text-sm text-fg transition-colors hover:bg-violet-500/10 focus:border-violet-400 focus:outline-none cursor-pointer"
           >
-            {TIMEFRAMES.map((tf) => (
-              <option key={tf.value} value={tf.value}>{tf.label}</option>
-            ))}
-          </select>
+            {TIMEFRAMES.find((tf) => tf.value === timeframe)?.label}
+            <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
+          </button>
+          {tfOpen && (
+            <div className="absolute top-full left-0 z-30 mt-1 w-24 rounded-md border border-border bg-panel py-1 shadow-lg">
+              {TIMEFRAMES.map((tf) => (
+                <button
+                  key={tf.value}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setTimeframe(tf.value);
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set("tf", tf.value);
+                    router.replace(`/chart?${params.toString()}`);
+                    setTfOpen(false);
+                  }}
+                  className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                    tf.value === timeframe ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+                  }`}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right: Ticker Search */}
         <div className="relative w-72">
-          <div className="flex items-center gap-2 rounded border border-auth-field/50 bg-bg px-3 py-2 focus-within:border-violet-400">
+          <div className="flex items-center gap-2 rounded border border-transparent bg-field px-3 py-2 focus-within:border-violet-400">
             <span className="text-muted">
               <IconSearch />
             </span>
@@ -295,7 +314,7 @@ function ChartPage() {
                   key={r.symbol}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSymbolSelect(r.symbol, r.name)}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-violet-500/15 border-b border-auth-field/40 last:border-b-0 flex items-baseline gap-2"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-violet-500/15 flex items-baseline gap-2"
                 >
                   <span className="font-mono text-fg min-w-[3.5rem]">
                     <HighlightMatch text={r.symbol} query={symbolSearch} />

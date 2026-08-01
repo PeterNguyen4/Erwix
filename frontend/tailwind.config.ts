@@ -15,6 +15,8 @@ const config: Config = {
         muted: "rgb(var(--color-muted) / <alpha-value>)",
         fg: "rgb(var(--color-fg) / <alpha-value>)",
         accent: "rgb(var(--color-accent) / <alpha-value>)",
+        "on-accent": "rgb(var(--color-on-accent) / <alpha-value>)",
+        field: "rgb(var(--color-field) / <alpha-value>)",
         up: "rgb(var(--color-up) / <alpha-value>)",
         down: "rgb(var(--color-down) / <alpha-value>)",
         "auth-bg": "rgb(var(--color-auth-bg) / <alpha-value>)",

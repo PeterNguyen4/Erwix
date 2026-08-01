@@ -37,6 +37,7 @@ export default function OrderPanel({
 }: OrderPanelProps) {
   const [qty, setQty] = useState(1);
   const [type, setType] = useState<"market" | "limit">("market");
+  const [side, setSide] = useState<"buy" | "sell">("buy");
   const [limitPrice, setLimitPrice] = useState<number>(0);
   const [bracket, setBracket] = useState(false);
   const [entryTime, setEntryTime] = useState<number | null>(null);
@@ -102,7 +103,7 @@ export default function OrderPanel({
     <div className="rounded-lg border border-border bg-panel p-4">
       <h2 className="mb-3 text-sm font-semibold text-muted">Order (paper)</h2>
 
-      <div className="mb-3 flex items-center justify-between rounded border border-border bg-bg px-3 py-2">
+      <div className="mb-3 flex items-center justify-between rounded border border-border bg-field px-3 py-2">
         <span className="text-xs text-muted">Available to trade</span>
         <span className="text-sm font-semibold tabular-nums text-fg">
           {buyingPower != null ? fmtUsd(buyingPower) : "—"}
@@ -113,14 +114,14 @@ export default function OrderPanel({
       <input
         type="number"
         min={1}
-        className="mb-3 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+        className="mb-3 w-full rounded border border-border bg-field px-2 py-1.5 text-sm outline-none focus:border-accent"
         value={qty}
         onChange={(e) => setQty(Number(e.target.value))}
       />
 
       <label className="mb-1 block text-xs text-muted">Type</label>
       <select
-        className="mb-3 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+        className="mb-3 w-full rounded border border-border bg-field px-2 py-1.5 text-sm outline-none focus:border-accent"
         value={type}
         onChange={(e) => setType(e.target.value as "market" | "limit")}
       >
@@ -133,7 +134,7 @@ export default function OrderPanel({
           <label className="mb-1 block text-xs text-muted">Limit price</label>
           <input
             type="number"
-            className="mb-3 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+            className="mb-3 w-full rounded border border-border bg-field px-2 py-1.5 text-sm outline-none focus:border-accent"
             value={limitPrice}
             onChange={(e) => setLimitPrice(Number(e.target.value))}
           />
@@ -180,7 +181,7 @@ export default function OrderPanel({
           <label className="mb-1 block text-xs text-muted">Take profit price</label>
           <input
             type="number"
-            className="mb-3 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+            className="mb-3 w-full rounded border border-border bg-field px-2 py-1.5 text-sm outline-none focus:border-accent"
             value={takeProfitPrice}
             onChange={(e) => onTakeProfitPriceChange(Number(e.target.value))}
           />
@@ -188,7 +189,7 @@ export default function OrderPanel({
           <label className="mb-1 block text-xs text-muted">Stop loss price</label>
           <input
             type="number"
-            className="mb-3 w-full rounded border border-border bg-bg px-2 py-1.5 text-sm outline-none focus:border-accent"
+            className="mb-3 w-full rounded border border-border bg-field px-2 py-1.5 text-sm outline-none focus:border-accent"
             value={stopLossPrice}
             onChange={(e) => onStopLossPriceChange(Number(e.target.value))}
           />
@@ -202,24 +203,36 @@ export default function OrderPanel({
         </>
       )}
 
-      <div className="flex gap-2">
+      <div className="mb-2 flex rounded-lg border border-border bg-field p-1">
         <button
-          disabled={busy || insufficient || !bracketValid}
-          onClick={() => submit("buy")}
-          className="flex-1 rounded bg-up/90 py-2 text-sm font-semibold text-fg hover:bg-up disabled:opacity-50"
+          type="button"
+          onClick={() => setSide("buy")}
+          className={`flex-1 rounded-md py-1.5 text-sm font-semibold transition-colors ${
+            side === "buy" ? "bg-up/20 text-up" : "text-muted hover:text-fg"
+          }`}
         >
           Buy
         </button>
         <button
-          disabled={busy || !bracketValid}
-          onClick={() => submit("sell")}
-          className="flex-1 rounded bg-down/90 py-2 text-sm font-semibold text-fg hover:bg-down disabled:opacity-50"
+          type="button"
+          onClick={() => setSide("sell")}
+          className={`flex-1 rounded-md py-1.5 text-sm font-semibold transition-colors ${
+            side === "sell" ? "bg-down/20 text-down" : "text-muted hover:text-fg"
+          }`}
         >
           Sell
         </button>
       </div>
 
-      {insufficient && (
+      <button
+        disabled={busy || !bracketValid || (side === "buy" && insufficient)}
+        onClick={() => submit(side)}
+        className="w-full rounded bg-accent py-2 text-sm font-semibold text-on-accent hover:opacity-90 disabled:opacity-50"
+      >
+        {busy ? "Placing…" : `Execute ${side === "buy" ? "Buy" : "Sell"}`}
+      </button>
+
+      {side === "buy" && insufficient && (
         <p className="mt-2 text-xs text-down">Estimated cost exceeds available buying power.</p>
       )}
       {bracket && !bracketValid && (

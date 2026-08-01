@@ -738,7 +738,7 @@ export default function Chart({
         const px = 6, py = 3;
         const bx = mousePos.x - tw / 2 - px;
         const by = canvas.height - 20;
-        ctx.fillStyle = "#3b82f6";
+        ctx.fillStyle = "#8b5cf6";
         ctx.beginPath();
         ctx.roundRect(bx, by, tw + px * 2, 16 + py, 3);
         ctx.fill();
@@ -756,7 +756,7 @@ export default function Chart({
         const bw = tw + px * 2;
         const bx = canvas.width - bw - 2;
         const by = mousePos.y - 8 - py / 2;
-        ctx.fillStyle = "#3b82f6";
+        ctx.fillStyle = "#8b5cf6";
         ctx.beginPath();
         ctx.roundRect(bx, by, bw, 16 + py, 3);
         ctx.fill();
@@ -767,7 +767,7 @@ export default function Chart({
 
       // Preview line while placing second point.
       if (drawingState.mode === "line" && drawingState.points.length > 0) {
-        ctx.strokeStyle = "#3b82f6";
+        ctx.strokeStyle = "#8b5cf6";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(drawingState.points[0].x, drawingState.points[0].y);
@@ -1014,7 +1014,7 @@ export default function Chart({
             const valueColor = bull ? "text-up" : "text-down";
             const fmt = (v: number) => v.toFixed(2);
             return (
-              <span className="flex gap-2 text-xs font-mono">
+              <span className="flex gap-2 text-xs tabular-nums">
                 <span className="text-fg">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
                 <span className="text-fg">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
                 <span className="text-fg">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>

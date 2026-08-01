@@ -169,7 +169,7 @@ export default function BacktestingPage() {
           <select
             value={config.timeframe}
             onChange={(e) => setConfig({ ...config, timeframe: e.target.value })}
-            className="rounded border border-border bg-bg px-2 py-1.5 text-sm text-fg outline-none focus:border-accent cursor-pointer"
+            className="rounded border border-border bg-field px-2 py-1.5 text-sm text-fg outline-none focus:border-accent cursor-pointer"
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>{tf.label}</option>
@@ -177,7 +177,7 @@ export default function BacktestingPage() {
           </select>
 
           <div className="relative w-56">
-            <div className="flex items-center gap-2 rounded border border-border bg-bg px-2 py-1.5 focus-within:border-accent">
+            <div className="flex items-center gap-2 rounded border border-border bg-field px-2 py-1.5 focus-within:border-accent">
               <span className="text-muted">
                 <IconSearch />
               </span>

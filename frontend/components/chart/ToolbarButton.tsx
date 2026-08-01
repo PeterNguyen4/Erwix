@@ -71,8 +71,8 @@ export default function ToolbarButton({ label, active, tone = "default", placeme
     tone === "danger"
       ? "text-muted hover:bg-down/20 hover:text-down"
       : active
-        ? "bg-accent text-fg"
-        : "text-muted hover:bg-accent/20 hover:text-fg";
+        ? "bg-violet-500 text-on-accent"
+        : "text-muted hover:bg-violet-500/20 hover:text-fg";
 
   return (
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
