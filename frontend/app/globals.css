@@ -27,6 +27,16 @@
   color-scheme: light;
 }
 
+:root {
+  --color-auth-bg: 42 36 64;
+  --color-auth-panel-from: 42 22 83;
+  --color-auth-panel-via: 59 31 110;
+  --color-auth-panel-to: 26 14 56;
+  --color-auth-field: 54 48 80;
+  --color-auth-button: 109 79 196;
+  --color-auth-button-hover: 91 65 166;
+}
+
 html,
 body {
   height: 100%;

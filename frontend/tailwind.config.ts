@@ -17,6 +17,13 @@ const config: Config = {
         accent: "rgb(var(--color-accent) / <alpha-value>)",
         up: "rgb(var(--color-up) / <alpha-value>)",
         down: "rgb(var(--color-down) / <alpha-value>)",
+        "auth-bg": "rgb(var(--color-auth-bg) / <alpha-value>)",
+        "auth-panel-from": "rgb(var(--color-auth-panel-from) / <alpha-value>)",
+        "auth-panel-via": "rgb(var(--color-auth-panel-via) / <alpha-value>)",
+        "auth-panel-to": "rgb(var(--color-auth-panel-to) / <alpha-value>)",
+        "auth-field": "rgb(var(--color-auth-field) / <alpha-value>)",
+        "auth-button": "rgb(var(--color-auth-button) / <alpha-value>)",
+        "auth-button-hover": "rgb(var(--color-auth-button-hover) / <alpha-value>)",
       },
       keyframes: {
         "fade-in-up": {
