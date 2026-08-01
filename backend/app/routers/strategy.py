@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user_id
 from app.db import get_db
+from app.dependencies.rate_limit import rate_limit
 from app.models import StrategyRuleSet as StrategyRuleSetModel
 from app.schemas import ArchetypeOut, PlaybookUpdate, StrategyNoteOut, StrategyNoteUpdate
 from app.schemas_strategy import StrategyRuleSet, StrategyRuleSetOut
@@ -20,6 +21,8 @@ logger = logging.getLogger("entro.strategy")
 router = APIRouter(prefix="/api/strategy", tags=["strategy"], dependencies=[Depends(get_current_user_id)])
 
 _EMPTY = StrategyNoteOut(archetype=None, body=None, answers=None, structured_summary=None, summarized_at=None)
+
+_llm_rate_limit = rate_limit("strategy-llm", limit=10, window_ms=60_000, fail_open=False)
 
 
 async def _regenerate_summary(db: AsyncSession, note) -> None:
@@ -75,7 +78,7 @@ async def get_strategy(
     return note if note is not None else _EMPTY
 
 
-@router.put("", response_model=StrategyNoteOut)
+@router.put("", response_model=StrategyNoteOut, dependencies=[Depends(_llm_rate_limit)])
 async def save_strategy(
     body: StrategyNoteUpdate,
     user_id: int = Depends(get_current_user_id),
@@ -87,7 +90,7 @@ async def save_strategy(
     return note
 
 
-@router.post("/regenerate", response_model=StrategyNoteOut)
+@router.post("/regenerate", response_model=StrategyNoteOut, dependencies=[Depends(_llm_rate_limit)])
 async def regenerate_strategy(
     user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
