@@ -54,7 +54,7 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="relative z-10 flex items-center gap-2">
           <Image src="/entro-white.svg" alt="Entro" width={32} height={32} />
-          <span className="text-2xl font-semibold text-white">Entro</span>
+          <span className="text-3xl font-semibold text-white">Entro</span>
         </div>
         <div className="relative z-10">
           <h2 className="text-4xl font-normal text-white leading-tight">

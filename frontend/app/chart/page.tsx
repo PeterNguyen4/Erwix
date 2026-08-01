@@ -45,7 +45,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <span className="font-bold text-blue-400">{text.slice(idx, idx + query.length)}</span>
+      <span className="font-bold text-violet-400">{text.slice(idx, idx + query.length)}</span>
       {text.slice(idx + query.length)}
     </>
   );
@@ -238,8 +238,8 @@ function ChartPage() {
   };
 
   return (
-    <main className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 gap-4 shrink-0">
+    <main className="flex h-full flex-col bg-gradient-to-b from-auth-bg/15 via-transparent to-transparent">
+      <header className="flex items-center justify-between border-b border-auth-field/40 bg-panel px-4 py-3 gap-4 shrink-0">
         {/* Left: Timeframe selector */}
         <div className="flex items-center gap-3">
           <select
@@ -250,7 +250,7 @@ function ChartPage() {
               params.set("tf", e.target.value);
               router.replace(`/chart?${params.toString()}`);
             }}
-            className="rounded border border-border bg-bg px-2 py-2 text-sm text-fg outline-none focus:border-accent cursor-pointer"
+            className="rounded border border-auth-field/50 bg-bg px-2 py-2 text-sm text-fg outline-none focus:border-violet-400 cursor-pointer"
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>{tf.label}</option>
@@ -260,7 +260,7 @@ function ChartPage() {
 
         {/* Right: Ticker Search */}
         <div className="relative w-72">
-          <div className="flex items-center gap-2 rounded border border-border bg-bg px-3 py-2 focus-within:border-accent">
+          <div className="flex items-center gap-2 rounded border border-auth-field/50 bg-bg px-3 py-2 focus-within:border-violet-400">
             <span className="text-muted">
               <IconSearch />
             </span>
@@ -295,7 +295,7 @@ function ChartPage() {
                   key={r.symbol}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSymbolSelect(r.symbol, r.name)}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent/20 border-b border-border last:border-b-0 flex items-baseline gap-2"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-violet-500/15 border-b border-auth-field/40 last:border-b-0 flex items-baseline gap-2"
                 >
                   <span className="font-mono text-fg min-w-[3.5rem]">
                     <HighlightMatch text={r.symbol} query={symbolSearch} />
@@ -311,12 +311,12 @@ function ChartPage() {
       <div className="grid flex-1 min-h-0 grid-rows-1 grid-cols-[1fr_320px] gap-3 overflow-hidden p-3">
         {/* Left: chart */}
         <div className="flex flex-col min-h-0 overflow-hidden">
-          <div className="relative flex-1 min-h-0 rounded-lg border border-border bg-bg overflow-hidden">
+          <div className="relative flex-1 min-h-0 rounded-lg border border-auth-field/40 bg-bg overflow-hidden">
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
             ) : loading || !prefsResolved ? (
               <div className="flex h-full items-center justify-center">
-                <div className="w-6 h-6 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <div className="w-6 h-6 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
               </div>
             ) : candles.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-4">
@@ -340,7 +340,7 @@ function ChartPage() {
             )}
             <RuleSignalToastStack signals={ruleSignals} onDismiss={dismissRuleSignal} />
             {quickOrderStatus && (
-              <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-border bg-[#151a24] px-3 py-1.5 text-xs font-medium text-fg shadow-lg">
+              <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-auth-field/50 bg-[#1a1730] px-3 py-1.5 text-xs font-medium text-fg shadow-lg">
                 {quickOrderStatus}
               </div>
             )}
