@@ -53,6 +53,9 @@ class Settings(BaseSettings):
     debrief_poll_interval_minutes: int = 15
     debrief_step_estimate_seconds: int = 20
 
+    redis_url: str = "redis://localhost:6379/0"
+    rate_limit_fail_open: bool = False
+
     @property
     def has_alpaca_creds(self) -> bool:
         return bool(self.alpaca_api_key and self.alpaca_secret_key)

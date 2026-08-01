@@ -11,6 +11,7 @@ from app.routers import agent, alpaca_oauth, analysis, news, backtest, journal, 
 from app.routers.market import cancel_stream_task
 from app.services.debrief_jobs import start_scheduler, stop_scheduler
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
+from app.services.rate_limiter import close_rate_limiter
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("entro")
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
                 await task
             except (asyncio.CancelledError, Exception):
                 pass
+        await close_rate_limiter()
         await engine.dispose()
 
 

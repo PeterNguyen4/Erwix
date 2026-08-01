@@ -6,12 +6,15 @@ from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
 from app import alpaca_client
 from app.auth import get_current_user_id
+from app.dependencies.rate_limit import rate_limit
 from app.error_handling import alpaca_errors
 from app.schemas import Candle, Quote
 from app.services import live_feed
 
 logger = logging.getLogger("entro.market")
 router = APIRouter(prefix="/api/market", tags=["market"])
+
+_read_rate_limit = rate_limit("market-reads", limit=300, window_ms=60_000, fail_open=True)
 
 # Module-level reference so the lifespan can cancel the stream on shutdown.
 _stream_task: asyncio.Task | None = None
@@ -25,13 +28,13 @@ def cancel_stream_task() -> None:
     _stream_task = None
 
 
-@router.get("/search")
+@router.get("/search", dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
 async def search(q: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)) -> list[dict]:
     return await alpaca_client.search_assets(q)
 
 
-@router.get("/candles", response_model=list[Candle])
+@router.get("/candles", response_model=list[Candle], dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
 def candles(
     symbol: str = Query(..., min_length=1),
@@ -43,7 +46,7 @@ def candles(
     return alpaca_client.get_candles(symbol, timeframe, start, end)
 
 
-@router.get("/quote", response_model=Quote)
+@router.get("/quote", response_model=Quote, dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
 def quote(symbol: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)) -> Quote:
     return alpaca_client.get_quote(symbol)
