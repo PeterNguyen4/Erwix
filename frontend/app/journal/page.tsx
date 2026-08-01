@@ -64,7 +64,7 @@ export default function JournalPage() {
             {report.status !== "error" && (
               <button
                 onClick={() => setReportOpen(true)}
-                className="shrink-0 rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-fg transition-colors hover:bg-accent/80"
+                className="shrink-0 rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80"
               >
                 {report.status === "ready" ? "Open Report" : "View Progress"}
               </button>

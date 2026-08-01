@@ -12,6 +12,8 @@
   --color-accent: 109 84 181;
   --color-on-accent: 255 255 255;
   --color-field: 36 33 43;
+  --color-tooltip: 56 52 63;
+  --color-tooltip-fg: 245 244 247;
   --color-up: 38 166 154;
   --color-down: 239 83 80;
   color-scheme: dark;
@@ -26,6 +28,8 @@
   --color-accent: 109 84 181;
   --color-on-accent: 240 236 250;
   --color-field: 246 244 249;
+  --color-tooltip: 56 52 63;
+  --color-tooltip-fg: 245 244 247;
   --color-up: 22 145 133;
   --color-down: 220 38 38;
   color-scheme: light;

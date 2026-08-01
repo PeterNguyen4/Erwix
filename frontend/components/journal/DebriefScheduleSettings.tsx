@@ -139,7 +139,7 @@ export default function DebriefScheduleSettings() {
                   onClick={() => saveLocalDay(i)}
                   className={`rounded-md py-1.5 text-[11px] font-medium transition-colors ${
                     local?.day === i
-                      ? "bg-accent text-fg"
+                      ? "bg-accent text-on-accent"
                       : "bg-border/50 text-muted hover:bg-border hover:text-fg"
                   }`}
                 >

@@ -279,7 +279,7 @@ function ChartPage() {
 
         {/* Right: Ticker Search */}
         <div className="relative w-72">
-          <div className="flex items-center gap-2 rounded border border-transparent bg-field px-3 py-2 focus-within:border-violet-400">
+          <div className="flex items-center gap-2 rounded border border-border dark:border-transparent bg-field px-3 py-2 focus-within:border-violet-400">
             <span className="text-muted">
               <IconSearch />
             </span>

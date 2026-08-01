@@ -58,7 +58,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
               key={w.label}
               onClick={() => setDays(w.days)}
               className={`rounded px-2 py-0.5 text-xs ${
-                days === w.days ? "bg-accent text-fg" : "bg-border text-muted hover:bg-accent/30"
+                days === w.days ? "bg-accent text-on-accent" : "bg-border text-muted hover:bg-accent/30"
               }`}
             >
               {w.label}
@@ -111,7 +111,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
           <p className="text-sm text-muted">No trades logged in this window.</p>
           <button
             onClick={() => router.push("/chart")}
-            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-accent/80"
+            className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80"
           >
             Execute Trade
           </button>
@@ -196,7 +196,7 @@ export default function JournalEntries({ refreshKey, onDebriefTrade }: JournalEn
                                       query: `Reflect specifically on my ${t.side} of ${t.symbol} filled at $${t.fill_price} on ${filled.toLocaleDateString()}.`,
                                     });
                                   }}
-                                  className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-fg transition-colors hover:bg-accent/80"
+                                  className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
                                 >
                                   Debrief this trade
                                 </button>

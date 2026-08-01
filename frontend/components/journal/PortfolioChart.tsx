@@ -79,7 +79,7 @@ export default function PortfolioChart({
               key={p}
               onClick={() => onPeriodChange(p)}
               className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                period === p ? "bg-accent text-fg" : "bg-border text-muted hover:bg-accent/30"
+                period === p ? "bg-accent text-on-accent" : "bg-border text-muted hover:bg-accent/30"
               }`}
             >
               {p === "1A" ? "1Y" : p === "all" ? "All" : p}

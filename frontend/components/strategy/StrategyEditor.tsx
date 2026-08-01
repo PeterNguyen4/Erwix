@@ -84,7 +84,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
         <button
           onClick={generate}
           disabled={saving || !hasContent}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
         >
           {saving ? "Generating…" : "Generate My Playbook"}
         </button>

@@ -70,7 +70,7 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
         <button
           onClick={send}
           disabled={sending || !input.trim()}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-40"
+          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-40"
         >
           Send
         </button>

@@ -227,7 +227,7 @@ export default function BacktestingPage() {
           <button
             onClick={runBacktest}
             disabled={running || candles.length === 0}
-            className="rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
+            className="rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
           >
             {running ? "Running…" : "Run backtest"}
           </button>

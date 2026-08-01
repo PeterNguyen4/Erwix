@@ -54,7 +54,7 @@ export default function ReplayControls({
       </button>
       <button
         onClick={() => onPlayingChange(!playing)}
-        className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-fg transition-colors hover:bg-accent/80"
+        className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
       >
         {playing ? "Pause" : "Play"}
       </button>

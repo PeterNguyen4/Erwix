@@ -17,6 +17,8 @@ const config: Config = {
         accent: "rgb(var(--color-accent) / <alpha-value>)",
         "on-accent": "rgb(var(--color-on-accent) / <alpha-value>)",
         field: "rgb(var(--color-field) / <alpha-value>)",
+        tooltip: "rgb(var(--color-tooltip) / <alpha-value>)",
+        "tooltip-fg": "rgb(var(--color-tooltip-fg) / <alpha-value>)",
         up: "rgb(var(--color-up) / <alpha-value>)",
         down: "rgb(var(--color-down) / <alpha-value>)",
         "auth-bg": "rgb(var(--color-auth-bg) / <alpha-value>)",
