@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useAuth } from "@/components/AuthProvider";
 import { useDebriefStatus } from "@/lib/useDebriefStatus";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import {
@@ -13,7 +12,6 @@ import {
   Compass,
   FlaskConical,
   Settings,
-  LogOut,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -23,16 +21,14 @@ const NAV_ITEMS = [
   { label: "News",      href: "/news",      Icon: Newspaper },
   { label: "Strategy",  href: "/strategy",  Icon: Compass },
   { label: "Backtesting", href: "/backtesting", Icon: FlaskConical },
-  { label: "Settings",  href: "/settings",  Icon: Settings },
 ];
 
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const { hasNewTrades } = useDebriefStatus();
-  const { logout } = useAuth();
   const [hoveredHref, setHoveredHref] = useState<string | null>(null);
-  const [logoutHover, setLogoutHover] = useState(false);
+  const [settingsHover, setSettingsHover] = useState(false);
 
   return (
     <nav className="flex flex-col items-center gap-1 border-r border-auth-field/40 bg-panel w-16 py-4 z-30 shrink-0">
@@ -75,16 +71,20 @@ export default function Sidebar() {
       <div className="flex-1" />
       <div
         className="relative mb-2"
-        onMouseEnter={() => setLogoutHover(true)}
-        onMouseLeave={() => setLogoutHover(false)}
+        onMouseEnter={() => setSettingsHover(true)}
+        onMouseLeave={() => setSettingsHover(false)}
       >
         <button
-          onClick={logout}
-          className="flex h-10 w-10 items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-violet-500/10 transition-colors"
+          onClick={() => router.push("/settings")}
+          className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+            pathname === "/settings"
+              ? "text-violet-700 dark:text-violet-400 bg-violet-500/20"
+              : "text-muted hover:text-fg hover:bg-violet-500/10"
+          }`}
         >
-          <LogOut size={20} strokeWidth={2} />
+          <Settings size={20} strokeWidth={2} />
         </button>
-        <ToolbarTooltip label="Sign out" hover={logoutHover} placement="right" />
+        <ToolbarTooltip label="Settings" hover={settingsHover} placement="right" />
       </div>
     </nav>
   );
