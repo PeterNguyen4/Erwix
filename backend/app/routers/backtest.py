@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import alpaca_client
 from app.auth import get_current_user_id
 from app.db import get_db
-from app.dependencies.rate_limit import check_ws_rate_limit
+from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.error_handling import alpaca_errors
 from app.models import BacktestConfig as BacktestConfigModel
 from app.models import BacktestRun as BacktestRunModel
@@ -19,6 +19,8 @@ from app.services.backtest_engine import run_backtest
 logger = logging.getLogger("entro.backtest")
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
+
+_run_rate_limit = rate_limit("backtest-run", limit=20, window_ms=60_000, fail_open=False)
 
 
 def _config_out(row: BacktestConfigModel) -> BacktestConfig:
@@ -83,7 +85,7 @@ async def update_config(
     return _config_out(row)
 
 
-@router.post("/configs/{config_id}/run")
+@router.post("/configs/{config_id}/run", dependencies=[Depends(_run_rate_limit)])
 @alpaca_errors(logger)
 async def run_config(
     config_id: int,

@@ -53,6 +53,22 @@ def rate_limit_by_ip(route_class: str, limit: int, window_ms: int, fail_open: bo
     return dependency
 
 
+async def check_ip_rate_limit(
+    client_ip: str, route_class: str, limit: int, window_ms: int, fail_open: bool | None = None
+) -> str | None:
+    """Per-client-IP + per-route-class that redirects instead of emitting HTTP error."""
+    settings = get_settings()
+    open_on_error = settings.rate_limit_fail_open if fail_open is None else fail_open
+    key = f"ratelimit:ip:{client_ip}:{route_class}"
+    try:
+        result = await get_rate_limiter().check(key, limit=limit, window_ms=window_ms)
+    except Exception:
+        logger.exception("rate limiter unavailable for %s", key)
+        return None if open_on_error else "rate limiter unavailable"
+
+    return None if result.allowed else "rate limit exceeded"
+
+
 async def check_ws_rate_limit(
     user_id: int, route_class: str, limit: int, window_ms: int, fail_open: bool | None = None
 ) -> str | None:
