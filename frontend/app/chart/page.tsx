@@ -333,9 +333,9 @@ function ChartPage() {
         </div>
       </header>
 
-      <div className="grid flex-1 min-h-0 grid-rows-1 grid-cols-[1fr_320px] gap-3 overflow-hidden p-3">
+      <div className="grid flex-1 min-h-0 grid-cols-1 gap-3 overflow-auto p-3 lg:grid-rows-1 lg:grid-cols-[1fr_320px] lg:overflow-hidden">
         {/* Left: chart */}
-        <div className="flex flex-col min-h-0 overflow-hidden">
+        <div className="flex h-[480px] shrink-0 flex-col overflow-hidden lg:h-auto lg:min-h-0">
           <div className="relative flex-1 min-h-0 rounded-lg border border-auth-field/40 bg-bg overflow-hidden">
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
@@ -373,7 +373,7 @@ function ChartPage() {
         </div>
 
         {/* Right: quote + order panel + positions */}
-        <div className="flex flex-col gap-3 overflow-auto">
+        <div className="flex flex-col gap-3 lg:overflow-auto">
           {prefsResolved && <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} liveQuote={liveQuote} />}
           <OrderPanel
             symbol={symbol}

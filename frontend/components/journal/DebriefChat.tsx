@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ArrowUp } from "lucide-react";
+import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, DebriefMessage } from "@/lib/api";
 
 /** Persisted follow-up chat tied to a ready DebriefReport — request/response
@@ -11,7 +13,9 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
   const [messages, setMessages] = useState<DebriefMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendHover, setSendHover] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     api.debriefMessages(reportId).then(setMessages).catch(() => {});
@@ -59,21 +63,30 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
           </div>
         ))}
       </div>
-      <div className="flex shrink-0 items-center gap-2 border-t border-border px-3 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-t border-border p-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Ask a follow-up…"
-          className="flex-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-sm text-fg outline-none focus:border-accent"
+          className="flex-1 rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg outline-none focus:border-violet-400"
         />
-        <button
-          onClick={send}
-          disabled={sending || !input.trim()}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-40"
+        <div
+          className="relative flex items-center"
+          onMouseEnter={() => setSendHover(true)}
+          onMouseLeave={() => setSendHover(false)}
         >
-          Send
-        </button>
+          <button
+            ref={sendButtonRef}
+            onClick={send}
+            disabled={sending || !input.trim()}
+            aria-label="Send"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-40"
+          >
+            <ArrowUp size={14} strokeWidth={2.5} />
+          </button>
+          <ToolbarTooltip label="Send" hover={sendHover} placement="top" anchorRef={sendButtonRef} />
+        </div>
       </div>
     </div>
   );
