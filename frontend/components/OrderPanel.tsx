@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { api, OrderRequest } from "@/lib/api";
 import type { BracketLevels } from "@/components/Chart";
 
@@ -44,6 +45,12 @@ export default function OrderPanel({
   const [fixedEntryPrice, setFixedEntryPrice] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [typeOpen, setTypeOpen] = useState(false);
+
+  const TYPE_OPTIONS: { value: "market" | "limit"; label: string }[] = [
+    { value: "market", label: "Market" },
+    { value: "limit", label: "Limit" },
+  ];
 
   const estPrice = type === "limit" && limitPrice > 0 ? limitPrice : price ?? null;
   const estCost = estPrice != null ? estPrice * qty : null;
@@ -120,14 +127,39 @@ export default function OrderPanel({
       />
 
       <label className="mb-1 block text-xs text-muted">Type</label>
-      <select
-        className="mb-3 w-full rounded border border-border bg-field px-2 py-1.5 text-sm outline-none focus:border-accent"
-        value={type}
-        onChange={(e) => setType(e.target.value as "market" | "limit")}
-      >
-        <option value="market">Market</option>
-        <option value="limit">Limit</option>
-      </select>
+      <div className="relative mb-3">
+        <button
+          type="button"
+          onClick={() => setTypeOpen((o) => !o)}
+          onBlur={() => setTimeout(() => setTypeOpen(false), 150)}
+          className={`flex w-full items-center justify-between rounded border bg-field px-2 py-1.5 text-sm text-fg outline-none cursor-pointer ${
+            typeOpen ? "border-violet-400" : "border-border"
+          }`}
+        >
+          {TYPE_OPTIONS.find((t) => t.value === type)?.label}
+          <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
+        </button>
+        {typeOpen && (
+          <div className="absolute top-full left-0 right-0 z-30 mt-1 rounded-md border border-border bg-panel py-1 shadow-lg">
+            {TYPE_OPTIONS.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setType(t.value);
+                  setTypeOpen(false);
+                }}
+                className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                  t.value === type ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {type === "limit" && (
         <>

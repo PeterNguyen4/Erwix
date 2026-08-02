@@ -250,7 +250,9 @@ function ChartPage() {
             type="button"
             onClick={() => setTfOpen((o) => !o)}
             onBlur={() => setTimeout(() => setTfOpen(false), 150)}
-            className="flex items-center gap-1 rounded border border-border bg-field px-2 py-2 text-sm text-fg transition-colors hover:border-violet-400 focus:border-violet-400 focus:outline-none cursor-pointer"
+            className={`flex items-center gap-1 rounded border bg-field px-2 py-2 text-sm text-fg transition-colors outline-none cursor-pointer ${
+              tfOpen ? "border-violet-400" : "border-border"
+            }`}
           >
             {TIMEFRAMES.find((tf) => tf.value === timeframe)?.label}
             <ChevronDown size={12} strokeWidth={2} className="opacity-70" />

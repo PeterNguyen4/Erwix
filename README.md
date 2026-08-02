@@ -1,4 +1,4 @@
-# Entro — Multi-Agent Trading System
+# Entro: Multi-Agent Trading System
 
 A TradingView-style charting + paper-trading terminal backed by Alpaca, with
 automatic logging of every execution. Architected so an AI analyst layer

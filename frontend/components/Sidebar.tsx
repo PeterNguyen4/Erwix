@@ -32,7 +32,7 @@ export default function Sidebar() {
 
   return (
     <nav className="flex flex-col items-center gap-1 border-r border-auth-field/40 bg-panel w-16 py-4 z-30 shrink-0">
-      <div className="mb-3 px-2">
+      <div className="mb-6 px-2">
         <img src="/entro.svg" alt="Entro" className="w-8 h-8" />
       </div>
       {NAV_ITEMS.map(({ label, href, Icon }) => {
