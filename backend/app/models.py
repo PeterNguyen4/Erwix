@@ -1,6 +1,6 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, Time, func
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, Time, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -121,6 +121,37 @@ class Trade(Base):
     embedding: Mapped[list[float] | None] = mapped_column(Vector(TRADE_EMBEDDING_DIM))
     embedding_model: Mapped[str | None] = mapped_column(String(64))
     embedded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class JournalEntry(Base):
+    """
+    A user-authored journal entry, independent of any auto-logged Trade fill
+    (see execution_logger.py). Anchored to a calendar day; every field beyond
+    that is optional so an entry can be as light as a note or as detailed as
+    a full manual trade record. Rendered alongside Trade rows in the unified
+    calendar/table journal view (Portfolio page).
+    """
+
+    __tablename__ = "journal_entries"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    entry_date: Mapped[date] = mapped_column(Date, index=True)
+
+    symbol: Mapped[str | None] = mapped_column(String(16))
+    side: Mapped[str | None] = mapped_column(String(8))  # buy | sell
+    entry_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    entry_price: Mapped[float | None] = mapped_column(Float)
+    exit_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    exit_price: Mapped[float | None] = mapped_column(Float)
+    order_amount: Mapped[float | None] = mapped_column(Float)
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class DebriefReport(Base):

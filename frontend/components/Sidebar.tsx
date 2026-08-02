@@ -6,8 +6,7 @@ import { useDebriefStatus } from "@/lib/useDebriefStatus";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import {
   LineChart,
-  Notebook,
-  Briefcase,
+  Wallet,
   Newspaper,
   Compass,
   FlaskConical,
@@ -16,8 +15,7 @@ import {
 
 const NAV_ITEMS = [
   { label: "Chart",     href: "/chart",     Icon: LineChart },
-  { label: "Portfolio", href: "/portfolio", Icon: Briefcase },
-  { label: "Journal",   href: "/journal",   Icon: Notebook },
+  { label: "Portfolio", href: "/portfolio", Icon: Wallet },
   { label: "News",      href: "/news",      Icon: Newspaper },
   { label: "Strategy",  href: "/strategy",  Icon: Compass },
   { label: "Backtesting", href: "/backtesting", Icon: FlaskConical },
@@ -39,7 +37,7 @@ export default function Sidebar() {
       </div>
       {NAV_ITEMS.map(({ label, href, Icon }) => {
         const active = pathname === href;
-        const showBadge = href === "/journal" && hasNewTrades;
+        const showBadge = href === "/portfolio" && hasNewTrades;
         return (
           <div
             key={href}

@@ -20,14 +20,14 @@
 }
 
 :root[data-theme="light"] {
-  --color-bg: 248 246 251;
-  --color-panel: 252 245 249;
-  --color-border: 231 226 240;
-  --color-muted: 105 100 139;
+  --color-bg: 219 218 224;
+  --color-panel: 233 232 237;
+  --color-border: 213 211 221;
+  --color-muted: 108 105 128;
   --color-fg: 15 23 42;
   --color-accent: 109 84 181;
   --color-on-accent: 240 236 250;
-  --color-field: 246 244 249;
+  --color-field: 226 225 231;
   --color-tooltip: 56 52 63;
   --color-tooltip-fg: 245 244 247;
   --color-up: 22 145 133;

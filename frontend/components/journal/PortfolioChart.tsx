@@ -60,7 +60,7 @@ export default function PortfolioChart({
     <div className="rounded-lg border border-border bg-panel p-4">
       <div className="mb-3 flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Portfolio Value</h2>
+          <h2 className="text-xs font-medium uppercase tracking-wide text-muted">Total Value</h2>
           <div className="mt-1 text-3xl font-bold tabular-nums text-fg">
             {active ? fmtUsd(active.equity) : "—"}
           </div>

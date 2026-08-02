@@ -239,7 +239,7 @@ function ChartPage() {
   };
 
   return (
-    <main className="flex h-full flex-col bg-gradient-to-b from-auth-bg/15 via-transparent to-transparent">
+    <main className="flex h-full flex-col">
       <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
         <div className="text-xl font-semibold text-fg">Chart</div>
 
