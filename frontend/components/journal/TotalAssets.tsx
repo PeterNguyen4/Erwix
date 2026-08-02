@@ -6,14 +6,29 @@ import { Position } from "@/lib/api";
 const fmtUsd = (v: number) =>
   v.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 
-export default function TotalAssets({ positions }: { positions: Position[] }) {
+export default function TotalAssets({ positions, loading }: { positions: Position[]; loading?: boolean }) {
   const router = useRouter();
   const sorted = [...positions].sort((a, b) => b.market_value - a.market_value);
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-panel p-4">
       <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Total Assets</h2>
-      {sorted.length === 0 ? (
+      {loading ? (
+        <div className="flex-1 divide-y divide-border">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between py-2.5">
+              <div>
+                <div className="h-3.5 w-12 animate-pulse rounded bg-border/40" />
+                <div className="mt-1.5 h-3 w-16 animate-pulse rounded bg-border/40" />
+              </div>
+              <div className="text-right">
+                <div className="h-3.5 w-14 animate-pulse rounded bg-border/40" />
+                <div className="mt-1.5 h-3 w-10 animate-pulse rounded bg-border/40 ml-auto" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : sorted.length === 0 ? (
         <p className="py-8 text-center text-xs text-muted">No open positions.</p>
       ) : (
         <div className="flex-1 divide-y divide-border overflow-auto">

@@ -21,9 +21,11 @@ interface Slice {
 export default function AllocationChart({
   positions,
   cash,
+  loading,
 }: {
   positions: Position[];
   cash: number;
+  loading?: boolean;
 }) {
   const { theme } = useTheme();
   const palette = CHART_PALETTES[theme];
@@ -40,6 +42,22 @@ export default function AllocationChart({
     const t = s.reduce((acc, x) => acc + x.value, 0);
     return { slices: s, total: t };
   }, [positions, cash]);
+
+  if (loading) {
+    return (
+      <div className="rounded-lg border border-border bg-panel p-4">
+        <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Allocation</h2>
+        <div className="flex items-center gap-4">
+          <div className="h-32 w-32 shrink-0 animate-pulse rounded-full bg-border/40" />
+          <div className="flex-1 space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-3 w-full animate-pulse rounded bg-border/40" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (total <= 0) {
     return (

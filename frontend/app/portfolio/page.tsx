@@ -17,10 +17,12 @@ import { useDebriefReport } from "@/lib/useDebriefReport";
 export default function PortfolioPage() {
   const [account, setAccount] = useState<Account | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [positionsLoading, setPositionsLoading] = useState(true);
   const [history, setHistory] = useState<PortfolioHistory | null>(null);
   const [period, setPeriod] = useState<Period>("1M");
   const [historyLoading, setHistoryLoading] = useState(true);
   const [pnl, setPnl] = useState<PnLSummary | null>(null);
+  const [pnlLoading, setPnlLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [spotlight, setSpotlight] = useState<string | null>(null);
   const [debriefRequest, setDebriefRequest] = useState<DebriefRequest | null>(null);
@@ -29,7 +31,11 @@ export default function PortfolioPage() {
 
   const loadAccount = useCallback(() => {
     api.account().then(setAccount).catch((e) => setError((e as Error).message));
-    api.positions().then(setPositions).catch(() => {});
+    api
+      .positions()
+      .then(setPositions)
+      .catch(() => {})
+      .finally(() => setPositionsLoading(false));
   }, []);
 
   useEffect(() => {
@@ -39,7 +45,11 @@ export default function PortfolioPage() {
   }, [loadAccount]);
 
   useEffect(() => {
-    api.pnlSummary({}).then(setPnl).catch(() => {});
+    api
+      .pnlSummary({})
+      .then(setPnl)
+      .catch(() => {})
+      .finally(() => setPnlLoading(false));
   }, []);
 
   useEffect(() => {
@@ -112,44 +122,55 @@ export default function PortfolioPage() {
             />
           </div>
           <div className="lg:col-span-1">
-            <TotalAssets positions={positions} />
+            <TotalAssets positions={positions} loading={positionsLoading} />
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <TradeCalendar points={history?.points ?? []} onDebriefTrade={setDebriefRequest} />
           <div className="space-y-4">
-            {pnl && (
+            {pnlLoading ? (
               <div className="flex flex-wrap gap-2">
-                <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                  <div className="text-[10px] uppercase tracking-wide text-muted">Win Rate</div>
-                  <div className="text-sm font-semibold tabular-nums text-fg">
-                    {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
+                    <div className="h-2.5 w-16 animate-pulse rounded bg-border/40" />
+                    <div className="mt-2 h-4 w-12 animate-pulse rounded bg-border/40" />
                   </div>
-                </div>
-                <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                  <div className="text-[10px] uppercase tracking-wide text-muted">Avg Risk/Reward</div>
-                  <div className="text-sm font-semibold tabular-nums text-fg">
-                    {pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—"}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                  <div className="text-[10px] uppercase tracking-wide text-muted">Realized PnL</div>
-                  <div className={`text-sm font-semibold tabular-nums ${pnl.total_pnl >= 0 ? "text-up" : "text-down"}`}>
-                    {pnl.total_pnl >= 0 ? "+" : ""}
-                    {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-                  </div>
-                </div>
-                <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                  <div className="text-[10px] uppercase tracking-wide text-muted">W / L</div>
-                  <div className="text-sm font-semibold tabular-nums text-fg">
-                    <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
-                  </div>
-                </div>
+                ))}
               </div>
+            ) : (
+              pnl && (
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
+                    <div className="text-[10px] uppercase tracking-wide text-muted">Win Rate</div>
+                    <div className="text-sm font-semibold tabular-nums text-fg">
+                      {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
+                    <div className="text-[10px] uppercase tracking-wide text-muted">Avg Risk/Reward</div>
+                    <div className="text-sm font-semibold tabular-nums text-fg">
+                      {pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—"}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
+                    <div className="text-[10px] uppercase tracking-wide text-muted">Realized PnL</div>
+                    <div className={`text-sm font-semibold tabular-nums ${pnl.total_pnl >= 0 ? "text-up" : "text-down"}`}>
+                      {pnl.total_pnl >= 0 ? "+" : ""}
+                      {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
+                    <div className="text-[10px] uppercase tracking-wide text-muted">W / L</div>
+                    <div className="text-sm font-semibold tabular-nums text-fg">
+                      <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
+                    </div>
+                  </div>
+                </div>
+              )
             )}
-            <AllocationChart positions={positions} cash={account?.cash ?? 0} />
-            <PositionsDetail positions={positions} />
+            <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
+            <PositionsDetail positions={positions} loading={positionsLoading} />
           </div>
         </div>
 
