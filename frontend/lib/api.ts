@@ -196,6 +196,11 @@ export interface PnLSummary {
   closed_trades: ClosedTrade[];
 }
 
+export interface PnLWeeklyComparison {
+  current: PnLSummary;
+  previous: PnLSummary;
+}
+
 export interface OrderRequest {
   symbol: string;
   qty: number;
@@ -499,6 +504,7 @@ export const api = {
     if (params.to) q.set("to", params.to);
     return getJSON<PnLSummary>(`/api/journal/pnl-summary?${q.toString()}`);
   },
+  pnlWeeklyComparison: () => getJSON<PnLWeeklyComparison>("/api/journal/pnl-summary/weekly"),
   reviewTrades: (req: AgentReviewRequest) =>
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),

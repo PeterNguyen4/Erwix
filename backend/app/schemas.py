@@ -226,6 +226,11 @@ class PnLSummaryOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PnLWeeklyComparisonOut(BaseModel):
+    current: PnLSummaryOut
+    previous: PnLSummaryOut
+
+
 # ---- Analyst Agent ----
 class ChartAnnotation(BaseModel):
     type: Literal["arrow", "circle", "marker", "line"]

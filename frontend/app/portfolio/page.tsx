@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Triangle } from "lucide-react";
 import { api, Account, DebriefRequest, PnLSummary, PortfolioHistory, Position } from "@/lib/api";
 import PortfolioChart, { Period } from "@/components/journal/PortfolioChart";
 import PositionsDetail from "@/components/journal/PositionsDetail";
@@ -14,6 +14,26 @@ import DebriefScheduleSettings from "@/components/journal/DebriefScheduleSetting
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import { useDebriefReport } from "@/lib/useDebriefReport";
 
+function WeekDelta({ value }: { value: number | null }) {
+  if (value == null || Number.isNaN(value) || value === 0) return null;
+  const up = value > 0;
+  return (
+    <div className={`mt-1.5 flex items-center gap-1 text-[10px] font-medium tabular-nums ${up ? "text-up" : "text-down"}`}>
+      <Triangle size={7} className={up ? "" : "rotate-180"} fill="currentColor" strokeWidth={0} />
+      <span>
+        {up ? "+" : ""}
+        {value.toFixed(0)}% vs last week
+      </span>
+    </div>
+  );
+}
+
+function pctDelta(current: number | null, prev: number | null): number | null {
+  if (current == null || prev == null) return null;
+  if (prev === 0) return current === 0 ? 0 : null;
+  return ((current - prev) / Math.abs(prev)) * 100;
+}
+
 export default function PortfolioPage() {
   const [account, setAccount] = useState<Account | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -23,6 +43,8 @@ export default function PortfolioPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [pnl, setPnl] = useState<PnLSummary | null>(null);
   const [pnlLoading, setPnlLoading] = useState(true);
+  const [weekPnl, setWeekPnl] = useState<PnLSummary | null>(null);
+  const [prevWeekPnl, setPrevWeekPnl] = useState<PnLSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [spotlight, setSpotlight] = useState<string | null>(null);
   const [debriefRequest, setDebriefRequest] = useState<DebriefRequest | null>(null);
@@ -50,6 +72,14 @@ export default function PortfolioPage() {
       .then(setPnl)
       .catch(() => {})
       .finally(() => setPnlLoading(false));
+
+    api
+      .pnlWeeklyComparison()
+      .then((cmp) => {
+        setWeekPnl(cmp.current);
+        setPrevWeekPnl(cmp.previous);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -146,12 +176,21 @@ export default function PortfolioPage() {
                     <div className="text-sm font-semibold tabular-nums text-fg">
                       {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
                     </div>
+                    <WeekDelta value={pctDelta(weekPnl?.win_rate ?? null, prevWeekPnl?.win_rate ?? null)} />
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
                     <div className="text-[10px] uppercase tracking-wide text-muted">Avg Risk/Reward</div>
                     <div className="text-sm font-semibold tabular-nums text-fg">
                       {pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—"}
                     </div>
+                    <WeekDelta
+                      value={pctDelta(
+                        weekPnl?.avg_win != null && weekPnl?.avg_loss ? weekPnl.avg_win / Math.abs(weekPnl.avg_loss) : null,
+                        prevWeekPnl?.avg_win != null && prevWeekPnl?.avg_loss
+                          ? prevWeekPnl.avg_win / Math.abs(prevWeekPnl.avg_loss)
+                          : null
+                      )}
+                    />
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
                     <div className="text-[10px] uppercase tracking-wide text-muted">Realized PnL</div>
@@ -159,12 +198,19 @@ export default function PortfolioPage() {
                       {pnl.total_pnl >= 0 ? "+" : ""}
                       {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
                     </div>
+                    <WeekDelta value={pctDelta(weekPnl?.total_pnl ?? null, prevWeekPnl?.total_pnl ?? null)} />
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
                     <div className="text-[10px] uppercase tracking-wide text-muted">W / L</div>
                     <div className="text-sm font-semibold tabular-nums text-fg">
                       <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
                     </div>
+                    <WeekDelta
+                      value={pctDelta(
+                        weekPnl ? weekPnl.win_count - weekPnl.loss_count : null,
+                        prevWeekPnl ? prevWeekPnl.win_count - prevWeekPnl.loss_count : null
+                      )}
+                    />
                   </div>
                 </div>
               )
