@@ -38,7 +38,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
       <ToolbarTooltip label="Drawing tools" hover={hover && !open} anchorRef={buttonRef} />
       {open && (
         <div
-          className={`absolute top-full z-30 mt-1 w-48 rounded-md border border-border bg-panel py-1 shadow-lg ${
+          className={`absolute top-full z-30 mt-1 w-56 rounded-md border border-border bg-panel py-1 shadow-lg ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -59,7 +59,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
                 className="flex flex-1 items-center gap-2"
               >
                 <t.icon />
-                {t.label}
+                <span className="whitespace-nowrap">{t.label}</span>
               </button>
               <button
                 type="button"

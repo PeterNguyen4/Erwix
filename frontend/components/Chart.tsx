@@ -1040,7 +1040,7 @@ export default function Chart({
   return (
     <div ref={wrapperRef} className="relative flex flex-col h-full w-full">
       {/* Info bar + toolbar (single horizontal row) */}
-      <div className="flex items-center gap-1 border-b border-border bg-panel px-2 py-1 z-20 shrink-0">
+      <div className="relative flex items-center gap-1 border-b border-border bg-panel px-2 py-1 z-30 shrink-0">
         {(symbolBlock || !showInfoOverlay) && (
           <div className={`mr-3 flex items-baseline gap-2 ${showInfoOverlay ? "pl-1.5" : ""}`}>
             {symbolBlock}

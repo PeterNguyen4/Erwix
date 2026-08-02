@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
 import { INDICATORS } from "@/components/chart/indicators";
+
+const SUBMENU_WIDTH = 192; // w-48
 
 interface ChartContextMenuProps {
   x: number;
@@ -19,11 +21,54 @@ interface ChartContextMenuProps {
   onQuickOrder?: (side: "buy" | "sell") => void;
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+type SubmenuId = "chartType" | "drawing" | "indicators";
+
+const itemClass = (active: boolean) =>
+  `flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
+    active ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+  }`;
+
+/** Hover-opens a flyout panel to the side of the row. `flip` is decided once
+ * up front by the parent menu (from its own clamped screen position), so the
+ * chevron/panel side is correct on the very first hover — no post-render
+ * measure-and-correct flash. */
+function SubmenuRow({
+  id,
+  label,
+  icon,
+  openSub,
+  setOpenSub,
+  flip,
+  children,
+}: {
+  id: SubmenuId;
+  label: string;
+  icon?: React.ReactNode;
+  openSub: SubmenuId | null;
+  setOpenSub: (id: SubmenuId | null) => void;
+  flip: boolean;
+  children: React.ReactNode;
+}) {
+  const open = openSub === id;
+
   return (
-    <div className="py-1">
-      <div className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">{title}</div>
-      {children}
+    <div className="relative" onMouseEnter={() => setOpenSub(id)}>
+      <button type="button" className={itemClass(open)}>
+        {flip && <ChevronLeft size={12} strokeWidth={2.2} className="opacity-70" />}
+        {icon}
+        <span className="flex-1 text-left">{label}</span>
+        {!flip && <ChevronRight size={12} strokeWidth={2.2} className="opacity-70" />}
+      </button>
+      {open && (
+        <div
+          onClick={() => setOpenSub(id)}
+          className={`absolute -top-1.5 z-10 w-48 rounded-md border border-border bg-panel py-1 shadow-lg ${
+            flip ? "right-full" : "left-full"
+          }`}
+        >
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -43,6 +88,8 @@ export default function ChartContextMenu({
 }: ChartContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ x, y });
+  const [submenuFlip, setSubmenuFlip] = useState(false);
+  const [openSub, setOpenSub] = useState<SubmenuId | null>(null);
 
   useEffect(() => {
     const menu = menuRef.current;
@@ -51,6 +98,7 @@ export default function ChartContextMenu({
     const clampedX = Math.min(x, window.innerWidth - rect.width - 8);
     const clampedY = Math.min(y, window.innerHeight - rect.height - 8);
     setPos({ x: Math.max(8, clampedX), y: Math.max(8, clampedY) });
+    setSubmenuFlip(clampedX + rect.width + SUBMENU_WIDTH + 8 > window.innerWidth);
   }, [x, y]);
 
   useEffect(() => {
@@ -68,10 +116,9 @@ export default function ChartContextMenu({
     };
   }, [onClose]);
 
-  const itemClass = (active: boolean) =>
-    `flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-      active ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
-    }`;
+  const activeChartType = CHART_TYPES.find((t) => t.id === chartTypeId);
+  const activeDrawingTool = DRAWING_TOOLS.find((t) => t.id === drawingMode);
+  const activeIndicatorCount = activeIndicators.size;
 
   return (
     <div
@@ -109,32 +156,38 @@ export default function ChartContextMenu({
         </>
       )}
 
-      <Section title="Chart Type">
+      <SubmenuRow
+        id="chartType"
+        label={activeChartType ? `Chart Type: ${activeChartType.label}` : "Chart Type"}
+        icon={activeChartType && <activeChartType.icon />}
+        openSub={openSub}
+        setOpenSub={setOpenSub}
+        flip={submenuFlip}
+      >
         {CHART_TYPES.map((t) => (
           <button
             key={t.id}
             type="button"
-            onClick={() => {
-              onChartTypeChange(t.id);
-              onClose();
-            }}
+            onClick={() => onChartTypeChange(t.id)}
             className={itemClass(t.id === chartTypeId)}
           >
             <t.icon />
             {t.label}
           </button>
         ))}
-      </Section>
+      </SubmenuRow>
 
-      <div className="h-px bg-border" />
-
-      <Section title="Drawing Tool">
+      <SubmenuRow
+        id="drawing"
+        label={drawingMode === "crosshair" ? "Drawing Tool" : `Drawing Tool: ${activeDrawingTool?.label ?? ""}`}
+        icon={activeDrawingTool && <activeDrawingTool.icon />}
+        openSub={openSub}
+        setOpenSub={setOpenSub}
+        flip={submenuFlip}
+      >
         <button
           type="button"
-          onClick={() => {
-            onDrawingModeChange("crosshair");
-            onClose();
-          }}
+          onClick={() => onDrawingModeChange("crosshair")}
           className={itemClass(drawingMode === "crosshair")}
         >
           Cursor
@@ -143,21 +196,22 @@ export default function ChartContextMenu({
           <button
             key={t.id}
             type="button"
-            onClick={() => {
-              onDrawingModeChange(t.id);
-              onClose();
-            }}
+            onClick={() => onDrawingModeChange(t.id)}
             className={itemClass(t.id === drawingMode)}
           >
             <t.icon />
             {t.label}
           </button>
         ))}
-      </Section>
+      </SubmenuRow>
 
-      <div className="h-px bg-border" />
-
-      <Section title="Indicators">
+      <SubmenuRow
+        id="indicators"
+        label={activeIndicatorCount > 0 ? `Indicators (${activeIndicatorCount})` : "Indicators"}
+        openSub={openSub}
+        setOpenSub={setOpenSub}
+        flip={submenuFlip}
+      >
         {INDICATORS.map((ind) => {
           const checked = activeIndicators.has(ind.id);
           return (
@@ -173,7 +227,7 @@ export default function ChartContextMenu({
             </button>
           );
         })}
-      </Section>
+      </SubmenuRow>
     </div>
   );
 }

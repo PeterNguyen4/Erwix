@@ -55,21 +55,21 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
             key={m.id}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/20 px-3 py-1.5 text-sm text-fg"
-                : "max-w-[85%] rounded-2xl rounded-tl-sm bg-border/60 px-3 py-1.5 text-sm text-fg"
+                ? "ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/20 px-2 py-1.5 text-sm text-fg"
+                : "max-w-[85%] rounded-2xl rounded-tl-sm bg-border/60 px-2 py-1.5 text-sm text-fg"
             }
           >
             {m.content}
           </div>
         ))}
       </div>
-      <div className="flex shrink-0 items-center gap-2 border-t border-border p-2">
+      <div className="flex shrink-0 items-center gap-2 border-t border-border px-4 py-3">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Ask a follow-up…"
-          className="flex-1 rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg outline-none focus:border-violet-400"
+          className="h-9 flex-1 rounded-md border border-border bg-field px-2 text-sm text-fg outline-none focus:border-violet-400"
         />
         <div
           className="relative flex items-center"
@@ -81,7 +81,7 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
             onClick={send}
             disabled={sending || !input.trim()}
             aria-label="Send"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-40"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-40"
           >
             <ArrowUp size={14} strokeWidth={2.5} />
           </button>

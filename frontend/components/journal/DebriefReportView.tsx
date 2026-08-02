@@ -54,7 +54,7 @@ export default function DebriefReportView({ report, onClose, onSpotlight }: Debr
 
   return (
     <div className="fixed bottom-4 right-4 top-20 z-30 flex w-[720px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-2xl animate-fade-in-up">
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+      <div className="flex shrink-0 items-center justify-between border-b border-border pl-4 pr-2.5 py-3">
         <div className="text-sm font-semibold text-fg">
           {new Date(report.window_start).toLocaleDateString()} – {new Date(report.window_end).toLocaleDateString()} Report
         </div>
