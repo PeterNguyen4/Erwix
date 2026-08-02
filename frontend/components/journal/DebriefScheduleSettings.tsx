@@ -42,10 +42,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${checked ? "bg-accent" : "bg-border"}`}
     >
       <span
-        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-          checked ? "translate-x-4.5" : "translate-x-0.5"
-        }`}
-        style={{ transform: checked ? "translateX(18px)" : "translateX(2px)" }}
+        className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform"
+        style={{ transform: checked ? "translateX(16px)" : "translateX(0)" }}
       />
     </button>
   );

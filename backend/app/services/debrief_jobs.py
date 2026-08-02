@@ -89,6 +89,24 @@ async def create_pending_report(db: AsyncSession, user_id: int) -> DebriefReport
     return report
 
 
+async def fail_orphaned_reports() -> None:
+    """Startup recovery: any report left in pending/running belonged to a
+    background asyncio.create_task from a previous process — there's no
+    persistent queue, so that task is gone and the report would otherwise
+    stay stuck forever, permanently shadowing create_pending_report's
+    "reuse the in-flight report" check."""
+    async with SessionLocal() as db:
+        stuck = (
+            await db.scalars(select(DebriefReport).where(DebriefReport.status.in_(["pending", "running"])))
+        ).all()
+        for report in stuck:
+            report.status = "error"
+            report.error_detail = "Interrupted by a server restart"
+        if stuck:
+            await db.commit()
+            logger.warning("Marked %d orphaned debrief report(s) as errored on startup", len(stuck))
+
+
 async def run_debrief_job_by_id(report_id: int) -> None:
     """Runs a report job under its own DB session — used when generation is
     kicked off from a request handler via asyncio.create_task, since the

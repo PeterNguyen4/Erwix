@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.db import engine
 from app.routers import agent, alpaca_oauth, analysis, news, backtest, journal, market, strategy, trading, users
 from app.routers.market import cancel_stream_task
-from app.services.debrief_jobs import start_scheduler, stop_scheduler
+from app.services.debrief_jobs import fail_orphaned_reports, start_scheduler, stop_scheduler
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
 from app.services.rate_limiter import close_rate_limiter
 
@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
             "Alpaca credentials not set. Execution logger disabled. "
             "Market/trading endpoints will return 503 until configured."
         )
+    await fail_orphaned_reports()
     start_scheduler()
     try:
         yield

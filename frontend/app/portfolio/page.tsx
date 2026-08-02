@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { api, Account, DebriefRequest, PnLSummary, PortfolioHistory, Position } from "@/lib/api";
 import PortfolioChart, { Period } from "@/components/journal/PortfolioChart";
 import PositionsDetail from "@/components/journal/PositionsDetail";
@@ -55,6 +56,7 @@ export default function PortfolioPage() {
       <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div className="text-xl font-semibold text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
+          <div className="text-xs text-muted">Paper account</div>
           {process.env.NODE_ENV !== "production" && (
             <button
               onClick={() => api.resetDebrief().then(() => api.generateDebriefNow()).then(refresh)}
@@ -65,7 +67,6 @@ export default function PortfolioPage() {
             </button>
           )}
           <DebriefScheduleSettings />
-          <div className="text-xs text-muted">Paper account</div>
         </div>
       </header>
 
@@ -77,18 +78,21 @@ export default function PortfolioPage() {
         )}
 
         {report && !reportOpen && (
-          <div className="flex items-center justify-between rounded-lg border border-accent/40 bg-accent/10 px-4 py-3 animate-fade-in-up">
-            <div className="text-sm text-fg">
+          <div className="relative flex items-center justify-between overflow-hidden rounded-lg border border-accent/30 bg-violet-500/[0.03] px-4 py-3 animate-fade-in-up">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-fuchsia-500/15 blur-3xl" />
+            <div className="relative flex items-center gap-2 text-sm text-fg">
+              <Sparkles className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
               {report.status === "ready" && "Your scheduled debrief is ready."}
               {(report.status === "pending" || report.status === "running") &&
-                `Your debrief is cooking… ${report.current_step}/${report.total_steps ?? "?"} trades reviewed` +
-                  (report.eta_seconds != null ? ` — about ${Math.ceil(report.eta_seconds / 60)} min left` : "")}
+                `${report.current_step}/${report.total_steps ?? "?"} trades reviewed` +
+                  (report.eta_seconds != null ? ` ~ ${Math.ceil(report.eta_seconds / 60)} min left` : "")}
               {report.status === "error" && "Your last scheduled debrief failed to generate."}
             </div>
             {report.status !== "error" && (
               <button
                 onClick={() => setReportOpen(true)}
-                className="shrink-0 rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80"
+                className="relative shrink-0 rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80"
               >
                 {report.status === "ready" ? "Open Report" : "View Progress"}
               </button>
