@@ -72,35 +72,35 @@ export default function DebriefReportView({ report, onClose, onSpotlight }: Debr
       </div>
 
       <div className="flex shrink-0 items-center justify-center gap-3 border-b border-border px-4 py-2">
-        <button
-          onClick={() => setIndex((i) => Math.max(i - 1, 0))}
-          disabled={index === 0}
-          aria-label="Previous trade"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-violet-500/20 hover:text-fg disabled:pointer-events-none disabled:opacity-30"
-        >
-          <ChevronLeft size={16} strokeWidth={2.25} />
-        </button>
-
-        <div className="flex items-center gap-2">
-          <div className="h-1 w-28 overflow-hidden rounded-full bg-border/60">
-            <div
-              className="h-full rounded-full bg-violet-400 transition-all"
-              style={{ width: `${((index + 1) / report.steps.length) * 100}%` }}
-            />
-          </div>
-          <span className="whitespace-nowrap text-xs tabular-nums text-muted">
-            {index + 1} / {report.steps.length}
-          </span>
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => setIndex((i) => Math.max(i - 1, 0))}
+            disabled={index === 0}
+            aria-label="Previous trade"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-violet-500/20 hover:text-fg disabled:pointer-events-none disabled:opacity-30"
+          >
+            <ChevronLeft size={16} strokeWidth={2.25} />
+          </button>
+          <button
+            onClick={() => setIndex((i) => Math.min(i + 1, report.steps.length - 1))}
+            disabled={index === report.steps.length - 1}
+            aria-label="Next trade"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-violet-500/20 hover:text-fg disabled:pointer-events-none disabled:opacity-30"
+          >
+            <ChevronRight size={16} strokeWidth={2.25} />
+          </button>
         </div>
 
-        <button
-          onClick={() => setIndex((i) => Math.min(i + 1, report.steps.length - 1))}
-          disabled={index === report.steps.length - 1}
-          aria-label="Next trade"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-violet-500/20 hover:text-fg disabled:pointer-events-none disabled:opacity-30"
-        >
-          <ChevronRight size={16} strokeWidth={2.25} />
-        </button>
+        <div className="h-1 w-28 overflow-hidden rounded-full bg-border/60">
+          <div
+            className="h-full rounded-full bg-violet-400 transition-all"
+            style={{ width: `${((index + 1) / report.steps.length) * 100}%` }}
+          />
+        </div>
+
+        <span className="whitespace-nowrap text-xs tabular-nums text-muted">
+          {index + 1} / {report.steps.length}
+        </span>
       </div>
 
       <div className="flex-1 overflow-auto px-4 py-3">

@@ -239,11 +239,11 @@ function ChartPage() {
   };
 
   return (
-    <main className="flex h-full flex-col">
-      <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
+    <main className="flex h-full flex-col overflow-auto">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
         <div className="text-xl font-semibold text-fg">Chart</div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
         {/* Timeframe selector */}
         <div className="relative flex items-center">
           <button
@@ -283,7 +283,7 @@ function ChartPage() {
         </div>
 
         {/* Ticker Search */}
-        <div className="relative w-72">
+        <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
           <div className="flex items-center gap-2 rounded border border-border bg-field px-3 py-2 focus-within:border-violet-400">
             <span className="text-muted">
               <IconSearch />
@@ -333,7 +333,7 @@ function ChartPage() {
         </div>
       </header>
 
-      <div className="grid flex-1 min-h-0 grid-cols-1 gap-3 overflow-auto p-3 lg:grid-rows-1 lg:grid-cols-[1fr_320px] lg:overflow-hidden">
+      <div className="grid flex-1 min-h-0 grid-cols-1 gap-4 p-4 lg:grid-rows-1 lg:grid-cols-[1fr_320px] lg:overflow-hidden">
         {/* Left: chart */}
         <div className="flex h-[480px] shrink-0 flex-col overflow-hidden lg:h-auto lg:min-h-0">
           <div className="relative flex-1 min-h-0 rounded-lg border border-auth-field/40 bg-bg overflow-hidden">
@@ -373,7 +373,7 @@ function ChartPage() {
         </div>
 
         {/* Right: quote + order panel + positions */}
-        <div className="flex flex-col gap-3 lg:overflow-auto">
+        <div className="flex flex-col gap-4 lg:overflow-auto">
           {prefsResolved && <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} liveQuote={liveQuote} />}
           <OrderPanel
             symbol={symbol}
