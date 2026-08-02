@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Sparkles } from "lucide-react";
 import { api, MarketInsight, NewsArticle } from "@/lib/api";
 
 const SENTIMENT_STYLE: Record<MarketInsight["sentiment"], string> = {
@@ -72,9 +73,12 @@ export default function NewsPage() {
           )}
 
           {/* uWick's overall market read */}
-          <div className="rounded-lg border border-border bg-panel p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <span className="text-sm font-semibold text-fg">uWick's Take</span>
+          <div className="relative overflow-hidden rounded-lg border border-accent/30 bg-panel p-4">
+            <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-fuchsia-500/15 blur-3xl" />
+            <div className="relative mb-2 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
+              <span className="text-sm font-semibold text-violet-600 dark:text-violet-300">Insights</span>
               {insight && (
                 <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
                   {insight.sentiment}
@@ -82,14 +86,14 @@ export default function NewsPage() {
               )}
             </div>
             {insightLoading ? (
-              <p className="text-xs text-muted">Reading the market…</p>
+              <p className="relative text-xs text-muted">Reading the market…</p>
             ) : insightError ? (
-              <p className="text-xs text-down">{insightError}</p>
+              <p className="relative text-xs text-down">{insightError}</p>
             ) : insight ? (
               <>
-                <p className="mb-2 text-sm text-fg">{insight.advice}</p>
+                <p className="relative mb-2 text-sm text-fg">{insight.advice}</p>
                 {insight.rationale.length > 0 && (
-                  <ul className="list-disc pl-5 text-xs text-muted">
+                  <ul className="relative list-disc pl-5 text-xs text-muted">
                     {insight.rationale.map((r, i) => (
                       <li key={i}>{r}</li>
                     ))}
