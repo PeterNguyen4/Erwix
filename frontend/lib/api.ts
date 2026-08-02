@@ -162,6 +162,8 @@ export interface NewsArticle {
   publisher: string;
   url: string;
   published_at: string;
+  thumbnail_url?: string | null;
+  related_tickers?: string[];
 }
 
 export interface MarketInsight {

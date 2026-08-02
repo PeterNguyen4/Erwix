@@ -28,7 +28,15 @@ async def market_articles() -> list[NewsArticleOut]:
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"News fetch failed: {exc}") from exc
     return [
-        NewsArticleOut(symbol=a.symbol, title=a.title, publisher=a.publisher, url=a.url, published_at=a.published_at)
+        NewsArticleOut(
+            symbol=a.symbol,
+            title=a.title,
+            publisher=a.publisher,
+            url=a.url,
+            published_at=a.published_at,
+            thumbnail_url=a.thumbnail_url,
+            related_tickers=a.related_tickers,
+        )
         for a in articles
     ]
 
