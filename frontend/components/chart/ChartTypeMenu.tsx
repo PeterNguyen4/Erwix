@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { IconStar } from "@/components/chart/drawingTools";
@@ -18,11 +18,13 @@ interface ChartTypeMenuProps {
 export default function ChartTypeMenu({ value, onChange, align = "left", pinned, onTogglePin }: ChartTypeMenuProps) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const current = CHART_TYPES.find((t) => t.id === value) ?? CHART_TYPES[0];
 
   return (
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -31,7 +33,7 @@ export default function ChartTypeMenu({ value, onChange, align = "left", pinned,
         <current.icon />
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
-      <ToolbarTooltip label={current.label} hover={hover && !open} />
+      <ToolbarTooltip label={current.label} hover={hover && !open} anchorRef={buttonRef} />
       {open && (
         <div
           className={`absolute top-full z-30 mt-1 w-40 rounded-md border border-border bg-panel py-1 shadow-lg ${

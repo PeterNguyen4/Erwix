@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { DRAWING_TOOLS, DrawingToolId, IconDrawingTool, IconStar } from "@/components/chart/drawingTools";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
@@ -18,11 +18,13 @@ interface DrawingMenuProps {
 export default function DrawingMenu({ value, onChange, align = "left", pinned, onTogglePin }: DrawingMenuProps) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const active = DRAWING_TOOLS.find((t) => t.id === value) ?? null;
 
   return (
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -33,7 +35,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
         {active ? <active.icon /> : <IconDrawingTool />}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
-      <ToolbarTooltip label="Drawing tools" hover={hover && !open} />
+      <ToolbarTooltip label="Drawing tools" hover={hover && !open} anchorRef={buttonRef} />
       {open && (
         <div
           className={`absolute top-full z-30 mt-1 w-48 rounded-md border border-border bg-panel py-1 shadow-lg ${

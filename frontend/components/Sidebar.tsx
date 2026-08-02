@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useDebriefStatus } from "@/lib/useDebriefStatus";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
@@ -29,6 +29,8 @@ export default function Sidebar() {
   const { hasNewTrades } = useDebriefStatus();
   const [hoveredHref, setHoveredHref] = useState<string | null>(null);
   const [settingsHover, setSettingsHover] = useState(false);
+  const navButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <nav className="flex flex-col items-center gap-1 border-r border-auth-field/40 bg-panel w-16 py-4 z-30 shrink-0">
@@ -46,6 +48,7 @@ export default function Sidebar() {
             onMouseLeave={() => setHoveredHref(null)}
           >
             <button
+              ref={(el) => { navButtonRefs.current[href] = el; }}
               onClick={() => router.push(href)}
               className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
                 active
@@ -64,6 +67,7 @@ export default function Sidebar() {
               label={showBadge ? `${label} — analyst debrief ready` : label}
               hover={hoveredHref === href}
               placement="right"
+              anchorRef={{ current: navButtonRefs.current[href] ?? null }}
             />
           </div>
         );
@@ -75,6 +79,7 @@ export default function Sidebar() {
         onMouseLeave={() => setSettingsHover(false)}
       >
         <button
+          ref={settingsButtonRef}
           onClick={() => router.push("/settings")}
           className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
             pathname === "/settings"
@@ -84,7 +89,7 @@ export default function Sidebar() {
         >
           <Settings size={20} strokeWidth={2} />
         </button>
-        <ToolbarTooltip label="Settings" hover={settingsHover} placement="right" />
+        <ToolbarTooltip label="Settings" hover={settingsHover} placement="right" anchorRef={settingsButtonRef} />
       </div>
     </nav>
   );

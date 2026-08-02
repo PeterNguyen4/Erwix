@@ -22,12 +22,12 @@ function RuleRow({
         value={rule.indicator}
         onChange={(e) => onChange({ ...rule, indicator: e.target.value })}
         placeholder="rsi_14 / sma_50 / close"
-        className="w-28 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-fg"
+        className="w-28 rounded-md border border-border bg-field px-2 py-1 text-xs text-fg outline-none focus:border-violet-400"
       />
       <select
         value={rule.comparator}
         onChange={(e) => onChange({ ...rule, comparator: e.target.value as BacktestRule["comparator"] })}
-        className="rounded-md border border-border bg-transparent px-1 py-1 text-xs text-fg"
+        className="rounded-md border border-border bg-field px-1 py-1 text-xs text-fg outline-none focus:border-violet-400"
       >
         {["<", "<=", ">", ">=", "==", "crosses_above", "crosses_below"].map((c) => (
           <option key={c} value={c} className="bg-panel">
@@ -39,7 +39,7 @@ function RuleRow({
         type="number"
         value={rule.value}
         onChange={(e) => onChange({ ...rule, value: Number(e.target.value) })}
-        className="w-16 rounded-md border border-border bg-transparent px-2 py-1 text-xs text-fg"
+        className="w-16 rounded-md border border-border bg-field px-2 py-1 text-xs text-fg outline-none focus:border-violet-400"
       />
       <button onClick={onRemove} className="text-xs text-muted hover:text-down">
         ✕
@@ -65,7 +65,7 @@ function RuleList({
           onRemove={() => onChange(rules.filter((_, idx) => idx !== i))}
         />
       ))}
-      {rules.length === 0 && <div className="text-xs text-muted">No rules yet — add one from the hint library.</div>}
+      {rules.length === 0 && <div className="text-xs text-muted">No rules yet. Add one from the hint library.</div>}
     </div>
   );
 }
@@ -77,12 +77,12 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
         <input
           value={config.name}
           onChange={(e) => onChange({ ...config, name: e.target.value })}
-          className="flex-1 rounded-md border border-border bg-transparent px-2 py-1 text-sm font-semibold"
+          className="flex-1 rounded-md border border-border bg-field px-2 py-1 text-sm font-semibold outline-none focus:border-violet-400"
         />
         <select
           value={config.direction}
           onChange={(e) => onChange({ ...config, direction: e.target.value as BacktestConfig["direction"] })}
-          className="rounded-md border border-border bg-transparent px-2 py-1 text-xs"
+          className="rounded-md border border-border bg-field px-2 py-1 text-xs outline-none focus:border-violet-400"
         >
           <option value="long" className="bg-panel">Long</option>
           <option value="short" className="bg-panel">Short</option>
@@ -111,7 +111,7 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
                 position_sizing: { ...config.position_sizing, mode: e.target.value as BacktestConfig["position_sizing"]["mode"] },
               })
             }
-            className="rounded-md border border-border bg-transparent px-2 py-1 text-xs"
+            className="rounded-md border border-border bg-field px-2 py-1 text-xs outline-none focus:border-violet-400"
           >
             <option value="fixed_qty" className="bg-panel">Fixed qty</option>
             <option value="pct_equity" className="bg-panel">% of equity</option>
@@ -123,7 +123,7 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
             onChange={(e) =>
               onChange({ ...config, position_sizing: { ...config.position_sizing, value: Number(e.target.value) } })
             }
-            className="w-20 rounded-md border border-border bg-transparent px-2 py-1 text-xs"
+            className="w-20 rounded-md border border-border bg-field px-2 py-1 text-xs outline-none focus:border-violet-400"
           />
         </div>
       </div>
@@ -140,7 +140,7 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
                 stop_loss: e.target.value === "" ? null : { value: Number(e.target.value) },
               })
             }
-            className="w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs"
+            className="w-full rounded-md border border-border bg-field px-2 py-1 text-xs outline-none focus:border-violet-400"
           />
         </div>
         <div>
@@ -154,7 +154,7 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
                 take_profit: e.target.value === "" ? null : { value: Number(e.target.value) },
               })
             }
-            className="w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs"
+            className="w-full rounded-md border border-border bg-field px-2 py-1 text-xs outline-none focus:border-violet-400"
           />
         </div>
       </div>

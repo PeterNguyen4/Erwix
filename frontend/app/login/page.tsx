@@ -55,7 +55,7 @@ export default function LoginPage() {
         </div>
         <div className="relative z-10">
           <h2 className="text-4xl font-normal text-white leading-tight">
-            Strategize, Test, Act
+            Strategize, Test, Trade
           </h2>
         </div>
       </div>

@@ -240,23 +240,41 @@ export default function BacktestingPage() {
         </div>
       )}
 
-      <div className="grid flex-1 grid-cols-1 gap-3 overflow-hidden p-3 lg:grid-cols-2">
-        <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border">
-            <ConfigEditor config={config} onChange={setConfig} />
+      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-3 lg:grid-cols-2">
+        <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-panel">
+            <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              Strategy Builder
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <ConfigEditor config={config} onChange={setConfig} />
+            </div>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-hidden">
-            <div className="min-h-0 overflow-hidden rounded-lg border border-border">
-              <HintLibrary onApply={(updater) => setConfig(updater)} />
+          <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-panel">
+              <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                Hint Library
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <HintLibrary onApply={(updater) => setConfig(updater)} />
+              </div>
             </div>
-            <div className="min-h-0 overflow-hidden rounded-lg border border-border">
-              <BacktestChat config={config} onConfigChange={setConfig} />
+            <div className="flex min-h-0 flex-col rounded-lg border border-border bg-panel">
+              <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+                Assistant
+              </div>
+              <div className="min-h-0 flex-1">
+                <BacktestChat config={config} onConfigChange={setConfig} />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border">
+        <div className="flex min-h-0 flex-col rounded-lg border border-border bg-panel">
+          <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+            Replay Preview
+          </div>
           <div className="min-h-0 flex-1">
             {candles.length > 0 ? (
               <Chart
@@ -279,10 +297,21 @@ export default function BacktestingPage() {
             onSpeedChange={setSpeedMs}
           />
           {result && (
-            <div className="flex shrink-0 gap-4 border-t border-border bg-panel px-3 py-2 text-xs text-muted">
-              <span>Trades: <span className="text-fg">{result.stats.total_trades}</span></span>
-              <span>Win rate: <span className="text-fg">{result.stats.win_rate?.toFixed(1)}%</span></span>
-              <span>Total P/L: <span className={result.stats.total_pnl >= 0 ? "text-up" : "text-down"}>{result.stats.total_pnl?.toFixed(2)}</span></span>
+            <div className="grid shrink-0 grid-cols-3 divide-x divide-border border-t border-border">
+              <div className="flex flex-col items-center gap-0.5 px-3 py-2.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Trades</span>
+                <span className="text-sm font-semibold tabular-nums text-fg">{result.stats.total_trades}</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5 px-3 py-2.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Win rate</span>
+                <span className="text-sm font-semibold tabular-nums text-fg">{result.stats.win_rate?.toFixed(1)}%</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5 px-3 py-2.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Total P/L</span>
+                <span className={`text-sm font-semibold tabular-nums ${result.stats.total_pnl >= 0 ? "text-up" : "text-down"}`}>
+                  {result.stats.total_pnl?.toFixed(2)}
+                </span>
+              </div>
             </div>
           )}
         </div>
