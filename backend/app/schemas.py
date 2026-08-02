@@ -323,6 +323,8 @@ class NewsArticleOut(BaseModel):
     publisher: str
     url: str
     published_at: datetime
+    thumbnail_url: str | None = None
+    related_tickers: list[str] = []
 
 
 class MarketInsightOut(BaseModel):

@@ -247,6 +247,24 @@ class StrategyRuleSet(Base):
     )
 
 
+class MarketInsightCache(Base):
+    __tablename__ = "market_insight_cache"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True)
+
+    # sha256 of the sorted article URLs used to generate this insight
+    articles_hash: Mapped[str] = mapped_column(String(64))
+
+    sentiment: Mapped[str] = mapped_column(String(16))
+    advice: Mapped[str] = mapped_column(Text)
+    rationale: Mapped[list] = mapped_column(JSON)
+    highlighted_urls: Mapped[list] = mapped_column(JSON)
+
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class BacktestConfig(Base):
     """A saved backtest rule config"""
 

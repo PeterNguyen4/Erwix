@@ -162,6 +162,8 @@ export interface NewsArticle {
   publisher: string;
   url: string;
   published_at: string;
+  thumbnail_url?: string | null;
+  related_tickers?: string[];
 }
 
 export interface MarketInsight {
@@ -489,7 +491,8 @@ export const api = {
   searchSymbols: (q: string) =>
     getJSON<SymbolResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
   marketArticles: () => getJSON<NewsArticle[]>("/api/news/market-articles"),
-  marketInsight: () => getJSON<MarketInsight>("/api/news/market-insight"),
+  marketInsight: (refresh = false) =>
+    getJSON<MarketInsight>(`/api/news/market-insight${refresh ? "?refresh=true" : ""}`),
   pnlSummary: (params: { from?: string; to?: string } = {}) => {
     const q = new URLSearchParams();
     if (params.from) q.set("from", params.from);
