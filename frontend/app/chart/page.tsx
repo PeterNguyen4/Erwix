@@ -240,14 +240,17 @@ function ChartPage() {
 
   return (
     <main className="flex h-full flex-col bg-gradient-to-b from-auth-bg/15 via-transparent to-transparent">
-      <header className="flex items-center justify-between border-b border-auth-field/40 bg-panel px-4 py-3 gap-4 shrink-0">
-        {/* Left: Timeframe selector */}
-        <div className="relative flex items-center gap-3">
+      <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
+        <div className="text-xl font-semibold text-fg">Chart</div>
+
+        <div className="flex items-center gap-3">
+        {/* Timeframe selector */}
+        <div className="relative flex items-center">
           <button
             type="button"
             onClick={() => setTfOpen((o) => !o)}
             onBlur={() => setTimeout(() => setTfOpen(false), 150)}
-            className="flex items-center gap-1 rounded border border-transparent px-2 py-2 text-sm text-fg transition-colors hover:bg-violet-500/10 focus:border-violet-400 focus:outline-none cursor-pointer"
+            className="flex items-center gap-1 rounded border border-border bg-field px-2 py-2 text-sm text-fg transition-colors hover:border-violet-400 focus:border-violet-400 focus:outline-none cursor-pointer"
           >
             {TIMEFRAMES.find((tf) => tf.value === timeframe)?.label}
             <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
@@ -277,9 +280,9 @@ function ChartPage() {
           )}
         </div>
 
-        {/* Right: Ticker Search */}
+        {/* Ticker Search */}
         <div className="relative w-72">
-          <div className="flex items-center gap-2 rounded border border-border dark:border-transparent bg-field px-3 py-2 focus-within:border-violet-400">
+          <div className="flex items-center gap-2 rounded border border-border bg-field px-3 py-2 focus-within:border-violet-400">
             <span className="text-muted">
               <IconSearch />
             </span>
@@ -324,6 +327,7 @@ function ChartPage() {
               ))}
             </div>
           )}
+        </div>
         </div>
       </header>
 

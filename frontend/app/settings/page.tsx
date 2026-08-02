@@ -60,7 +60,7 @@ function SettingsPageInner() {
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center border-b border-border bg-panel px-4 py-3 shrink-0">
+      <header className="flex items-center min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div className="text-xl font-semibold text-fg">Settings</div>
       </header>
 

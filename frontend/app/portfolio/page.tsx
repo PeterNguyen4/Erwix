@@ -37,7 +37,7 @@ export default function PortfolioPage() {
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 shrink-0">
+      <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div className="text-xl font-semibold text-fg">Portfolio</div>
         <div className="text-xs text-muted">Paper account</div>
       </header>
