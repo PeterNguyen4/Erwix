@@ -24,16 +24,13 @@ export default function NewsPage() {
   const [insightLoading, setInsightLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadNews = () => {
+  const loadNews = (refreshInsight = false) => {
     setLoadingArticles(true);
     setInsightLoading(true);
     setError(null);
     setInsightError(null);
     setInsight(null);
 
-    // Raw headlines render the moment they're scraped — the agent's read
-    // (one LLM call over the whole pool) fills in separately afterward,
-    // instead of gating the page on it.
     api
       .marketArticles()
       .then(setArticles)
@@ -41,7 +38,7 @@ export default function NewsPage() {
       .finally(() => setLoadingArticles(false));
 
     api
-      .marketInsight()
+      .marketInsight(refreshInsight)
       .then(setInsight)
       .catch((e) => setInsightError((e as Error).message))
       .finally(() => setInsightLoading(false));
@@ -60,7 +57,7 @@ export default function NewsPage() {
           <div className="text-xl font-semibold text-fg">News</div>
         </div>
         <button
-          onClick={loadNews}
+          onClick={() => loadNews(true)}
           disabled={loadingArticles}
           className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
         >

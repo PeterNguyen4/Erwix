@@ -7,12 +7,16 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 (Anthropic/Ollama) here — that branching is meant to stay in one place.
 """
 
+import hashlib
 import json
+from datetime import datetime, timezone
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models import MarketInsightCache
 from app.services.agent_graph import _base_model
 from app.services.news import NewsArticle
 from app.services.strategy import archetype_name, get_active_strategy, render_playbook
@@ -74,3 +78,55 @@ async def build_market_insight(db: AsyncSession, user_id: int, articles: list[Ne
         rationale=result.rationale,
         highlighted_urls=[u for u in result.highlighted_urls if u in known_urls],
     )
+
+
+def _articles_hash(articles: list[NewsArticle]) -> str:
+    return hashlib.sha256("\n".join(sorted(a.url for a in articles)).encode()).hexdigest()
+
+
+async def get_market_insight(
+    db: AsyncSession, user_id: int, articles: list[NewsArticle], force: bool = False
+) -> MarketInsight:
+    """Cached wrapper around build_market_insight — reused across page visits for
+    the rest of the calendar day, so navigating to the News page doesn't re-run
+    the LLM every time. Gated on calendar day rather than an exact hash of the
+    scraped headline pool: Yahoo's search results reorder/rotate slightly on
+    every fetch, so a hash-of-headlines gate almost never matched and silently
+    regenerated on every visit. `force` (Refresh button) always regenerates."""
+    articles_hash = _articles_hash(articles)
+    today = datetime.now(timezone.utc).date()
+
+    cached = (
+        await db.execute(select(MarketInsightCache).where(MarketInsightCache.user_id == user_id))
+    ).scalar_one_or_none()
+
+    if cached and not force and cached.generated_at.date() == today:
+        return MarketInsight(
+            sentiment=cached.sentiment,
+            advice=cached.advice,
+            rationale=cached.rationale,
+            highlighted_urls=cached.highlighted_urls,
+        )
+
+    insight = await build_market_insight(db, user_id, articles)
+
+    if cached:
+        cached.articles_hash = articles_hash
+        cached.sentiment = insight.sentiment
+        cached.advice = insight.advice
+        cached.rationale = insight.rationale
+        cached.highlighted_urls = insight.highlighted_urls
+    else:
+        db.add(
+            MarketInsightCache(
+                user_id=user_id,
+                articles_hash=articles_hash,
+                sentiment=insight.sentiment,
+                advice=insight.advice,
+                rationale=insight.rationale,
+                highlighted_urls=insight.highlighted_urls,
+            )
+        )
+    await db.commit()
+
+    return insight
