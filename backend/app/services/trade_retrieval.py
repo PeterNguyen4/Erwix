@@ -9,7 +9,7 @@ ranks trades by cosine distance in pgvector.
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -99,32 +99,7 @@ def _fifo_match(trades: list[Trade]) -> list[ClosedTrade]:
     return closed
 
 
-async def compute_pnl_summary(
-    db: AsyncSession,
-    user_id: int,
-    start: datetime | None = None,
-    end: datetime | None = None,
-) -> PnLSummary:
-    """Realized PnL + win/loss stats for round-trips *closed* in [start, end].
-
-    Matching runs over the user's full fill history (not just the window),
-    since a trade opened before the window but closed inside it still needs
-    its entry price — only the closing side of each round-trip is filtered
-    against the window.
-    """
-    all_trades = list(
-        (
-            await db.scalars(
-                select(Trade).where(Trade.user_id == user_id, Trade.filled_at.isnot(None))
-            )
-        ).all()
-    )
-    closed = _fifo_match(all_trades)
-    if start is not None:
-        closed = [c for c in closed if c.closed_at >= start]
-    if end is not None:
-        closed = [c for c in closed if c.closed_at <= end]
-
+def _summarize_closed(closed: list[ClosedTrade]) -> PnLSummary:
     wins = [c.pnl for c in closed if c.pnl > 0]
     losses = [c.pnl for c in closed if c.pnl < 0]
     breakeven_count = len(closed) - len(wins) - len(losses)
@@ -142,6 +117,52 @@ async def compute_pnl_summary(
         largest_loss=min(losses) if losses else None,
         closed_trades=sorted(closed, key=lambda c: c.closed_at),
     )
+
+
+async def _fifo_match_all(db: AsyncSession, user_id: int) -> list[ClosedTrade]:
+    all_trades = list(
+        (
+            await db.scalars(
+                select(Trade).where(Trade.user_id == user_id, Trade.filled_at.isnot(None))
+            )
+        ).all()
+    )
+    return _fifo_match(all_trades)
+
+
+async def compute_pnl_summary(
+    db: AsyncSession,
+    user_id: int,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> PnLSummary:
+    """Realized PnL + win/loss stats for round-trips *closed* in [start, end].
+
+    Matching runs over the user's full fill history (not just the window),
+    since a trade opened before the window but closed inside it still needs
+    its entry price — only the closing side of each round-trip is filtered
+    against the window.
+    """
+    closed = await _fifo_match_all(db, user_id)
+    if start is not None:
+        closed = [c for c in closed if c.closed_at >= start]
+    if end is not None:
+        closed = [c for c in closed if c.closed_at <= end]
+    return _summarize_closed(closed)
+
+
+async def compute_pnl_weekly_comparison(db: AsyncSession, user_id: int) -> tuple[PnLSummary, PnLSummary]:
+    """This-week vs previous-week PnL stats, matched in one pass over the
+    user's fill history (rather than two separate compute_pnl_summary calls,
+    which would each independently re-fetch and re-FIFO-match everything)."""
+    closed = await _fifo_match_all(db, user_id)
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+    two_weeks_ago = now - timedelta(days=14)
+
+    current = [c for c in closed if week_ago <= c.closed_at <= now]
+    previous = [c for c in closed if two_weeks_ago <= c.closed_at < week_ago]
+    return _summarize_closed(current), _summarize_closed(previous)
 
 
 async def count_trades_since(db: AsyncSession, user_id: int, since: datetime) -> int:

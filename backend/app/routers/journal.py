@@ -12,10 +12,11 @@ from app.schemas import (
     JournalEntryOut,
     JournalEntryUpdate,
     PnLSummaryOut,
+    PnLWeeklyComparisonOut,
     TradeNoteUpdate,
     TradeOut,
 )
-from app.services.trade_retrieval import compute_pnl_summary, embed_trade_best_effort
+from app.services.trade_retrieval import compute_pnl_summary, compute_pnl_weekly_comparison, embed_trade_best_effort
 
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(get_current_user_id)])
 
@@ -59,6 +60,19 @@ async def pnl_summary(
     """Realized PnL + win/loss stats for round-trips closed in [from, to]."""
     summary = await compute_pnl_summary(db, user_id, from_, to)
     return PnLSummaryOut.model_validate(summary)
+
+
+@router.get("/pnl-summary/weekly", response_model=PnLWeeklyComparisonOut)
+async def pnl_summary_weekly(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> PnLWeeklyComparisonOut:
+    """This-week vs previous-week PnL stats, for the portfolio chips' delta row."""
+    current, previous = await compute_pnl_weekly_comparison(db, user_id)
+    return PnLWeeklyComparisonOut(
+        current=PnLSummaryOut.model_validate(current),
+        previous=PnLSummaryOut.model_validate(previous),
+    )
 
 
 @router.get("/trades/{trade_id}", response_model=TradeOut)

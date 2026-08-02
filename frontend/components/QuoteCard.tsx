@@ -69,16 +69,16 @@ export default function QuoteCard({ symbol, symbolName, candles, liveQuote }: Qu
         <div className="flex gap-4 text-xs border-t border-border pt-2">
           <div>
             <div className="text-muted mb-0.5">Bid</div>
-            <div className="text-fg font-mono">{quote.bid != null ? fmt(quote.bid) : "—"}</div>
+            <div className="text-fg">{quote.bid != null ? fmt(quote.bid) : "—"}</div>
           </div>
           <div>
             <div className="text-muted mb-0.5">Ask</div>
-            <div className="text-fg font-mono">{quote.ask != null ? fmt(quote.ask) : "—"}</div>
+            <div className="text-fg">{quote.ask != null ? fmt(quote.ask) : "—"}</div>
           </div>
           {quote.bid != null && quote.ask != null && (
             <div>
               <div className="text-muted mb-0.5">Spread</div>
-              <div className="text-fg font-mono">{fmt(quote.ask - quote.bid)}</div>
+              <div className="text-fg">{fmt(quote.ask - quote.bid)}</div>
             </div>
           )}
         </div>

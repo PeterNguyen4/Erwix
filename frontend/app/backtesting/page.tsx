@@ -162,21 +162,21 @@ export default function BacktestingPage() {
   };
 
   return (
-    <main className="flex h-full flex-col">
-      <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
+    <main className="flex h-full flex-col overflow-auto">
+      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
         <div className="text-xl font-semibold text-fg">Backtesting</div>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
           <select
             value={config.timeframe}
             onChange={(e) => setConfig({ ...config, timeframe: e.target.value })}
-            className="rounded border border-border bg-field px-2 py-1.5 text-sm text-fg outline-none focus:border-accent cursor-pointer"
+            className="shrink-0 rounded border border-border bg-field px-2 py-1.5 text-sm text-fg outline-none focus:border-accent cursor-pointer"
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>{tf.label}</option>
             ))}
           </select>
 
-          <div className="relative w-56">
+          <div className="relative min-w-0 flex-1 sm:w-56 sm:flex-none">
             <div className="flex items-center gap-2 rounded border border-border bg-field px-2 py-1.5 focus-within:border-accent">
               <span className="text-muted">
                 <IconSearch />
@@ -223,14 +223,6 @@ export default function BacktestingPage() {
               </div>
             )}
           </div>
-
-          <button
-            onClick={runBacktest}
-            disabled={running || candles.length === 0}
-            className="rounded-md bg-accent px-4 py-1.5 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
-          >
-            {running ? "Running…" : "Run backtest"}
-          </button>
         </div>
       </header>
 
@@ -240,42 +232,49 @@ export default function BacktestingPage() {
         </div>
       )}
 
-      <div className="grid flex-1 grid-cols-1 gap-4 overflow-hidden p-3 lg:grid-cols-2">
-        <div className="flex min-h-0 flex-col gap-4 overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-panel">
-            <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
-              Strategy Builder
+      <div className="grid flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:overflow-hidden">
+        <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
+          <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Strategy Builder</span>
+              <button
+                onClick={runBacktest}
+                disabled={running || candles.length === 0}
+                className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
+              >
+                {running ? "Running…" : "Run backtest"}
+              </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="flex-1 overflow-auto lg:min-h-0 lg:overflow-hidden">
               <ConfigEditor config={config} onChange={setConfig} />
             </div>
           </div>
 
-          <div className="grid min-h-0 flex-1 grid-cols-2 gap-4">
-            <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-panel">
-              <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
+            <div className="flex min-h-[320px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
+              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
                 Hint Library
               </div>
-              <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="flex-1 overflow-auto lg:min-h-0 lg:overflow-hidden">
                 <HintLibrary onApply={(updater) => setConfig(updater)} />
               </div>
             </div>
-            <div className="flex min-h-0 flex-col rounded-lg border border-border bg-panel">
-              <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+            <div className="flex min-h-[320px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
+              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
                 Assistant
               </div>
-              <div className="min-h-0 flex-1">
+              <div className="flex-1 lg:min-h-0">
                 <BacktestChat config={config} onConfigChange={setConfig} />
               </div>
             </div>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col rounded-lg border border-border bg-panel">
-          <div className="shrink-0 border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+        <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
+          <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
             Replay Preview
           </div>
-          <div className="min-h-0 flex-1">
+          <div className="flex-1 lg:min-h-0">
             {candles.length > 0 ? (
               <Chart
                 candles={candles}

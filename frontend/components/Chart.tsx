@@ -55,14 +55,11 @@ interface ChartProps {
   annotations?: ChartAnnotation[];
   symbol?: string;
   visibleRange?: ZoomRange | null;
-  /** Entry/take-profit/stop-loss levels to highlight, e.g. for a bracket order or an open trade. */
   bracket?: BracketLevels | null;
-  /** Fires while the user drags the TP or SL line, with the new price at the cursor. */
   onBracketDrag?: (which: "tp" | "sl", price: number) => void;
-  /** Backtest replay: when set, only candles up to this index are shown/computed against. */
   cursorIndex?: number | null;
-  /** Fires when the trader right-clicks the chart and picks Buy/Sell from the context menu. */
   onQuickOrder?: (side: "buy" | "sell") => void;
+  infoOverlay?: boolean;
 }
 
 interface HoveredCandle {
@@ -157,6 +154,7 @@ export default function Chart({
   onBracketDrag,
   cursorIndex = null,
   onQuickOrder,
+  infoOverlay = false,
 }: ChartProps) {
   const candles = useMemo(
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
@@ -195,6 +193,21 @@ export default function Chart({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [redrawTick, setRedrawTick] = useState(0);
   const [hoveredCandle, setHoveredCandle] = useState<HoveredCandle | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  const NARROW_BREAKPOINT = 700;
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => {
+      setIsNarrow(entry.contentRect.width < NARROW_BREAKPOINT);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const showInfoOverlay = infoOverlay || isNarrow;
 
   const togglePinnedIndicator = (id: string) => {
     setPinnedIndicators((prev) => {
@@ -995,40 +1008,45 @@ export default function Chart({
     return { change, pct, up };
   })();
 
+  const symbolBlock = symbol && (
+    <div className="flex items-baseline gap-2 select-none pointer-events-none">
+      <span className="text-sm font-bold text-fg">{symbol}</span>
+      {COMPANY_NAMES[symbol] && (
+        <span className="text-xs text-muted">{COMPANY_NAMES[symbol]}</span>
+      )}
+    </div>
+  );
+
+  const ohlcBlock = hoveredCandle && (() => {
+    const bull = hoveredCandle.close >= hoveredCandle.open;
+    const valueColor = bull ? "text-up" : "text-down";
+    const fmt = (v: number) => v.toFixed(2);
+    return (
+      <span className="flex select-none gap-2 text-xs tabular-nums pointer-events-none">
+        <span className="text-fg">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
+        <span className="text-fg">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
+        <span className="text-fg">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>
+        <span className="text-fg">C <span className={valueColor}>{fmt(hoveredCandle.close)}</span></span>
+        {changeDisplay && (
+          <span className={changeDisplay.up ? "text-up" : "text-down"}>
+            {changeDisplay.up ? "+" : ""}{changeDisplay.change.toFixed(2)} ({changeDisplay.up ? "+" : ""}{changeDisplay.pct.toFixed(2)}%)
+          </span>
+        )}
+        <span className="text-muted">Vol <span className={valueColor}>{formatVolume(hoveredCandle.volume)}</span></span>
+      </span>
+    );
+  })();
+
   return (
-    <div className="relative flex flex-col h-full w-full">
+    <div ref={wrapperRef} className="relative flex flex-col h-full w-full">
       {/* Info bar + toolbar (single horizontal row) */}
-      <div className="flex items-center gap-1 border-b border-border bg-panel px-2 py-1 z-20 shrink-0">
-        {/* OHLC/volume info */}
-        <div className="flex items-baseline gap-2 mr-3 select-none pointer-events-none">
-          {symbol && (
-            <>
-              <span className="text-sm font-bold text-fg">{symbol}</span>
-              {COMPANY_NAMES[symbol] && (
-                <span className="text-xs text-muted">{COMPANY_NAMES[symbol]}</span>
-              )}
-            </>
-          )}
-          {hoveredCandle && (() => {
-            const bull = hoveredCandle.close >= hoveredCandle.open;
-            const valueColor = bull ? "text-up" : "text-down";
-            const fmt = (v: number) => v.toFixed(2);
-            return (
-              <span className="flex gap-2 text-xs tabular-nums">
-                <span className="text-fg">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
-                <span className="text-fg">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
-                <span className="text-fg">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>
-                <span className="text-fg">C <span className={valueColor}>{fmt(hoveredCandle.close)}</span></span>
-                {changeDisplay && (
-                  <span className={changeDisplay.up ? "text-up" : "text-down"}>
-                    {changeDisplay.up ? "+" : ""}{changeDisplay.change.toFixed(2)} ({changeDisplay.up ? "+" : ""}{changeDisplay.pct.toFixed(2)}%)
-                  </span>
-                )}
-                <span className="text-muted">Vol <span className={valueColor}>{formatVolume(hoveredCandle.volume)}</span></span>
-              </span>
-            );
-          })()}
-        </div>
+      <div className="relative flex items-center gap-1 border-b border-border bg-panel px-2 py-1 z-30 shrink-0">
+        {(symbolBlock || !showInfoOverlay) && (
+          <div className={`mr-3 flex items-baseline gap-2 ${showInfoOverlay ? "pl-1.5" : ""}`}>
+            {symbolBlock}
+            {!showInfoOverlay && ohlcBlock}
+          </div>
+        )}
 
         {/* Everything else pushed to the right of the info bar, same row */}
         <div className="ml-auto flex items-center gap-1">
@@ -1110,6 +1128,11 @@ export default function Chart({
         }}
       >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
+        {showInfoOverlay && ohlcBlock && (
+          <div className="absolute left-2 top-2 z-20 rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">
+            {ohlcBlock}
+          </div>
+        )}
         {/* pointer-events-none so mouse events fall through to lightweight-charts'
             own canvas underneath — otherwise its native per-series crosshair
             markers (e.g. the dots that track the MACD/signal lines) never see

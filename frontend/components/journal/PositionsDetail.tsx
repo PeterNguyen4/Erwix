@@ -6,14 +6,27 @@ import { Position } from "@/lib/api";
 const fmtUsd = (v: number) =>
   v.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
 
-export default function PositionsDetail({ positions }: { positions: Position[] }) {
+export default function PositionsDetail({ positions, loading }: { positions: Position[]; loading?: boolean }) {
   const router = useRouter();
   const sorted = [...positions].sort((a, b) => b.market_value - a.market_value);
 
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
       <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Open Positions</h2>
-      {sorted.length === 0 ? (
+      {loading ? (
+        <div className="space-y-2.5">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between border-t border-border pt-2.5 first:border-t-0 first:pt-0">
+              <div className="h-3.5 w-14 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-10 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-16 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-16 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-16 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-20 animate-pulse rounded bg-border/40" />
+            </div>
+          ))}
+        </div>
+      ) : sorted.length === 0 ? (
         <p className="py-8 text-center text-xs text-muted">No open positions.</p>
       ) : (
         <div className="overflow-x-auto">
