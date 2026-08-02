@@ -55,17 +55,14 @@ export default function NewsPage() {
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 shrink-0">
+      <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div>
           <div className="text-xl font-semibold text-fg">News</div>
-          <div className="text-xs text-muted">
-            The most compelling market-wide stories right now, with uWick's read against your Strategy tab archetype
-          </div>
         </div>
         <button
           onClick={loadNews}
           disabled={loadingArticles}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
         >
           {loadingArticles ? "Scanning…" : "Refresh"}
         </button>

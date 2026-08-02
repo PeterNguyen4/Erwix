@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
+import ToolbarButton from "@/components/chart/ToolbarButton";
 
 interface ReplayControlsProps {
   total: number;
@@ -46,24 +48,28 @@ export default function ReplayControls({
 
   return (
     <div className="flex items-center gap-3 border-t border-border bg-panel px-3 py-2 shrink-0">
-      <button
+      <ToolbarButton
+        label="Step back"
+        placement="top"
         onClick={() => onCursorChange(Math.max(cursorIndex - 1, 0))}
-        className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
       >
-        ◀ Step
-      </button>
-      <button
+        <ChevronLeft size={16} strokeWidth={2} />
+      </ToolbarButton>
+      <ToolbarButton
+        label={playing ? "Pause" : "Play"}
+        active={playing}
+        placement="top"
         onClick={() => onPlayingChange(!playing)}
-        className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-fg transition-colors hover:bg-accent/80"
       >
-        {playing ? "Pause" : "Play"}
-      </button>
-      <button
+        {playing ? <Pause size={16} strokeWidth={2} /> : <Play size={16} strokeWidth={2} />}
+      </ToolbarButton>
+      <ToolbarButton
+        label="Step forward"
+        placement="top"
         onClick={() => onCursorChange(Math.min(cursorIndex + 1, total - 1))}
-        className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
       >
-        Step ▶
-      </button>
+        <ChevronRight size={16} strokeWidth={2} />
+      </ToolbarButton>
 
       <input
         type="range"
@@ -84,8 +90,8 @@ export default function ReplayControls({
             onClick={() => onSpeedChange(opt.value)}
             className={`rounded-md border px-2 py-1 text-xs transition-colors ${
               speedMs === opt.value
-                ? "border-accent text-fg"
-                : "border-border text-muted hover:border-accent hover:text-fg"
+                ? "border-violet-400 text-fg"
+                : "border-border text-muted hover:border-violet-400 hover:text-fg"
             }`}
           >
             {opt.label}

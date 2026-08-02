@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface ToolbarButtonProps {
   label: string;
   active?: boolean;
   tone?: "default" | "danger";
-  /** Which side of the icon the tooltip fans out from. Use "left" for a toolbar docked on the right edge of the chart. */
-  placement?: "bottom" | "left";
+  placement?: "top" | "bottom" | "left" | "right";
   onClick: () => void;
   children: React.ReactNode;
 }
@@ -15,71 +15,78 @@ interface ToolbarButtonProps {
 interface ToolbarTooltipProps {
   label: string;
   hover: boolean;
-  placement?: "bottom" | "left";
+  placement?: "top" | "bottom" | "left" | "right";
+  anchorRef: React.RefObject<HTMLElement | null>;
 }
 
-// The floating label bubble shared by ToolbarButton and the toolbar's dropdown
-// triggers (ChartTypeMenu/DrawingMenu/IndicatorsMenu), so every toolbar icon
-// gets the same fade-in tooltip with its bezier-curve "tail" instead of the
-// native browser title tooltip.
-export function ToolbarTooltip({ label, hover, placement = "bottom" }: ToolbarTooltipProps) {
-  return placement === "bottom" ? (
+const GAP = 8;
+
+export function ToolbarTooltip({ label, hover, placement = "bottom", anchorRef }: ToolbarTooltipProps) {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (anchorRef.current) setRect(anchorRef.current.getBoundingClientRect());
+  }, [hover, anchorRef]);
+
+  if (!rect || typeof document === "undefined") return null;
+
+  const bubble = "relative whitespace-nowrap rounded-md bg-tooltip px-3 py-2 text-sm font-medium text-tooltip-fg shadow-lg";
+  const caretBase = "absolute h-2.5 w-2.5 rotate-45 bg-tooltip";
+
+  let wrapperStyle: React.CSSProperties;
+  let caretClass: string;
+  let hiddenTransform: string;
+
+  if (placement === "top") {
+    wrapperStyle = { position: "fixed", left: rect.left + rect.width / 2, top: rect.top - GAP, transform: "translate(-50%, -100%)" };
+    caretClass = `${caretBase} -bottom-1 left-1/2 -translate-x-1/2`;
+    hiddenTransform = "translate(-50%, calc(-100% + 4px))";
+  } else if (placement === "bottom") {
+    wrapperStyle = { position: "fixed", left: rect.left + rect.width / 2, top: rect.bottom + GAP, transform: "translate(-50%, 0)" };
+    caretClass = `${caretBase} -top-1 left-1/2 -translate-x-1/2`;
+    hiddenTransform = "translate(-50%, -4px)";
+  } else if (placement === "right") {
+    wrapperStyle = { position: "fixed", left: rect.right + GAP, top: rect.top + rect.height / 2, transform: "translate(0, -50%)" };
+    caretClass = `${caretBase} -left-1 top-1/2 -translate-y-1/2`;
+    hiddenTransform = "translate(-4px, -50%)";
+  } else {
+    wrapperStyle = { position: "fixed", left: rect.left - GAP, top: rect.top + rect.height / 2, transform: "translate(-100%, -50%)" };
+    caretClass = `${caretBase} -right-1 top-1/2 -translate-y-1/2`;
+    hiddenTransform = "translate(calc(-100% + 4px), -50%)";
+  }
+
+  return createPortal(
     <div
-      className={`pointer-events-none absolute left-1/2 top-full z-30 -translate-x-1/2 pt-1.5 transition-all duration-150 ${
-        hover ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1"
-      }`}
+      className="pointer-events-none z-50 transition-all duration-150"
+      style={{ ...wrapperStyle, opacity: hover ? 1 : 0, transform: hover ? wrapperStyle.transform : hiddenTransform }}
     >
-      <svg width="16" height="7" viewBox="0 0 16 7" className="absolute left-1/2 top-0 -translate-x-1/2">
-        <path
-          d="M0,0 C4,0 4,7 8,7 C12,7 12,0 16,0 Z"
-          className="fill-panel stroke-border"
-          strokeWidth="1"
-        />
-      </svg>
-      <div className="mt-[6px] whitespace-nowrap rounded-md border border-border bg-panel px-2 py-1 text-xs font-medium text-fg shadow-lg">
+      <div className={bubble}>
+        <span className={caretClass} />
         {label}
       </div>
-    </div>
-  ) : (
-    <div
-      className={`pointer-events-none absolute right-full top-1/2 z-30 -translate-y-1/2 pr-1.5 transition-all duration-150 ${
-        hover ? "opacity-100 translate-x-0" : "opacity-0 translate-x-1"
-      }`}
-    >
-      <svg width="7" height="16" viewBox="0 0 7 16" className="absolute right-0 top-1/2 -translate-y-1/2">
-        <path
-          d="M7,0 C7,4 0,4 0,8 C0,12 7,12 7,16 Z"
-          className="fill-panel stroke-border"
-          strokeWidth="1"
-        />
-      </svg>
-      <div className="mr-[6px] whitespace-nowrap rounded-md border border-border bg-panel px-2 py-1 text-xs font-medium text-fg shadow-lg">
-        {label}
-      </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
-// Icon-only toolbar button. The label lives in a floating tooltip that fades
-// in on hover, connected to the icon by a small bezier-curve "tail" drawn as
-// an SVG path (rather than the usual CSS-triangle notch).
 export default function ToolbarButton({ label, active, tone = "default", placement = "bottom", onClick, children }: ToolbarButtonProps) {
   const [hover, setHover] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const base = "flex h-7 w-7 items-center justify-center rounded transition-colors";
   const palette =
     tone === "danger"
       ? "text-muted hover:bg-down/20 hover:text-down"
       : active
-        ? "bg-accent text-fg"
-        : "text-muted hover:bg-accent/20 hover:text-fg";
+        ? "bg-violet-500 text-on-accent"
+        : "text-muted hover:bg-violet-500/20 hover:text-fg";
 
   return (
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <button type="button" onClick={onClick} className={`${base} ${palette}`}>
+      <button ref={buttonRef} type="button" onClick={onClick} className={`${base} ${palette}`}>
         {children}
       </button>
-      <ToolbarTooltip label={label} hover={hover} placement={placement} />
+      <ToolbarTooltip label={label} hover={hover} placement={placement} anchorRef={buttonRef} />
     </div>
   );
 }

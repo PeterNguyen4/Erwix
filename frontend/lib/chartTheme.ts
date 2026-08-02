@@ -15,7 +15,7 @@ export const SL_COLOR = "#f87171";
 
 export const CHART_PALETTES: Record<"dark" | "light", ChartPalette> = {
   dark: {
-    bg: "#0b0e14",
+    bg: "#18161c",
     panel: "#121722",
     border: "#1e2633",
     muted: "#7d8799",
@@ -25,9 +25,9 @@ export const CHART_PALETTES: Record<"dark" | "light", ChartPalette> = {
     down: "#ef5350",
   },
   light: {
-    bg: "#f7f8fa",
+    bg: "#e9e8ed",
     panel: "#ffffff",
-    border: "#e2e6ec",
+    border: "#d5d3dc",
     muted: "#64748b",
     fg: "#0f172a",
     accent: "#3b82f6",

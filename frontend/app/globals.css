@@ -4,27 +4,45 @@
 
 :root,
 :root[data-theme="dark"] {
-  --color-bg: 11 14 20;
-  --color-panel: 18 23 34;
-  --color-border: 30 38 51;
-  --color-muted: 125 135 153;
+  --color-bg: 17 16 20;
+  --color-panel: 24 22 28;
+  --color-border: 40 37 46;
+  --color-muted: 133 128 138;
   --color-fg: 230 233 239;
-  --color-accent: 59 130 246;
+  --color-accent: 109 84 181;
+  --color-on-accent: 255 255 255;
+  --color-field: 36 33 43;
+  --color-tooltip: 56 52 63;
+  --color-tooltip-fg: 245 244 247;
   --color-up: 38 166 154;
   --color-down: 239 83 80;
   color-scheme: dark;
 }
 
 :root[data-theme="light"] {
-  --color-bg: 247 248 250;
-  --color-panel: 255 255 255;
-  --color-border: 226 230 236;
-  --color-muted: 100 116 139;
+  --color-bg: 219 218 224;
+  --color-panel: 233 232 237;
+  --color-border: 213 211 221;
+  --color-muted: 108 105 128;
   --color-fg: 15 23 42;
-  --color-accent: 59 130 246;
+  --color-accent: 109 84 181;
+  --color-on-accent: 240 236 250;
+  --color-field: 226 225 231;
+  --color-tooltip: 56 52 63;
+  --color-tooltip-fg: 245 244 247;
   --color-up: 22 145 133;
   --color-down: 220 38 38;
   color-scheme: light;
+}
+
+:root {
+  --color-auth-bg: 42 36 64;
+  --color-auth-panel-from: 42 22 83;
+  --color-auth-panel-via: 59 31 110;
+  --color-auth-panel-to: 26 14 56;
+  --color-auth-field: 54 48 80;
+  --color-auth-button: 109 79 196;
+  --color-auth-button-hover: 91 65 166;
 }
 
 html,
@@ -43,7 +61,7 @@ body {
 body {
   background-color: rgb(var(--color-bg));
   color: rgb(var(--color-fg));
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: Helvetica, Arial, sans-serif;
 }
 
 ::-webkit-scrollbar {

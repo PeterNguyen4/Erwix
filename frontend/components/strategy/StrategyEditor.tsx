@@ -55,7 +55,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
             onChange={(e) => setBody(e.target.value)}
             rows={6}
             placeholder="Entries you look for, how you size positions, when you cut losses, your typical holding period..."
-            className="w-full resize-y rounded-lg border border-border bg-bg p-3 text-sm text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
+            className="w-full resize-y rounded-lg border border-border bg-field p-3 text-sm text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
           />
         </div>
       ) : (
@@ -67,7 +67,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
                 value={answers[q.id] ?? ""}
                 onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
                 rows={2}
-                className="w-full resize-y rounded-lg border border-border bg-bg p-3 text-sm text-fg focus:border-accent focus:outline-none"
+                className="w-full resize-y rounded-lg border border-border bg-field p-3 text-sm text-fg focus:border-accent focus:outline-none"
               />
             </div>
           ))}
@@ -84,7 +84,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
         <button
           onClick={generate}
           disabled={saving || !hasContent}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
         >
           {saving ? "Generating…" : "Generate My Playbook"}
         </button>

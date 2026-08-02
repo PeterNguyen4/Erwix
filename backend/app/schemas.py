@@ -1,4 +1,4 @@
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
@@ -156,6 +156,45 @@ class TradeOut(BaseModel):
 
 class TradeNoteUpdate(BaseModel):
     notes: str
+
+
+class JournalEntryOut(BaseModel):
+    id: int
+    entry_date: date
+    symbol: str | None
+    side: str | None
+    entry_time: datetime | None
+    entry_price: float | None
+    exit_time: datetime | None
+    exit_price: float | None
+    order_amount: float | None
+    notes: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class JournalEntryCreate(BaseModel):
+    entry_date: date
+    symbol: str | None = None
+    side: Literal["buy", "sell"] | None = None
+    entry_time: datetime | None = None
+    entry_price: float | None = None
+    exit_time: datetime | None = None
+    exit_price: float | None = None
+    order_amount: float | None = None
+    notes: str | None = None
+
+
+class JournalEntryUpdate(BaseModel):
+    entry_date: date | None = None
+    symbol: str | None = None
+    side: Literal["buy", "sell"] | None = None
+    entry_time: datetime | None = None
+    entry_price: float | None = None
+    exit_time: datetime | None = None
+    exit_price: float | None = None
+    order_amount: float | None = None
+    notes: str | None = None
 
 
 class ClosedTradeOut(BaseModel):

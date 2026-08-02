@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import get_current_user_id
@@ -6,8 +6,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
-from app.models import Trade
-from app.schemas import PnLSummaryOut, TradeNoteUpdate, TradeOut
+from app.models import JournalEntry, Trade
+from app.schemas import (
+    JournalEntryCreate,
+    JournalEntryOut,
+    JournalEntryUpdate,
+    PnLSummaryOut,
+    TradeNoteUpdate,
+    TradeOut,
+)
 from app.services.trade_retrieval import compute_pnl_summary, embed_trade_best_effort
 
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(get_current_user_id)])
@@ -77,3 +84,66 @@ async def update_trade_notes(
     await db.refresh(trade)
     await embed_trade_best_effort(db, trade)
     return trade
+
+
+@router.get("/entries", response_model=list[JournalEntryOut])
+async def list_journal_entries(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+    symbol: str | None = None,
+    from_: date | None = Query(None, alias="from"),
+    to: date | None = None,
+) -> list[JournalEntry]:
+    stmt = select(JournalEntry).where(JournalEntry.user_id == user_id).order_by(JournalEntry.entry_date.desc())
+    if symbol:
+        stmt = stmt.where(JournalEntry.symbol == symbol.upper())
+    if from_:
+        stmt = stmt.where(JournalEntry.entry_date >= from_)
+    if to:
+        stmt = stmt.where(JournalEntry.entry_date <= to)
+    return list((await db.scalars(stmt)).all())
+
+
+@router.post("/entries", response_model=JournalEntryOut)
+async def create_journal_entry(
+    body: JournalEntryCreate,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> JournalEntry:
+    entry = JournalEntry(user_id=user_id, **body.model_dump())
+    if entry.symbol:
+        entry.symbol = entry.symbol.upper()
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.patch("/entries/{entry_id}", response_model=JournalEntryOut)
+async def update_journal_entry(
+    entry_id: int,
+    body: JournalEntryUpdate,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> JournalEntry:
+    entry = await db.get(JournalEntry, entry_id)
+    if entry is None or entry.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Journal entry not found")
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(entry, field, value.upper() if field == "symbol" and value else value)
+    await db.commit()
+    await db.refresh(entry)
+    return entry
+
+
+@router.delete("/entries/{entry_id}", status_code=204)
+async def delete_journal_entry(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> None:
+    entry = await db.get(JournalEntry, entry_id)
+    if entry is None or entry.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Journal entry not found")
+    await db.delete(entry)
+    await db.commit()

@@ -70,7 +70,7 @@ export default function ChartContextMenu({
 
   const itemClass = (active: boolean) =>
     `flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-      active ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
+      active ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
     }`;
 
   return (

@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Moon, Sun, Link2, Unlink } from "lucide-react";
+import { Moon, Sun, Link2, Unlink, LogOut } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
+import { useAuth } from "@/components/AuthProvider";
 import { api, AlpacaStatus } from "@/lib/api";
 
 export default function SettingsPage() {
@@ -17,6 +18,7 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const { theme, setTheme } = useTheme();
+  const { logout } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -58,7 +60,7 @@ function SettingsPageInner() {
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center border-b border-border bg-panel px-4 py-3 shrink-0">
+      <header className="flex items-center min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div className="text-xl font-semibold text-fg">Settings</div>
       </header>
 
@@ -90,7 +92,7 @@ function SettingsPageInner() {
                       ? "Checking connection..."
                       : alpaca.connected
                         ? `Connected (${alpaca.env} account)`
-                        : "Connect your Alpaca paper account to trade under your own account"}
+                        : "Connect your Alpaca paper account to begin trading"}
                   </div>
                 </div>
               </div>
@@ -119,13 +121,13 @@ function SettingsPageInner() {
           </div>
 
           <div className="rounded-lg border border-border bg-panel p-6">
-            <h2 className="text-lg font-semibold text-fg mb-4">Appearance</h2>
+            <h2 className="text-lg font-semibold text-fg mb-4">Account</h2>
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-medium text-fg">Theme</div>
                 <div className="text-xs text-muted">Choose how Entro looks on this device</div>
               </div>
-              <div className="flex items-center gap-1 rounded-lg border border-border bg-bg p-1">
+              <div className="flex items-center gap-1 rounded-lg border border-border bg-field p-1">
                 <button
                   type="button"
                   onClick={() => setTheme("dark")}
@@ -147,6 +149,17 @@ function SettingsPageInner() {
                   Light
                 </button>
               </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-border flex justify-end">
+              <button
+                type="button"
+                onClick={logout}
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-fg"
+              >
+                <LogOut size={14} strokeWidth={2} />
+                Sign out
+              </button>
             </div>
           </div>
         </div>

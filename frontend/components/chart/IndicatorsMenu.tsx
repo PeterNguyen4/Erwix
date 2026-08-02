@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown, Check, TrendingUp } from "lucide-react";
 import { INDICATORS } from "@/components/chart/indicators";
 import { IconStar } from "@/components/chart/drawingTools";
@@ -16,22 +16,24 @@ interface IndicatorsMenuProps {
 export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }: IndicatorsMenuProps) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={`flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
-          active.size > 0 ? "bg-accent text-fg" : "text-muted hover:bg-accent/20 hover:text-fg"
+          active.size > 0 ? "bg-violet-500 text-on-accent" : "text-muted hover:bg-violet-500/20 hover:text-fg"
         }`}
       >
         <TrendingUp size={16} strokeWidth={2} />
         {active.size > 0 && <span className="text-[10px] font-semibold tabular-nums">{active.size}</span>}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
-      <ToolbarTooltip label="Indicators" hover={hover && !open} />
+      <ToolbarTooltip label="Indicators" hover={hover && !open} anchorRef={buttonRef} />
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-panel py-1 shadow-lg">
           {INDICATORS.map((ind) => {
@@ -40,7 +42,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
               <div
                 key={ind.id}
                 className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-                  checked ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
+                  checked ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
                 }`}
               >
                 <button
@@ -61,7 +63,7 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
                     e.stopPropagation();
                     onTogglePin(ind.id);
                   }}
-                  className={`shrink-0 transition-colors ${pinned.has(ind.id) ? "text-accent" : "text-muted hover:text-fg"}`}
+                  className={`shrink-0 transition-colors ${pinned.has(ind.id) ? "text-violet-400" : "text-muted hover:text-fg"}`}
                 >
                   <IconStar filled={pinned.has(ind.id)} />
                 </button>

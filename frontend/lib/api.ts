@@ -131,6 +131,31 @@ export interface Trade {
   notes: string | null;
 }
 
+export interface JournalEntry {
+  id: number;
+  entry_date: string; // YYYY-MM-DD
+  symbol: string | null;
+  side: "buy" | "sell" | null;
+  entry_time: string | null;
+  entry_price: number | null;
+  exit_time: string | null;
+  exit_price: number | null;
+  order_amount: number | null;
+  notes: string | null;
+}
+
+export interface JournalEntryInput {
+  entry_date: string;
+  symbol?: string | null;
+  side?: "buy" | "sell" | null;
+  entry_time?: string | null;
+  entry_price?: number | null;
+  exit_time?: string | null;
+  exit_price?: number | null;
+  order_amount?: number | null;
+  notes?: string | null;
+}
+
 export interface NewsArticle {
   symbol: string;
   title: string;
@@ -391,6 +416,17 @@ async function postJSON<T>(path: string, body: unknown, method = "POST", _retrie
   return res.json();
 }
 
+async function deleteRequest(path: string, _retried = false): Promise<void> {
+  const res = await fetch(`${API}${path}`, { method: "DELETE", credentials: "include" });
+  if (res.status === 401 && !_retried && (await tryRefresh())) {
+    return deleteRequest(path, true);
+  }
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`${res.status}: ${detail}`);
+  }
+}
+
 async function login(email: string, password: string): Promise<UserPrivate> {
   const body = new URLSearchParams();
   body.set("username", email);
@@ -438,6 +474,18 @@ export const api = {
   },
   saveTradeNote: (id: number, notes: string) =>
     postJSON<Trade>(`/api/journal/trades/${id}/notes`, { notes }, "PATCH"),
+  journalEntries: (params: { symbol?: string; from?: string; to?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.symbol) q.set("symbol", params.symbol);
+    if (params.from) q.set("from", params.from);
+    if (params.to) q.set("to", params.to);
+    return getJSON<JournalEntry[]>(`/api/journal/entries?${q.toString()}`);
+  },
+  createJournalEntry: (entry: JournalEntryInput) =>
+    postJSON<JournalEntry>("/api/journal/entries", entry),
+  updateJournalEntry: (id: number, entry: Partial<JournalEntryInput>) =>
+    postJSON<JournalEntry>(`/api/journal/entries/${id}`, entry, "PATCH"),
+  deleteJournalEntry: (id: number) => deleteRequest(`/api/journal/entries/${id}`),
   searchSymbols: (q: string) =>
     getJSON<SymbolResult[]>(`/api/market/search?q=${encodeURIComponent(q)}`),
   marketArticles: () => getJSON<NewsArticle[]>("/api/news/market-articles"),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { api } from "@/lib/api";
 import { useAuth } from "@/components/AuthProvider";
 
@@ -37,92 +38,148 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center w-full h-screen bg-gray-950">
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-col gap-4 w-full max-w-sm p-8 rounded-lg bg-gray-900 border border-gray-800"
-      >
-        <h1 className="text-xl font-semibold text-gray-100">
-          {mode === "login" ? "Sign in" : mode === "register" ? "Create an account" : "Reset your password"}
-        </h1>
-
-        {mode === "register" && (
-          <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            className="px-3 py-2 rounded bg-gray-800 text-gray-100 border border-gray-700 focus:outline-none focus:border-accent"
-          />
-        )}
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="px-3 py-2 rounded bg-gray-800 text-gray-100 border border-gray-700 focus:outline-none focus:border-accent"
+    <div className="flex items-center w-full h-screen bg-auth-bg p-6 gap-6">
+      <div className="hidden lg:flex relative w-1/2 h-full flex-col justify-between p-10 overflow-hidden rounded-3xl">
+        <Image
+          src="/image-card.jpg"
+          alt=""
+          fill
+          priority
+          className="object-cover object-[center_60%] -scale-x-100"
         />
-        {mode !== "forgot" && (
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
-            className="px-3 py-2 rounded bg-gray-800 text-gray-100 border border-gray-700 focus:outline-none focus:border-accent"
-          />
-        )}
+        <div className="pointer-events-none absolute inset-0 bg-auth-panel-via/50" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        <div className="relative z-10 flex items-center gap-2">
+          <Image src="/entro-white.svg" alt="Entro" width={32} height={32} />
+          <span className="text-3xl font-normal text-white leading-tight">Entro</span>
+        </div>
+        <div className="relative z-10">
+          <h2 className="text-4xl font-normal text-white leading-tight">
+            Strategize, Test, Trade
+          </h2>
+        </div>
+      </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
-        {notice && <p className="text-sm text-emerald-400">{notice}</p>}
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="px-3 py-2 rounded bg-accent text-white font-medium disabled:opacity-50"
-        >
-          {submitting
-            ? "Please wait…"
-            : mode === "login"
-              ? "Sign in"
-              : mode === "register"
-                ? "Register"
-                : "Send reset link"}
-        </button>
-
-        {mode === "login" && (
-          <button
-            type="button"
-            onClick={() => {
-              setMode("forgot");
-              setError(null);
-              setNotice(null);
-            }}
-            className="text-sm text-gray-400 hover:text-gray-200"
+      <div className="flex flex-1 items-center justify-center px-6">
+        <form
+            onSubmit={handleSubmit}
+            className="flex flex-col gap-4 w-full max-w-sm"
           >
-            Forgot password?
-          </button>
-        )}
+            <div className="mb-3">
+              <h1 className="text-4xl font-normal text-gray-100">
+                {mode === "login" ? "Log in" : mode === "register" ? "Create an account" : "Reset your password"}
+              </h1>
+              {mode === "register" && (
+                <p className="text-sm text-gray-400 mt-2">
+                  Already have an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMode("login");
+                      setError(null);
+                      setNotice(null);
+                    }}
+                    className="underline hover:text-gray-200"
+                  >
+                    Log in
+                  </button>
+                </p>
+              )}
+            </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setMode(mode === "login" ? "register" : "login");
-            setError(null);
-            setNotice(null);
-          }}
-          className="text-sm text-gray-400 hover:text-gray-200"
-        >
-          {mode === "register"
-            ? "Already have an account? Sign in"
-            : mode === "forgot"
-              ? "Back to sign in"
-              : "Need an account? Register"}
-        </button>
-      </form>
+            {mode === "register" && (
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                className="px-3 py-2.5 rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
+              />
+            )}
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="px-3 py-2.5 rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
+            />
+            {mode !== "forgot" && (
+              <input
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+                className="px-3 py-2.5 rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
+              />
+            )}
+
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            {notice && <p className="text-sm text-emerald-400">{notice}</p>}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="mt-4 px-3 py-2.5 rounded-lg bg-auth-button hover:bg-auth-button-hover text-white font-medium disabled:opacity-50 transition-colors"
+            >
+              {submitting
+                ? "Please wait…"
+                : mode === "login"
+                  ? "Log in"
+                  : mode === "register"
+                    ? "Create account"
+                    : "Send reset link"}
+            </button>
+
+            {mode === "login" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("forgot");
+                  setError(null);
+                  setNotice(null);
+                }}
+                className="text-sm text-gray-400 hover:text-gray-200"
+              >
+                Forgot password?
+              </button>
+            )}
+
+            {mode === "forgot" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("login");
+                  setError(null);
+                  setNotice(null);
+                }}
+                className="text-sm text-gray-400 hover:text-gray-200"
+              >
+                Back to log in
+              </button>
+            )}
+
+            {mode === "login" && (
+              <p className="text-sm text-gray-400 text-center">
+                Need an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode("register");
+                    setError(null);
+                    setNotice(null);
+                  }}
+                  className="underline hover:text-gray-200"
+                >
+                  Register
+                </button>
+              </p>
+            )}
+        </form>
+      </div>
     </div>
   );
 }

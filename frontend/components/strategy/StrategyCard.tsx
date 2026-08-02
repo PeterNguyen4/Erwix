@@ -133,7 +133,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
                 onChange={(e) => setDraft((prev) => ({ ...prev, [s.key]: e.target.value }))}
                 rows={2}
                 placeholder="One bullet per line"
-                className="w-full resize-y rounded-lg border border-border bg-bg p-2 text-xs text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
+                className="w-full resize-y rounded-lg border border-border bg-field p-2 text-xs text-fg placeholder:text-muted/60 focus:border-accent focus:outline-none"
               />
             </div>
           ))}
@@ -141,7 +141,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
             <button
               onClick={save}
               disabled={saving}
-              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
+              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
             >
               {saving ? "Saving…" : "Save"}
             </button>

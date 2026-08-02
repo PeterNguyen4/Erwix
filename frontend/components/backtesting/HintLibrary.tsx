@@ -91,7 +91,7 @@ function Section({
             key={s.label}
             onClick={() => onApply(s.apply)}
             title={s.description}
-            className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left text-xs text-fg transition-colors hover:border-accent hover:bg-accent/10"
+            className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left text-xs text-fg transition-colors hover:border-violet-400 hover:bg-violet-500/10"
           >
             {s.label}
           </button>

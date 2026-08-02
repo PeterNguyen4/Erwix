@@ -9,7 +9,7 @@ import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
 import type { BracketLevels } from "@/components/Chart";
-import { Search } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 import { useRuleWatch } from "@/lib/useRuleWatch";
 import RuleSignalToastStack from "@/components/RuleSignalToast";
 
@@ -45,7 +45,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <span className="font-bold text-blue-400">{text.slice(idx, idx + query.length)}</span>
+      <span className="font-bold text-violet-400">{text.slice(idx, idx + query.length)}</span>
       {text.slice(idx + query.length)}
     </>
   );
@@ -86,6 +86,7 @@ function ChartPage() {
   const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
+  const [tfOpen, setTfOpen] = useState(false);
   const [bracketPreview, setBracketPreview] = useState<BracketLevels | null>(null);
   const [takeProfitPrice, setTakeProfitPrice] = useState(0);
   const [stopLossPrice, setStopLossPrice] = useState(0);
@@ -239,28 +240,51 @@ function ChartPage() {
 
   return (
     <main className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b border-border bg-panel px-4 py-3 gap-4 shrink-0">
-        {/* Left: Timeframe selector */}
+      <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
+        <div className="text-xl font-semibold text-fg">Chart</div>
+
         <div className="flex items-center gap-3">
-          <select
-            value={timeframe}
-            onChange={(e) => {
-              setTimeframe(e.target.value);
-              const params = new URLSearchParams(searchParams.toString());
-              params.set("tf", e.target.value);
-              router.replace(`/chart?${params.toString()}`);
-            }}
-            className="rounded border border-border bg-bg px-2 py-2 text-sm text-fg outline-none focus:border-accent cursor-pointer"
+        {/* Timeframe selector */}
+        <div className="relative flex items-center">
+          <button
+            type="button"
+            onClick={() => setTfOpen((o) => !o)}
+            onBlur={() => setTimeout(() => setTfOpen(false), 150)}
+            className={`flex items-center gap-1 rounded border bg-field px-2 py-2 text-sm text-fg transition-colors outline-none cursor-pointer ${
+              tfOpen ? "border-violet-400" : "border-border"
+            }`}
           >
-            {TIMEFRAMES.map((tf) => (
-              <option key={tf.value} value={tf.value}>{tf.label}</option>
-            ))}
-          </select>
+            {TIMEFRAMES.find((tf) => tf.value === timeframe)?.label}
+            <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
+          </button>
+          {tfOpen && (
+            <div className="absolute top-full left-0 z-30 mt-1 w-24 rounded-md border border-border bg-panel py-1 shadow-lg">
+              {TIMEFRAMES.map((tf) => (
+                <button
+                  key={tf.value}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setTimeframe(tf.value);
+                    const params = new URLSearchParams(searchParams.toString());
+                    params.set("tf", tf.value);
+                    router.replace(`/chart?${params.toString()}`);
+                    setTfOpen(false);
+                  }}
+                  className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                    tf.value === timeframe ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+                  }`}
+                >
+                  {tf.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Right: Ticker Search */}
+        {/* Ticker Search */}
         <div className="relative w-72">
-          <div className="flex items-center gap-2 rounded border border-border bg-bg px-3 py-2 focus-within:border-accent">
+          <div className="flex items-center gap-2 rounded border border-border bg-field px-3 py-2 focus-within:border-violet-400">
             <span className="text-muted">
               <IconSearch />
             </span>
@@ -295,7 +319,7 @@ function ChartPage() {
                   key={r.symbol}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => handleSymbolSelect(r.symbol, r.name)}
-                  className="w-full px-3 py-2 text-left text-sm hover:bg-accent/20 border-b border-border last:border-b-0 flex items-baseline gap-2"
+                  className="w-full px-3 py-2 text-left text-sm hover:bg-violet-500/15 flex items-baseline gap-2"
                 >
                   <span className="font-mono text-fg min-w-[3.5rem]">
                     <HighlightMatch text={r.symbol} query={symbolSearch} />
@@ -306,17 +330,18 @@ function ChartPage() {
             </div>
           )}
         </div>
+        </div>
       </header>
 
       <div className="grid flex-1 min-h-0 grid-rows-1 grid-cols-[1fr_320px] gap-3 overflow-hidden p-3">
         {/* Left: chart */}
         <div className="flex flex-col min-h-0 overflow-hidden">
-          <div className="relative flex-1 min-h-0 rounded-lg border border-border bg-bg overflow-hidden">
+          <div className="relative flex-1 min-h-0 rounded-lg border border-auth-field/40 bg-bg overflow-hidden">
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
             ) : loading || !prefsResolved ? (
               <div className="flex h-full items-center justify-center">
-                <div className="w-6 h-6 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <div className="w-6 h-6 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
               </div>
             ) : candles.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-4">
@@ -340,7 +365,7 @@ function ChartPage() {
             )}
             <RuleSignalToastStack signals={ruleSignals} onDismiss={dismissRuleSignal} />
             {quickOrderStatus && (
-              <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-border bg-[#151a24] px-3 py-1.5 text-xs font-medium text-fg shadow-lg">
+              <div className="pointer-events-none absolute bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-md border border-auth-field/50 bg-[#1a1730] px-3 py-1.5 text-xs font-medium text-fg shadow-lg">
                 {quickOrderStatus}
               </div>
             )}

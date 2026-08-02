@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ArrowUp } from "lucide-react";
+import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, BacktestChatEvent, BacktestConfig } from "@/lib/api";
 
 function TypingIndicator() {
@@ -29,7 +31,9 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sendHover, setSendHover] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sendButtonRef = useRef<HTMLButtonElement>(null);
   const nextId = useRef(0);
   const configRef = useRef(config);
   configRef.current = config;
@@ -107,15 +111,24 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Describe your strategy…"
-          className="flex-1 rounded-md border border-border bg-transparent px-2 py-1.5 text-xs text-fg"
+          className="flex-1 rounded-md border border-border bg-field px-2 py-1.5 text-xs text-fg outline-none focus:border-violet-400"
         />
-        <button
-          onClick={send}
-          disabled={streaming}
-          className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-fg transition-colors hover:bg-accent/80 disabled:opacity-50"
+        <div
+          className="relative flex items-center"
+          onMouseEnter={() => setSendHover(true)}
+          onMouseLeave={() => setSendHover(false)}
         >
-          Send
-        </button>
+          <button
+            ref={sendButtonRef}
+            onClick={send}
+            disabled={streaming}
+            aria-label="Send"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
+          >
+            <ArrowUp size={14} strokeWidth={2.5} />
+          </button>
+          <ToolbarTooltip label="Send" hover={sendHover} placement="top" anchorRef={sendButtonRef} />
+        </div>
       </div>
     </div>
   );

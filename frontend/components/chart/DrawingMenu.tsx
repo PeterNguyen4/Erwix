@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { DRAWING_TOOLS, DrawingToolId, IconDrawingTool, IconStar } from "@/components/chart/drawingTools";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
@@ -18,22 +18,24 @@ interface DrawingMenuProps {
 export default function DrawingMenu({ value, onChange, align = "left", pinned, onTogglePin }: DrawingMenuProps) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const active = DRAWING_TOOLS.find((t) => t.id === value) ?? null;
 
   return (
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         className={`flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
-          active ? "bg-accent text-fg" : "text-muted hover:bg-accent/20 hover:text-fg"
+          active ? "bg-violet-500 text-on-accent" : "text-muted hover:bg-violet-500/20 hover:text-fg"
         }`}
       >
         {active ? <active.icon /> : <IconDrawingTool />}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
-      <ToolbarTooltip label="Drawing tools" hover={hover && !open} />
+      <ToolbarTooltip label="Drawing tools" hover={hover && !open} anchorRef={buttonRef} />
       {open && (
         <div
           className={`absolute top-full z-30 mt-1 w-48 rounded-md border border-border bg-panel py-1 shadow-lg ${
@@ -44,7 +46,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
             <div
               key={t.id}
               className={`flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
-                t.id === value ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
+                t.id === value ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
               }`}
             >
               <button
@@ -67,7 +69,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
                   e.stopPropagation();
                   onTogglePin(t.id);
                 }}
-                className={`shrink-0 transition-colors ${pinned.has(t.id) ? "text-accent" : "text-muted hover:text-fg"}`}
+                className={`shrink-0 transition-colors ${pinned.has(t.id) ? "text-violet-400" : "text-muted hover:text-fg"}`}
               >
                 <IconStar filled={pinned.has(t.id)} />
               </button>
