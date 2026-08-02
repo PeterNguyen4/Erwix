@@ -17,14 +17,29 @@ function timeAgo(iso: string): string {
   return `${Math.round(seconds / 86400)}d ago`;
 }
 
+function HeadlineSkeleton() {
+  return (
+    <li className="flex items-center gap-3 rounded px-2 py-4">
+      <div className="h-24 w-24 shrink-0 animate-pulse rounded bg-border/40" />
+      <div className="min-w-0 flex-1">
+        <div className="h-3.5 w-32 animate-pulse rounded bg-border/40" />
+        <div className="mt-2 h-4 w-full max-w-md animate-pulse rounded bg-border/40" />
+        <div className="mt-1.5 h-4 w-2/3 max-w-sm animate-pulse rounded bg-border/40" />
+      </div>
+    </li>
+  );
+}
+
 export default function NewsPage() {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(true);
   const [insight, setInsight] = useState<MarketInsight | null>(null);
+  const [insightLoading, setInsightLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadNews = () => {
     setLoadingArticles(true);
+    setInsightLoading(true);
     setError(null);
     setInsight(null);
 
@@ -34,7 +49,11 @@ export default function NewsPage() {
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoadingArticles(false));
 
-    api.marketInsight().then(setInsight).catch(() => {});
+    api
+      .marketInsight()
+      .then(setInsight)
+      .catch(() => {})
+      .finally(() => setInsightLoading(false));
   };
 
   useEffect(() => {
@@ -57,7 +76,17 @@ export default function NewsPage() {
             <div className="rounded-lg border border-down/40 bg-down/10 px-4 py-2 text-sm text-down">{error}</div>
           )}
 
-          {insight && (
+          {insightLoading ? (
+            <div className="rounded-lg border border-border bg-panel p-4">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 animate-pulse rounded bg-border/40" />
+                <div className="h-4 w-20 animate-pulse rounded bg-border/40" />
+                <div className="h-5 w-16 animate-pulse rounded-full bg-border/40" />
+              </div>
+              <div className="mt-3 h-3.5 w-full animate-pulse rounded bg-border/40" />
+              <div className="mt-1.5 h-3.5 w-4/5 animate-pulse rounded bg-border/40" />
+            </div>
+          ) : insight ? (
             <div className="relative overflow-hidden rounded-lg border border-accent/30 bg-panel p-4">
               <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
               <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-fuchsia-500/15 blur-3xl" />
@@ -77,12 +106,16 @@ export default function NewsPage() {
                 </ul>
               )}
             </div>
-          )}
+          ) : null}
 
           <div className="rounded-lg border border-border bg-panel p-4">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Headlines</div>
             {loadingArticles ? (
-              <p className="text-xs text-muted">Fetching headlines…</p>
+              <ul className="flex flex-col divide-y divide-border/60">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <HeadlineSkeleton key={i} />
+                ))}
+              </ul>
             ) : articles.length === 0 ? (
               <p className="text-xs text-muted">No recent headlines found.</p>
             ) : (
