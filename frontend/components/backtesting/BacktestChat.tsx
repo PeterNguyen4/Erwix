@@ -83,7 +83,7 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
 
   return (
     <div className="flex h-full flex-col">
-      <div ref={scrollRef} className="flex-1 space-y-2 overflow-auto p-3">
+      <div ref={scrollRef} className="flex-1 space-y-2 overflow-auto p-4">
         {error && (
           <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-xs text-down">{error}</div>
         )}
@@ -105,7 +105,7 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
           </div>
         ))}
       </div>
-      <div className="flex shrink-0 items-center gap-2 border-t border-border p-2">
+      <div className="flex shrink-0 items-center gap-2 border-t border-border px-4 py-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}

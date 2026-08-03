@@ -55,6 +55,40 @@ function IconSearch() {
   return <Search size={14} strokeWidth={2} className="shrink-0" />;
 }
 
+const SKELETON_BAR_HEIGHTS = [38, 55, 42, 68, 50, 74, 60, 48, 65, 40, 58, 72, 46, 62, 54, 70, 44, 66, 52, 60];
+
+function ChartSkeleton() {
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 border-b border-border px-4 py-2">
+        <div className="h-4 w-14 animate-pulse rounded bg-border/40" />
+        <div className="h-3 w-24 animate-pulse rounded bg-border/40" />
+      </div>
+      <div className="flex flex-1 items-end gap-1.5 px-4 pb-6 pt-8">
+        {SKELETON_BAR_HEIGHTS.map((h, i) => (
+          <div
+            key={i}
+            className="flex-1 animate-pulse rounded-sm bg-border/40"
+            style={{ height: `${h}%`, animationDelay: `${i * 40}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function QuoteCardSkeleton() {
+  return (
+    <div className="rounded-lg border border-border bg-panel p-4">
+      <div className="mb-2 flex items-baseline gap-2">
+        <div className="h-4 w-14 animate-pulse rounded bg-border/40" />
+        <div className="h-3 w-24 animate-pulse rounded bg-border/40" />
+      </div>
+      <div className="h-7 w-28 animate-pulse rounded bg-border/40" />
+    </div>
+  );
+}
+
 export default function ChartPageWrapper() {
   return (
     <Suspense>
@@ -77,6 +111,7 @@ function ChartPage() {
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [liveQuote, setLiveQuote] = useState<Quote | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [positionsLoading, setPositionsLoading] = useState(true);
   const [account, setAccount] = useState<Account | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day"));
@@ -118,7 +153,7 @@ function ChartPage() {
   }, [symbol, timeframe]);
 
   const loadAccount = useCallback(() => {
-    api.positions().then(setPositions).catch(() => {});
+    api.positions().then(setPositions).catch(() => {}).finally(() => setPositionsLoading(false));
     api.account().then(setAccount).catch(() => {});
   }, []);
 
@@ -340,9 +375,7 @@ function ChartPage() {
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
             ) : loading || !prefsResolved ? (
-              <div className="flex h-full items-center justify-center">
-                <div className="w-6 h-6 rounded-full border-2 border-violet-400 border-t-transparent animate-spin" />
-              </div>
+              <ChartSkeleton />
             ) : candles.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-4">
                 <div className="text-sm font-medium text-fg">No chart data for {symbol}</div>
@@ -374,7 +407,11 @@ function ChartPage() {
 
         {/* Right: quote + order panel + positions */}
         <div className="flex flex-col gap-4 lg:overflow-auto">
-          {prefsResolved && <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} liveQuote={liveQuote} />}
+          {prefsResolved ? (
+            <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} liveQuote={liveQuote} />
+          ) : (
+            <QuoteCardSkeleton />
+          )}
           <OrderPanel
             symbol={symbol}
             onOrderPlaced={onOrderPlaced}
@@ -387,7 +424,7 @@ function ChartPage() {
             stopLossPrice={stopLossPrice}
             onStopLossPriceChange={setStopLossPrice}
           />
-          <PositionsTable positions={positions} />
+          <PositionsTable positions={positions} loading={positionsLoading} />
         </div>
       </div>
     </main>

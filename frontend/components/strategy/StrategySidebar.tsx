@@ -15,8 +15,8 @@ export default function StrategySidebar({ archetype, note, onNoteUpdated }: Prop
   const Icon = presentation.icon;
 
   return (
-    <div className="w-[26rem] shrink-0">
-      <div className="sticky top-4 space-y-4 rounded-xl border border-border bg-panel/40 p-5">
+    <div className="w-full shrink-0 lg:w-[26rem]">
+      <div className="space-y-4 rounded-xl border border-border bg-panel/40 p-5 lg:sticky lg:top-4">
         {archetype ? (
           <div className="text-center animate-fade-in-up">
             <span

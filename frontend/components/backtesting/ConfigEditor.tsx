@@ -72,7 +72,7 @@ function RuleList({
 
 export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-3 text-fg">
+    <div className="flex h-full flex-col gap-4 overflow-auto p-4 text-fg">
       <div className="flex items-center gap-2">
         <input
           value={config.name}

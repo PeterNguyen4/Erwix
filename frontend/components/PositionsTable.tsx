@@ -2,11 +2,22 @@
 
 import { Position } from "@/lib/api";
 
-export default function PositionsTable({ positions }: { positions: Position[] }) {
+export default function PositionsTable({ positions, loading }: { positions: Position[]; loading?: boolean }) {
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
       <h2 className="mb-3 text-sm font-semibold text-muted">Positions</h2>
-      {positions.length === 0 ? (
+      {loading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div key={i} className="flex items-center justify-between border-t border-border pt-2 first:border-t-0 first:pt-0">
+              <div className="h-3.5 w-14 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-8 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-12 animate-pulse rounded bg-border/40" />
+              <div className="h-3.5 w-12 animate-pulse rounded bg-border/40" />
+            </div>
+          ))}
+        </div>
+      ) : positions.length === 0 ? (
         <p className="text-xs text-muted">No open positions.</p>
       ) : (
         <table className="w-full text-sm">

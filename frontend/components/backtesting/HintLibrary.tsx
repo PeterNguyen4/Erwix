@@ -107,7 +107,7 @@ interface HintLibraryProps {
 
 export default function HintLibrary({ onApply }: HintLibraryProps) {
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-3">
+    <div className="flex h-full flex-col gap-4 overflow-auto p-4">
       <Section title="Entry Criteria" snippets={ENTRY_SNIPPETS} onApply={onApply} />
       <Section title="Exit Criteria" snippets={EXIT_SNIPPETS} onApply={onApply} />
       <Section title="Risk Management" snippets={RISK_SNIPPETS} onApply={onApply} />
