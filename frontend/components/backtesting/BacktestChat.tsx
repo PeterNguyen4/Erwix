@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, ListChecks } from "lucide-react";
+import { ArrowUp, ListChecks, Play, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, BacktestChatEvent, BacktestConfig } from "@/lib/api";
-import HintLibrary from "@/components/backtesting/HintLibrary";
+import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 
 function TypingIndicator() {
   return (
@@ -34,10 +34,53 @@ function comparatorLabel(c: string) {
   }
 }
 
-function ConfigSummaryCard({ config }: { config: BacktestConfig }) {
-  const rows: { label: string; value: string }[] = [];
-  if (config.stop_loss) rows.push({ label: "Stop loss", value: `${config.stop_loss.value}%` });
-  if (config.take_profit) rows.push({ label: "Take profit", value: `${config.take_profit.value}%` });
+function RuleRow({
+  rule,
+  onRemove,
+}: {
+  rule: BacktestConfig["entry_rules"][number];
+  onRemove: () => void;
+}) {
+  return (
+    <div className="group flex items-center justify-between gap-2 rounded-md bg-panel/60 px-2 py-1 font-mono text-[11px] text-fg">
+      <span>
+        {rule.indicator} {comparatorLabel(rule.comparator)} {rule.value}
+      </span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label="Remove rule"
+        className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
+      >
+        <X size={11} strokeWidth={2.2} />
+      </button>
+    </div>
+  );
+}
+
+function ConfigSummaryCard({
+  config,
+  onRemoveRule,
+  onRename,
+  onRun,
+  running,
+  canRun,
+}: {
+  config: BacktestConfig;
+  onRemoveRule: (kind: "entry_rules" | "exit_rules", index: number) => void;
+  onRename: (name: string) => void;
+  onRun: () => void;
+  running: boolean;
+  canRun: boolean;
+}) {
+  const EntryIcon = CATEGORY_ICONS.entry;
+  const ExitIcon = CATEGORY_ICONS.exit;
+  const RiskIcon = CATEGORY_ICONS.risk;
+  const SizingIcon = CATEGORY_ICONS.sizing;
+
+  const rows: { label: string; value: string; icon: typeof RiskIcon }[] = [];
+  if (config.stop_loss) rows.push({ label: "Stop loss", value: `${config.stop_loss.value}%`, icon: RiskIcon });
+  if (config.take_profit) rows.push({ label: "Take profit", value: `${config.take_profit.value}%`, icon: RiskIcon });
   rows.push({
     label: "Position sizing",
     value:
@@ -46,25 +89,45 @@ function ConfigSummaryCard({ config }: { config: BacktestConfig }) {
         : config.position_sizing.mode === "pct_equity"
         ? `${config.position_sizing.value}% of equity`
         : `${config.position_sizing.value}% risk`,
+    icon: SizingIcon,
   });
 
   return (
-    <div className="max-w-[92%] rounded-2xl rounded-tl-sm border border-violet-400/30 bg-violet-500/5 px-3 py-2.5 text-xs">
+    <div className="w-full rounded-2xl border border-violet-400/30 bg-violet-500/5 px-3 py-2.5 text-xs">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="truncate text-[11px] font-semibold text-fg">{config.name || "Untitled strategy"}</span>
-        <span className="shrink-0 rounded-full bg-border/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted">
-          {config.direction}
-        </span>
+        <input
+          type="text"
+          value={config.name}
+          onChange={(e) => onRename(e.target.value)}
+          placeholder="Untitled strategy"
+          className="min-w-0 flex-1 truncate rounded bg-transparent text-[11px] font-semibold text-fg outline-none placeholder:text-muted hover:bg-panel/60 focus:bg-panel/60 focus:px-1 focus:-mx-1"
+        />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className="rounded-full bg-border/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted">
+            {config.direction}
+          </span>
+          <button
+            type="button"
+            onClick={onRun}
+            disabled={running || !canRun}
+            aria-label="Run backtest"
+            className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[10px] font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
+          >
+            <Play size={10} strokeWidth={2.5} />
+            {running ? "Running…" : "Run"}
+          </button>
+        </div>
       </div>
 
       {config.entry_rules.length > 0 && (
         <div className="mb-1.5">
-          <div className="mb-1 text-[10px] font-semibold tracking-wide text-up">Entry</div>
+          <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-up">
+            <EntryIcon size={11} strokeWidth={2.2} />
+            Entry
+          </div>
           <div className="space-y-1">
             {config.entry_rules.map((r, i) => (
-              <div key={i} className="rounded-md bg-panel/60 px-2 py-1 font-mono text-[11px] text-fg">
-                {r.indicator} {comparatorLabel(r.comparator)} {r.value}
-              </div>
+              <RuleRow key={i} rule={r} onRemove={() => onRemoveRule("entry_rules", i)} />
             ))}
           </div>
         </div>
@@ -72,12 +135,13 @@ function ConfigSummaryCard({ config }: { config: BacktestConfig }) {
 
       {config.exit_rules.length > 0 && (
         <div className="mb-1.5">
-          <div className="mb-1 text-[10px] font-semibold tracking-wide text-down">Exit</div>
+          <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold tracking-wide text-down">
+            <ExitIcon size={11} strokeWidth={2.2} />
+            Exit
+          </div>
           <div className="space-y-1">
             {config.exit_rules.map((r, i) => (
-              <div key={i} className="rounded-md bg-panel/60 px-2 py-1 font-mono text-[11px] text-fg">
-                {r.indicator} {comparatorLabel(r.comparator)} {r.value}
-              </div>
+              <RuleRow key={i} rule={r} onRemove={() => onRemoveRule("exit_rules", i)} />
             ))}
           </div>
         </div>
@@ -90,7 +154,10 @@ function ConfigSummaryCard({ config }: { config: BacktestConfig }) {
       <div className="mt-1.5 space-y-0.5 border-t border-border/60 pt-1.5">
         {rows.map((r) => (
           <div key={r.label} className="flex items-center justify-between text-[11px]">
-            <span className="text-muted">{r.label}</span>
+            <span className="flex items-center gap-1 text-muted">
+              <r.icon size={11} strokeWidth={2} />
+              {r.label}
+            </span>
             <span className="font-medium text-fg">{r.value}</span>
           </div>
         ))}
@@ -106,9 +173,12 @@ type ChatItem =
 interface BacktestChatProps {
   config: BacktestConfig;
   onConfigChange: (config: BacktestConfig) => void;
+  onRunBacktest: () => void;
+  running: boolean;
+  canRun: boolean;
 }
 
-export default function BacktestChat({ config, onConfigChange }: BacktestChatProps) {
+export default function BacktestChat({ config, onConfigChange, onRunBacktest, running, canRun }: BacktestChatProps) {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -165,11 +235,34 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
     return () => document.removeEventListener("mousedown", onClick);
   }, [rulesOpen]);
 
+  const upsertConfigCard = (next: BacktestConfig) => {
+    setMessages((prev) => {
+      const idx = prev.findIndex((m) => m.kind === "config");
+      if (idx === -1)
+        return [...prev, { id: nextId.current++, kind: "config", role: "assistant", config: next } as ChatItem];
+      const copy = [...prev];
+      copy[idx] = { ...copy[idx], config: next } as ChatItem;
+      return copy;
+    });
+  };
+
   const applyHint = (updater: (config: BacktestConfig) => BacktestConfig) => {
     const next = updater(configRef.current);
     onConfigChange(next);
-    setMessages((prev) => [...prev, { id: nextId.current++, kind: "config", role: "assistant", config: next }]);
+    upsertConfigCard(next);
     setRulesOpen(false);
+  };
+
+  const removeRule = (kind: "entry_rules" | "exit_rules", index: number) => {
+    const next = { ...configRef.current, [kind]: configRef.current[kind].filter((_, i) => i !== index) };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  const renameStrategy = (name: string) => {
+    const next = { ...configRef.current, name };
+    onConfigChange(next);
+    upsertConfigCard(next);
   };
 
   const send = async () => {
@@ -198,7 +291,7 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
         });
       } else if (msg.type === "config") {
         onConfigChange(msg.config);
-        setMessages((prev) => [...prev, { id: nextId.current++, kind: "config", role: "assistant", config: msg.config }]);
+        upsertConfigCard(msg.config);
       } else if (msg.type === "done") {
         setStreaming(false);
         setMessages((prev) =>
@@ -214,9 +307,9 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
   };
 
   const inputRow = (
-    <div className="w-full shrink-0 px-6 py-4">
-      <div className="mx-auto flex w-full max-w-lg flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
-        <div className="relative px-3 pt-3 pb-2">
+    <div className="w-full shrink-0 px-4 py-3">
+      <div className="mx-auto flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
+        <div className={`relative px-3 pt-3 ${isEmpty ? "pb-1" : "pb-0"}`}>
           {isEmpty && !input && (
             <div
               key={placeholderIndex}
@@ -239,10 +332,10 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
             }}
             placeholder={isEmpty ? "" : "Describe your strategy…"}
             rows={1}
-            className="chat-scroll max-h-40 min-h-[2.25rem] pr-1 w-full resize-none overflow-y-auto bg-transparent text-sm text-fg outline-none placeholder:text-muted"
+            className="chat-scroll max-h-40 min-h-[1.75rem] pr-1 w-full resize-none overflow-y-auto bg-transparent text-sm text-fg outline-none placeholder:text-muted"
           />
         </div>
-        <div className="flex items-center justify-between px-3 pb-2">
+        <div className="flex items-center justify-between px-3 pb-3">
           <div className="relative">
             <button
               ref={rulesChipRef}
@@ -275,9 +368,9 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
               onClick={send}
               disabled={streaming}
               aria-label="Send"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-accent text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
             >
-              <ArrowUp size={14} strokeWidth={2.5} />
+              <ArrowUp size={13} strokeWidth={2.5} />
             </button>
             <ToolbarTooltip label="Send" hover={sendHover} placement="top" anchorRef={sendButtonRef} />
           </div>
@@ -301,13 +394,21 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
   return (
     <div className="relative flex h-full flex-col">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-panel to-transparent" />
-      <div ref={scrollRef} className="chat-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-6">
+      <div ref={scrollRef} className="chat-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-6">
         {error && (
           <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
         )}
         {messages.map((m, i) =>
           m.kind === "config" ? (
-            <ConfigSummaryCard key={m.id} config={m.config} />
+            <ConfigSummaryCard
+              key={m.id}
+              config={m.config}
+              onRemoveRule={removeRule}
+              onRename={renameStrategy}
+              onRun={onRunBacktest}
+              running={running}
+              canRun={canRun}
+            />
           ) : (
             <div
               key={m.id}
@@ -322,7 +423,8 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
           ),
         )}
       </div>
-      <div className="border-t border-border">{inputRow}</div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-panel to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 z-20">{inputRow}</div>
     </div>
   );
 }

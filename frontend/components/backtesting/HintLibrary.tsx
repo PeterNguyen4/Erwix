@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, WeightTilde, ShieldAlert, SquareArrowLeft, SquareArrowRight } from "lucide-react";
 import type { BacktestConfig, BacktestRisk, BacktestRule, BacktestSizing } from "@/lib/api";
+
+export const CATEGORY_ICONS = {
+  entry: SquareArrowRight,
+  exit: SquareArrowLeft,
+  risk: ShieldAlert,
+  sizing: WeightTilde,
+} as const;
 
 const SUBMENU_WIDTH = 224; // w-56
 
@@ -102,11 +109,13 @@ function CategoryRow({
   onApply: (apply: HintSnippet["apply"]) => void;
 }) {
   const open = openId === id;
+  const Icon = CATEGORY_ICONS[id];
 
   return (
     <div className="relative" onMouseEnter={() => setOpenId(id)}>
       <button type="button" className={rowClass(open)}>
         {flip && <ChevronRight size={12} strokeWidth={2.2} className="rotate-180 opacity-70" />}
+        <Icon size={13} strokeWidth={2} className="shrink-0 opacity-80" />
         <span className="flex-1 text-left">{label}</span>
         {!flip && <ChevronRight size={12} strokeWidth={2.2} className="opacity-70" />}
       </button>

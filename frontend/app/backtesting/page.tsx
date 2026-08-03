@@ -262,16 +262,15 @@ export default function BacktestingPage() {
           <div className="flex min-h-[420px] flex-1 flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
               <span className="text-sm font-semibold tracking-wide text-muted">Strategy Builder</span>
-              <button
-                onClick={runBacktest}
-                disabled={running || candles.length === 0}
-                className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
-              >
-                {running ? "Running…" : "Run backtest"}
-              </button>
             </div>
             <div className="flex-1 lg:min-h-0">
-              <BacktestChat config={config} onConfigChange={setConfig} />
+              <BacktestChat
+                config={config}
+                onConfigChange={setConfig}
+                onRunBacktest={runBacktest}
+                running={running}
+                canRun={candles.length > 0}
+              />
             </div>
           </div>
         </div>
