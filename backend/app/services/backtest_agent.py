@@ -1,6 +1,8 @@
 """Config-chat agent: turns plain text into a BacktestConfig patch.
 """
 
+import re
+
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -17,8 +19,23 @@ SYSTEM_PROMPT = (
     "trader's latest instruction. Return the full updated config — carry over any "
     "existing fields the instruction didn't touch rather than dropping them. Available "
     "indicators: close, sma_N, ema_N, rsi_N (N = period), macd. Comparators: <, <=, >, "
-    ">=, ==, crosses_above, crosses_below."
+    ">=, ==, crosses_above, crosses_below. stop_loss and take_profit are each either null "
+    "or an object shaped {\"value\": <percent>} where <percent> is a positive number "
+    "(e.g. a 4% stop loss is {\"value\": 4}, never a negative number or a bare float)."
 )
+
+_JSON_OR_FENCE = re.compile(r"```|\{")
+
+
+def _sanitize_ack(text: str) -> str:
+    """Weaker local models sometimes ignore the 'one short sentence' instruction and
+    dump the whole updated config as commentary — cut that off before it reaches chat."""
+    text = text.strip().strip('"“”')
+    match = _JSON_OR_FENCE.search(text)
+    if match:
+        text = text[: match.start()].strip()
+    first_line = text.splitlines()[0] if text else ""
+    return first_line or "Updating your strategy…"
 
 
 def _base_model() -> BaseChatModel:
@@ -41,9 +58,21 @@ def _base_model() -> BaseChatModel:
     raise RuntimeError(f"Unknown llm_provider: {settings.llm_provider!r}")
 
 
+def _is_blank_config(config: BacktestConfig) -> bool:
+    return (
+        not config.entry_rules
+        and not config.exit_rules
+        and config.stop_loss is None
+        and config.take_profit is None
+    )
+
+
 async def astream_config_chat(current_config: BacktestConfig, message: str):
-    """Yields {"type": "token", "text": ...} deltas for a brief acknowledgement,
-    then a final {"type": "config", "config": {...}} event."""
+    """Yields a leading {"type": "action", "label": "Build"|"Edit"} (Build only when the
+    config has no rules/risk yet), {"type": "token", "text": ...} deltas for a brief
+    acknowledgement, then a final {"type": "config", "config": {...}} event."""
+    yield {"type": "action", "label": "Build" if _is_blank_config(current_config) else "Edit"}
+
     model = _base_model()
     prompt = f"Current config:\n{current_config.model_dump_json()}\n\nInstruction:\n{message}"
 
@@ -59,9 +88,13 @@ async def astream_config_chat(current_config: BacktestConfig, message: str):
     ack = ack_response.content
     if isinstance(ack, list):
         ack = "".join(b.get("text", "") for b in ack if isinstance(b, dict) and b.get("type") == "text")
-    yield {"type": "token", "text": ack.strip().strip('"“”')}
+    yield {"type": "token", "text": _sanitize_ack(ack)}
 
     structured_model = _base_model().with_structured_output(BacktestConfig)
-    result = await structured_model.ainvoke([SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)])
+    try:
+        result = await structured_model.ainvoke([SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)])
+    except Exception as exc:  # noqa: BLE001 — model returned a shape we can't coerce
+        yield {"type": "error", "detail": f"Couldn't apply that change: {exc}"}
+        return
     yield {"type": "config", "config": result.model_dump()}
     yield {"type": "done"}

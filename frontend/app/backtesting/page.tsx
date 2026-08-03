@@ -50,7 +50,7 @@ function IconSearch() {
 }
 
 const DEFAULT_CONFIG: BacktestConfig = {
-  name: "Untitled strategy",
+  name: "Plan",
   symbol: "AAPL",
   timeframe: "1Day",
   direction: "long",

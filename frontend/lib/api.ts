@@ -105,6 +105,7 @@ export interface BacktestRun {
 }
 
 export type BacktestChatEvent =
+  | { type: "action"; label: "Build" | "Edit" }
   | { type: "token"; text: string }
   | { type: "config"; config: BacktestConfig }
   | { type: "done" }
