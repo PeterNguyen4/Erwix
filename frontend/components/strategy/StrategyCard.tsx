@@ -95,7 +95,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
   return (
     <div className="rounded-xl border border-accent/30 bg-gradient-to-b from-accent/10 to-panel p-5 animate-fade-in-up">
       <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-accent">Your Playbook</h3>
+        <h3 className="text-sm font-semibold tracking-wide text-accent">Your Playbook</h3>
         {!editing && (
           <div className="flex items-center gap-2">
             {onEdited && (

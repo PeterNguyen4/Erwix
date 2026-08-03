@@ -236,7 +236,7 @@ export default function BacktestingPage() {
         <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
           <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:flex-1 lg:overflow-hidden">
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-muted">Strategy Builder</span>
+              <span className="text-xs font-semibold tracking-wide text-muted">Strategy Builder</span>
               <button
                 onClick={runBacktest}
                 disabled={running || candles.length === 0}
@@ -252,7 +252,7 @@ export default function BacktestingPage() {
 
           <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
             <div className="flex min-h-[320px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
-              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold tracking-wide text-muted">
                 Hint Library
               </div>
               <div className="flex-1 overflow-auto lg:min-h-0 lg:overflow-hidden">
@@ -260,7 +260,7 @@ export default function BacktestingPage() {
               </div>
             </div>
             <div className="flex min-h-[320px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
-              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold tracking-wide text-muted">
                 Assistant
               </div>
               <div className="flex-1 lg:min-h-0">
@@ -271,7 +271,7 @@ export default function BacktestingPage() {
         </div>
 
         <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
-          <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold uppercase tracking-wide text-muted">
+          <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold tracking-wide text-muted">
             Replay Preview
           </div>
           <div className="flex-1 lg:min-h-0">
@@ -298,15 +298,15 @@ export default function BacktestingPage() {
           {result && (
             <div className="grid shrink-0 grid-cols-3 divide-x divide-border border-t border-border">
               <div className="flex flex-col items-center gap-0.5 px-3 py-2.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Trades</span>
+                <span className="text-[10px] font-semibold tracking-wide text-muted">Trades</span>
                 <span className="text-sm font-semibold tabular-nums text-fg">{result.stats.total_trades}</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 px-3 py-2.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Win rate</span>
+                <span className="text-[10px] font-semibold tracking-wide text-muted">Win Rate</span>
                 <span className="text-sm font-semibold tabular-nums text-fg">{result.stats.win_rate?.toFixed(1)}%</span>
               </div>
               <div className="flex flex-col items-center gap-0.5 px-3 py-2.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">Total P/L</span>
+                <span className="text-[10px] font-semibold tracking-wide text-muted">Total P/L</span>
                 <span className={`text-sm font-semibold tabular-nums ${result.stats.total_pnl >= 0 ? "text-up" : "text-down"}`}>
                   {result.stats.total_pnl?.toFixed(2)}
                 </span>

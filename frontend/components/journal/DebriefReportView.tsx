@@ -107,8 +107,8 @@ export default function DebriefReportView({ report, onClose, onSpotlight }: Debr
         <p className="whitespace-pre-wrap text-sm text-fg">{step?.narrative}</p>
         {step?.note_quote && (
           <div className="mt-3 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-accent">
-              Your note — trade #{step.note_quote.trade_id}
+            <div className="mb-1 text-[10px] font-semibold tracking-wide text-accent">
+              Your Note — Trade #{step.note_quote.trade_id}
             </div>
             <p className="whitespace-pre-wrap text-sm italic text-fg/90">{step.note_quote.text}</p>
           </div>

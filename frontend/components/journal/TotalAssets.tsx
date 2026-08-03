@@ -12,7 +12,7 @@ export default function TotalAssets({ positions, loading }: { positions: Positio
 
   return (
     <div className="flex h-full flex-col rounded-lg border border-border bg-panel p-4">
-      <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Total Assets</h2>
+      <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted">Total Assets</h2>
       {loading ? (
         <div className="flex-1 divide-y divide-border">
           {Array.from({ length: 3 }).map((_, i) => (

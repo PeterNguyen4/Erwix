@@ -91,17 +91,17 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
       </div>
 
       <div>
-        <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Entry rules</div>
+        <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted">Entry Rules</div>
         <RuleList rules={config.entry_rules} onChange={(rules) => onChange({ ...config, entry_rules: rules })} />
       </div>
 
       <div>
-        <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Exit rules</div>
+        <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted">Exit Rules</div>
         <RuleList rules={config.exit_rules} onChange={(rules) => onChange({ ...config, exit_rules: rules })} />
       </div>
 
       <div>
-        <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Position sizing</div>
+        <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted">Position Sizing</div>
         <div className="flex items-center gap-1.5">
           <select
             value={config.position_sizing.mode}
@@ -130,7 +130,7 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Stop loss %</div>
+          <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted">Stop Loss %</div>
           <input
             type="number"
             value={config.stop_loss?.value ?? ""}
@@ -144,7 +144,7 @@ export default function ConfigEditor({ config, onChange }: ConfigEditorProps) {
           />
         </div>
         <div>
-          <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Take profit %</div>
+          <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted">Take Profit %</div>
           <input
             type="number"
             value={config.take_profit?.value ?? ""}

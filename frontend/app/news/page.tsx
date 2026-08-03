@@ -109,7 +109,7 @@ export default function NewsPage() {
           ) : null}
 
           <div className="rounded-lg border border-border bg-panel p-4">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Headlines</div>
+            <div className="mb-3 text-sm font-semibold tracking-wide text-muted">Headlines</div>
             {loadingArticles ? (
               <ul className="flex flex-col divide-y divide-border/60">
                 {Array.from({ length: 5 }).map((_, i) => (

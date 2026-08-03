@@ -44,9 +44,9 @@ type ChatItem =
 function NoteCard({ tradeId, text }: { tradeId: number; text: string }) {
   return (
     <div className="max-w-[85%] rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-accent">
         <span>&#8220;</span>
-        Your note — trade #{tradeId}
+        Your Note — Trade #{tradeId}
       </div>
       <p className="whitespace-pre-wrap text-sm italic text-fg/90">{text}</p>
     </div>

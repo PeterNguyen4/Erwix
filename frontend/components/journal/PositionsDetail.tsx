@@ -12,7 +12,7 @@ export default function PositionsDetail({ positions, loading }: { positions: Pos
 
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
-      <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Open Positions</h2>
+      <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted">Open Positions</h2>
       {loading ? (
         <div className="space-y-2.5">
           {Array.from({ length: 3 }).map((_, i) => (

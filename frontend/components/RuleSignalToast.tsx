@@ -38,9 +38,9 @@ function ToastItem({ signal, onDismiss }: { signal: RuleSignal; onDismiss: () =>
       className="pointer-events-auto w-72 animate-fade-in-up rounded-xl border bg-panel/95 px-3 py-2.5 text-left text-xs shadow-xl backdrop-blur-sm"
       style={{ borderColor: signal.annotation.color ?? (isEntry ? "#26a69a" : "#ef5350") }}
     >
-      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide" style={{ color: signal.annotation.color ?? (isEntry ? "#26a69a" : "#ef5350") }}>
+      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide" style={{ color: signal.annotation.color ?? (isEntry ? "#26a69a" : "#ef5350") }}>
         <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: signal.annotation.color ?? (isEntry ? "#26a69a" : "#ef5350") }} />
-        {isEntry ? "Entry signal" : "Exit signal"}
+        {isEntry ? "Entry Signal" : "Exit Signal"}
       </div>
       <p className="leading-snug text-fg">{signal.description}</p>
     </button>

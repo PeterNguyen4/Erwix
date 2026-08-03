@@ -246,7 +246,7 @@ export default function TradeCalendar({ points, onDebriefTrade }: TradeCalendarP
 
   const inputClass =
     "w-full rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg placeholder:text-muted outline-none focus:border-accent";
-  const labelClass = "mb-1 block text-[10px] font-medium uppercase tracking-wide text-muted";
+  const labelClass = "mb-1 block text-[10px] font-medium tracking-wide text-muted";
 
   return (
     <div className="relative rounded-lg border border-border bg-panel p-4">
@@ -439,7 +439,7 @@ export default function TradeCalendar({ points, onDebriefTrade }: TradeCalendarP
         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-lg bg-bg/70 p-4">
           <div className="w-full max-w-sm rounded-md border border-border bg-panel p-3 shadow-lg">
             <div className="mb-2 flex items-center justify-between">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted">
+              <div className="text-xs font-medium tracking-wide text-muted">
                 {dayPanel.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
               </div>
               <button onClick={() => setDayPanel(null)} className="text-xs text-muted hover:text-fg">
@@ -484,7 +484,7 @@ export default function TradeCalendar({ points, onDebriefTrade }: TradeCalendarP
         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-lg bg-bg/70 p-4">
           <div className="w-full max-w-md rounded-md border border-border bg-panel p-6 shadow-lg">
             <div className="mb-5 flex items-center justify-between">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted">
+              <div className="text-xs font-medium tracking-wide text-muted">
                 {formOpen.mode === "edit" ? "Edit Entry" : "New Entry"} — {formOpen.dateKey}
               </div>
               <button onClick={() => setFormOpen(null)} className="text-xs text-muted hover:text-fg">
@@ -625,7 +625,7 @@ export default function TradeCalendar({ points, onDebriefTrade }: TradeCalendarP
         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-lg bg-bg/70 p-4">
           <div className="w-full max-w-sm rounded-md border border-border bg-panel p-3 shadow-lg">
             <div className="mb-2 flex items-center justify-between">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted">
+              <div className="text-xs font-medium tracking-wide text-muted">
                 {tradeDetail.symbol} — {new Date(tradeDetail.filled_at!).toLocaleString()}
               </div>
               <button onClick={() => setTradeDetail(null)} className="text-xs text-muted hover:text-fg">

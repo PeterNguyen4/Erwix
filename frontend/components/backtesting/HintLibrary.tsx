@@ -84,7 +84,7 @@ function Section({
 }) {
   return (
     <div>
-      <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted">{title}</div>
+      <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted">{title}</div>
       <div className="space-y-1.5">
         {snippets.map((s) => (
           <button
@@ -108,10 +108,10 @@ interface HintLibraryProps {
 export default function HintLibrary({ onApply }: HintLibraryProps) {
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-3">
-      <Section title="Entry criteria" snippets={ENTRY_SNIPPETS} onApply={onApply} />
-      <Section title="Exit criteria" snippets={EXIT_SNIPPETS} onApply={onApply} />
-      <Section title="Risk management" snippets={RISK_SNIPPETS} onApply={onApply} />
-      <Section title="Position sizing" snippets={SIZING_SNIPPETS} onApply={onApply} />
+      <Section title="Entry Criteria" snippets={ENTRY_SNIPPETS} onApply={onApply} />
+      <Section title="Exit Criteria" snippets={EXIT_SNIPPETS} onApply={onApply} />
+      <Section title="Risk Management" snippets={RISK_SNIPPETS} onApply={onApply} />
+      <Section title="Position Sizing" snippets={SIZING_SNIPPETS} onApply={onApply} />
     </div>
   );
 }
