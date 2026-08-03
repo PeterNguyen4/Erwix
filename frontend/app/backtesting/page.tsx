@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { api, BacktestConfig, BacktestResult, BacktestTrade, Candle, ChartAnnotation, SymbolResult } from "@/lib/api";
 import ReplayControls from "@/components/backtesting/ReplayControls";
 import BacktestChat from "@/components/backtesting/BacktestChat";
-import { Search } from "lucide-react";
+import { Search, ChevronDown } from "lucide-react";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -39,7 +39,7 @@ function HighlightMatch({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <span className="font-bold text-blue-400">{text.slice(idx, idx + query.length)}</span>
+      <span className="font-bold text-violet-400">{text.slice(idx, idx + query.length)}</span>
       {text.slice(idx + query.length)}
     </>
   );
@@ -99,6 +99,7 @@ export default function BacktestingPage() {
   const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSymbolDropdown, setShowSymbolDropdown] = useState(false);
+  const [tfOpen, setTfOpen] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -161,21 +162,47 @@ export default function BacktestingPage() {
 
   return (
     <main className="flex h-full flex-col overflow-auto">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
-        <div className="text-xl font-semibold text-fg">Backtesting</div>
+      <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
+        <div className="text-xl font-normal text-fg">Backtesting</div>
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
-          <select
-            value={config.timeframe}
-            onChange={(e) => setConfig({ ...config, timeframe: e.target.value })}
-            className="shrink-0 rounded border border-border bg-field px-2 py-1.5 text-sm text-fg outline-none focus:border-accent cursor-pointer"
-          >
-            {TIMEFRAMES.map((tf) => (
-              <option key={tf.value} value={tf.value}>{tf.label}</option>
-            ))}
-          </select>
+          {/* Timeframe selector */}
+          <div className="relative flex items-center">
+            <button
+              type="button"
+              onClick={() => setTfOpen((o) => !o)}
+              onBlur={() => setTimeout(() => setTfOpen(false), 150)}
+              className={`flex items-center gap-1 rounded border bg-field px-2 py-2 text-sm text-fg transition-colors outline-none cursor-pointer ${
+                tfOpen ? "border-violet-400" : "border-border"
+              }`}
+            >
+              {TIMEFRAMES.find((tf) => tf.value === config.timeframe)?.label}
+              <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
+            </button>
+            {tfOpen && (
+              <div className="absolute top-full left-0 z-30 mt-1 w-24 rounded-md border border-border bg-panel py-1 shadow-lg">
+                {TIMEFRAMES.map((tf) => (
+                  <button
+                    key={tf.value}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setConfig({ ...config, timeframe: tf.value });
+                      setTfOpen(false);
+                    }}
+                    className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
+                      tf.value === config.timeframe ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+                    }`}
+                  >
+                    {tf.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
+          {/* Ticker search */}
           <div className="relative min-w-0 flex-1 sm:w-56 sm:flex-none">
-            <div className="flex items-center gap-2 rounded border border-border bg-field px-2 py-1.5 focus-within:border-accent">
+            <div className="flex items-center gap-2 rounded border border-border bg-field px-3 py-2 focus-within:border-violet-400">
               <span className="text-muted">
                 <IconSearch />
               </span>
@@ -197,7 +224,7 @@ export default function BacktestingPage() {
                   }
                   if (e.key === "Escape") setShowSymbolDropdown(false);
                 }}
-                className="flex-1 bg-transparent text-sm outline-none text-fg placeholder:text-fg"
+                className="flex-1 bg-transparent text-sm outline-none text-fg placeholder:text-muted"
               />
             </div>
             {showSymbolDropdown && (searchResults.length > 0 || searchLoading) && (
@@ -210,7 +237,7 @@ export default function BacktestingPage() {
                     key={r.symbol}
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => handleSymbolSelect(r.symbol)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-accent/20 border-b border-border last:border-b-0 flex items-baseline gap-2"
+                    className="w-full px-3 py-2 text-left text-sm hover:bg-violet-500/15 flex items-baseline gap-2"
                   >
                     <span className="font-mono text-fg min-w-[3.5rem]">
                       <HighlightMatch text={r.symbol} query={symbolSearch} />

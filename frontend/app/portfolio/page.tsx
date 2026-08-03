@@ -94,7 +94,7 @@ export default function PortfolioPage() {
   return (
     <main className="flex h-full flex-col overflow-auto">
       <header className="sticky top-0 z-10 flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
-        <div className="text-xl font-semibold text-fg">Portfolio</div>
+        <div className="text-xl font-normal text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted">Paper account</div>
           {process.env.NODE_ENV !== "production" && (
