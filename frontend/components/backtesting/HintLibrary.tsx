@@ -1,6 +1,10 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import type { BacktestConfig, BacktestRisk, BacktestRule, BacktestSizing } from "@/lib/api";
+
+const SUBMENU_WIDTH = 224; // w-56
 
 interface HintSnippet {
   label: string;
@@ -73,30 +77,59 @@ function addRule(
   return { ...config, [key]: [...config[key], rule] };
 }
 
-function Section({
-  title,
+const rowClass = (active: boolean) =>
+  `flex w-full items-center gap-2 px-3 py-1.5 text-xs transition-colors ${
+    active ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+  }`;
+
+type CategoryId = "entry" | "exit" | "risk" | "sizing";
+
+function CategoryRow({
+  id,
+  label,
+  openId,
+  setOpenId,
+  flip,
   snippets,
   onApply,
 }: {
-  title: string;
+  id: CategoryId;
+  label: string;
+  openId: CategoryId | null;
+  setOpenId: (id: CategoryId | null) => void;
+  flip: boolean;
   snippets: HintSnippet[];
   onApply: (apply: HintSnippet["apply"]) => void;
 }) {
+  const open = openId === id;
+
   return (
-    <div>
-      <div className="mb-1.5 text-xs font-semibold tracking-wide text-muted">{title}</div>
-      <div className="space-y-1.5">
-        {snippets.map((s) => (
-          <button
-            key={s.label}
-            onClick={() => onApply(s.apply)}
-            title={s.description}
-            className="block w-full rounded-md border border-border px-2.5 py-1.5 text-left text-xs text-fg transition-colors hover:border-violet-400 hover:bg-violet-500/10"
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
+    <div className="relative" onMouseEnter={() => setOpenId(id)}>
+      <button type="button" className={rowClass(open)}>
+        {flip && <ChevronRight size={12} strokeWidth={2.2} className="rotate-180 opacity-70" />}
+        <span className="flex-1 text-left">{label}</span>
+        {!flip && <ChevronRight size={12} strokeWidth={2.2} className="opacity-70" />}
+      </button>
+      {open && (
+        <div
+          onClick={() => setOpenId(id)}
+          className={`absolute -top-1.5 z-20 w-56 rounded-md border border-border bg-panel py-1 shadow-lg ${
+            flip ? "right-full mr-0.5" : "left-full ml-0.5"
+          }`}
+        >
+          {snippets.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              onClick={() => onApply(s.apply)}
+              className="block w-full px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10"
+            >
+              <div className="text-xs text-fg">{s.label}</div>
+              <div className="text-[10px] text-muted">{s.description}</div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -106,12 +139,60 @@ interface HintLibraryProps {
 }
 
 export default function HintLibrary({ onApply }: HintLibraryProps) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [openId, setOpenId] = useState<CategoryId | null>(null);
+  const [flip, setFlip] = useState(false);
+
+  useEffect(() => {
+    const menu = menuRef.current;
+    if (!menu) return;
+    const rect = menu.getBoundingClientRect();
+    setFlip(rect.right + SUBMENU_WIDTH + 8 > window.innerWidth);
+  }, []);
+
+  const handleApply = (apply: HintSnippet["apply"]) => {
+    onApply(apply);
+    setOpenId(null);
+  };
+
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-4">
-      <Section title="Entry Criteria" snippets={ENTRY_SNIPPETS} onApply={onApply} />
-      <Section title="Exit Criteria" snippets={EXIT_SNIPPETS} onApply={onApply} />
-      <Section title="Risk Management" snippets={RISK_SNIPPETS} onApply={onApply} />
-      <Section title="Position Sizing" snippets={SIZING_SNIPPETS} onApply={onApply} />
+    <div ref={menuRef} className="py-1" onMouseLeave={() => setOpenId(null)}>
+      <CategoryRow
+        id="entry"
+        label="Entry Criteria"
+        openId={openId}
+        setOpenId={setOpenId}
+        flip={flip}
+        snippets={ENTRY_SNIPPETS}
+        onApply={handleApply}
+      />
+      <CategoryRow
+        id="exit"
+        label="Exit Criteria"
+        openId={openId}
+        setOpenId={setOpenId}
+        flip={flip}
+        snippets={EXIT_SNIPPETS}
+        onApply={handleApply}
+      />
+      <CategoryRow
+        id="risk"
+        label="Risk Management"
+        openId={openId}
+        setOpenId={setOpenId}
+        flip={flip}
+        snippets={RISK_SNIPPETS}
+        onApply={handleApply}
+      />
+      <CategoryRow
+        id="sizing"
+        label="Position Sizing"
+        openId={openId}
+        setOpenId={setOpenId}
+        flip={flip}
+        snippets={SIZING_SNIPPETS}
+        onApply={handleApply}
+      />
     </div>
   );
 }

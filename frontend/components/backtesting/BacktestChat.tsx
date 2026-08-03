@@ -21,8 +21,8 @@ function TypingIndicator() {
 }
 
 const PLACEHOLDER_PROMPTS = [
-  "Describe your strategy…",
-  "Pick a rule from the library…",
+  "Describe your strategy",
+  "Pick a rule from the library",
   "e.g. buy when RSI drops below 30, sell when it crosses back above 70",
 ];
 
@@ -259,7 +259,7 @@ export default function BacktestChat({ config, onConfigChange }: BacktestChatPro
             {rulesOpen && (
               <div
                 ref={rulesPanelRef}
-                className="absolute bottom-full left-0 z-20 mb-2 max-h-96 w-80 overflow-auto rounded-lg border border-border bg-panel shadow-lg"
+                className="absolute bottom-full left-0 z-20 mb-2 w-48 rounded-md border border-border bg-panel shadow-lg"
               >
                 <HintLibrary onApply={applyHint} />
               </div>
