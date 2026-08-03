@@ -112,8 +112,8 @@ function CategoryRow({
   const Icon = CATEGORY_ICONS[id];
 
   return (
-    <div className="relative" onMouseEnter={() => setOpenId(id)}>
-      <button type="button" className={rowClass(open)}>
+    <div className="relative">
+      <button type="button" onClick={() => setOpenId(open ? null : id)} className={rowClass(open)}>
         {flip && <ChevronRight size={12} strokeWidth={2.2} className="rotate-180 opacity-70" />}
         <Icon size={13} strokeWidth={2} className="shrink-0 opacity-80" />
         <span className="flex-1 text-left">{label}</span>
@@ -165,7 +165,7 @@ export default function HintLibrary({ onApply }: HintLibraryProps) {
   };
 
   return (
-    <div ref={menuRef} className="py-1" onMouseLeave={() => setOpenId(null)}>
+    <div ref={menuRef} className="py-1">
       <CategoryRow
         id="entry"
         label="Entry Criteria"

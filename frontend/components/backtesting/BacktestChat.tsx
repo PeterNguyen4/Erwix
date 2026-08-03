@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Hammer, ListChecks, Pencil, Play, X } from "lucide-react";
+import { ArrowUp, Hammer, ListChecks, Loader2, Pencil, Play, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, BacktestChatEvent, BacktestConfig, BacktestRisk, BacktestRule, BacktestSizing } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
@@ -45,7 +45,7 @@ function buildIndicator(familyId: string, period: number | null): string {
 }
 
 const selectClass =
-  "rounded border border-border bg-field px-1.5 py-0.5 text-xs text-fg outline-none focus:border-violet-400";
+  "rounded border border-border bg-field px-1.5 py-0.5 text-sm text-fg outline-none focus:border-violet-400";
 const numberInputClass = `${selectClass} w-16`;
 
 function TypingIndicator() {
@@ -76,6 +76,57 @@ function comparatorLabel(c: string) {
   }
 }
 
+type RuleSegment = "family" | "period" | "comparator" | "value" | null;
+
+const segmentClass =
+  "cursor-pointer rounded px-0.5 underline decoration-dotted decoration-2 decoration-muted underline-offset-4 transition-colors hover:bg-panel hover:text-accent hover:decoration-accent";
+const inlineNumberClass = `${numberInputClass} h-6 py-0`;
+
+function useClickOutside(ref: React.RefObject<HTMLElement | null>, onOutside: () => void, active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const onClick = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onOutside();
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [active, onOutside, ref]);
+}
+
+function DropdownPanel<T extends string>({
+  options,
+  value,
+  onSelect,
+  align = "left",
+}: {
+  options: { id: T; label: string }[];
+  value: T;
+  onSelect: (id: T) => void;
+  align?: "left" | "right";
+}) {
+  return (
+    <div
+      className={`absolute top-full z-30 mt-1 min-w-[7rem] rounded-md border border-border bg-panel py-1 shadow-lg ${
+        align === "right" ? "right-0" : "left-0"
+      }`}
+    >
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onSelect(o.id)}
+          className={`flex w-full items-center px-3 py-1.5 text-left text-xs transition-colors ${
+            o.id === value ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function RuleRow({
   rule,
   onRemove,
@@ -89,130 +140,136 @@ function RuleRow({
   isFirst?: boolean;
   isLast?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<RuleSegment>(null);
   const { familyId, period } = parseIndicator(rule.indicator);
   const family = INDICATOR_FAMILIES.find((f) => f.id === familyId) ?? INDICATOR_FAMILIES[0];
+  const familyRef = useRef<HTMLSpanElement>(null);
+  const comparatorRef = useRef<HTMLSpanElement>(null);
+  useClickOutside(familyRef, () => setEditing(null), editing === "family");
+  useClickOutside(comparatorRef, () => setEditing(null), editing === "comparator");
 
   return (
-    <div className="relative pl-4 text-xs text-fg">
-      <span className="absolute left-[6px] top-[12px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[12px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[12px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
-      <div
-        onClick={() => setOpen((o) => !o)}
-        className="group flex cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 font-mono transition-colors hover:bg-panel/60"
-      >
-        <span>
-          {rule.indicator} {comparatorLabel(rule.comparator)} {rule.value}
+    <div className="relative pl-4 text-sm text-fg">
+      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 font-mono transition-colors hover:bg-panel/60">
+        <span className="flex flex-wrap items-center gap-0.5">
+          <span ref={familyRef} className="relative">
+            <span onClick={() => setEditing(editing === "family" ? null : "family")} className={segmentClass}>
+              {family.id}
+            </span>
+            {editing === "family" && (
+              <DropdownPanel
+                value={family.id}
+                options={INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))}
+                onSelect={(id) => {
+                  const next = INDICATOR_FAMILIES.find((f) => f.id === id)!;
+                  onUpdate({ ...rule, indicator: buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null) });
+                  setEditing(null);
+                }}
+              />
+            )}
+          </span>
+          {family.hasPeriod &&
+            (editing === "period" ? (
+              <input
+                autoFocus
+                type="number"
+                defaultValue={period ?? family.defaultPeriod}
+                onBlur={(e) => {
+                  onUpdate({ ...rule, indicator: buildIndicator(family.id, Number(e.target.value)) });
+                  setEditing(null);
+                }}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                className={inlineNumberClass}
+              />
+            ) : (
+              <>
+                _
+                <span onClick={() => setEditing("period")} className={segmentClass}>
+                  {period ?? family.defaultPeriod}
+                </span>
+              </>
+            ))}
+          <span ref={comparatorRef} className="relative">
+            <span onClick={() => setEditing(editing === "comparator" ? null : "comparator")} className={segmentClass}>
+              {comparatorLabel(rule.comparator)}
+            </span>
+            {editing === "comparator" && (
+              <DropdownPanel
+                value={rule.comparator}
+                options={COMPARATORS.map((c) => ({ id: c.id, label: c.label }))}
+                onSelect={(id) => {
+                  onUpdate({ ...rule, comparator: id });
+                  setEditing(null);
+                }}
+              />
+            )}
+          </span>
+          {editing === "value" ? (
+            <input
+              autoFocus
+              type="number"
+              defaultValue={rule.value}
+              onBlur={(e) => {
+                onUpdate({ ...rule, value: Number(e.target.value) });
+                setEditing(null);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+              className={inlineNumberClass}
+            />
+          ) : (
+            <span onClick={() => setEditing("value")} className={segmentClass}>
+              {rule.value}
+            </span>
+          )}
         </span>
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
+          onClick={onRemove}
           aria-label="Remove rule"
           className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
         >
           <X size={12} strokeWidth={2.2} />
         </button>
       </div>
-      {open && (
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-1 py-1.5">
-          <select
-            value={family.id}
-            onChange={(e) => {
-              const next = INDICATOR_FAMILIES.find((f) => f.id === e.target.value)!;
-              onUpdate({ ...rule, indicator: buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null) });
-            }}
-            className={selectClass}
-          >
-            {INDICATOR_FAMILIES.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.label}
-              </option>
-            ))}
-          </select>
-          {family.hasPeriod && (
-            <input
-              type="number"
-              value={period ?? family.defaultPeriod}
-              onChange={(e) => onUpdate({ ...rule, indicator: buildIndicator(family.id, Number(e.target.value)) })}
-              className={numberInputClass}
-            />
-          )}
-          <select
-            value={rule.comparator}
-            onChange={(e) => onUpdate({ ...rule, comparator: e.target.value as BacktestRule["comparator"] })}
-            className={selectClass}
-          >
-            {COMPARATORS.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            value={rule.value}
-            onChange={(e) => onUpdate({ ...rule, value: Number(e.target.value) })}
-            className={numberInputClass}
-          />
-        </div>
-      )}
     </div>
   );
 }
 
-const SIZING_MODES: { id: BacktestSizing["mode"]; label: string; unit: string }[] = [
-  { id: "fixed_qty", label: "Fixed qty", unit: "share(s)" },
-  { id: "pct_equity", label: "% of equity", unit: "%" },
-  { id: "pct_risk", label: "% risk", unit: "%" },
+const SIZING_MODES: { id: BacktestSizing["mode"]; label: string; unit: string; suffix: string }[] = [
+  { id: "fixed_qty", label: "Fixed qty", unit: "share", suffix: "fixed" },
+  { id: "pct_equity", label: "% of equity", unit: "%", suffix: "of equity" },
+  { id: "pct_risk", label: "% risk", unit: "%", suffix: "risk" },
 ];
-
-function sizingLabel(sizing: BacktestSizing): string {
-  return sizing.mode === "fixed_qty"
-    ? `${sizing.value} share(s) fixed`
-    : sizing.mode === "pct_equity"
-    ? `${sizing.value}% of equity`
-    : `${sizing.value}% risk`;
-}
 
 function StatRow({
   label,
-  displayValue,
   onRemove,
   isFirst,
   isLast,
   children,
 }: {
   label: string;
-  displayValue: string;
   onRemove?: () => void;
   isFirst?: boolean;
   isLast?: boolean;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
   return (
     <div className="relative pl-4">
-      <span className="absolute left-[6px] top-[12px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[12px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[12px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
-      <div
-        onClick={() => setOpen((o) => !o)}
-        className="group flex cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 text-xs text-fg transition-colors hover:bg-panel/60"
-      >
+      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 text-sm text-fg transition-colors hover:bg-panel/60">
         <span className="text-muted">{label}</span>
-        <span className="flex items-center gap-1">
-          <span className="font-medium text-fg">{displayValue}</span>
+        <span className="flex items-center gap-1 font-mono">
+          {children}
           {onRemove && (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onRemove();
-              }}
+              onClick={onRemove}
               aria-label={`Remove ${label}`}
               className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
             >
@@ -221,11 +278,6 @@ function StatRow({
           )}
         </span>
       </div>
-      {open && (
-        <div className="flex flex-wrap items-center gap-1.5 px-1 py-1.5" onClick={(e) => e.stopPropagation()}>
-          {children}
-        </div>
-      )}
     </div>
   );
 }
@@ -245,15 +297,27 @@ function RiskRow({
   isFirst?: boolean;
   isLast?: boolean;
 }) {
+  const [editing, setEditing] = useState(false);
   return (
-    <StatRow label={label} displayValue={`${risk.value}%`} onRemove={onRemove} isFirst={isFirst} isLast={isLast}>
-      <input
-        type="number"
-        value={risk.value}
-        onChange={(e) => onUpdate({ value: Number(e.target.value) })}
-        className={numberInputClass}
-      />
-      <span className="text-xs text-muted">%</span>
+    <StatRow label={label} onRemove={onRemove} isFirst={isFirst} isLast={isLast}>
+      {editing ? (
+        <input
+          autoFocus
+          type="number"
+          defaultValue={risk.value}
+          onBlur={(e) => {
+            onUpdate({ value: Number(e.target.value) });
+            setEditing(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className={inlineNumberClass}
+        />
+      ) : (
+        <span onClick={() => setEditing(true)} className={segmentClass}>
+          {risk.value}
+        </span>
+      )}
+      %
     </StatRow>
   );
 }
@@ -265,27 +329,47 @@ function SizingRow({
   sizing: BacktestSizing;
   onUpdate: (sizing: BacktestSizing) => void;
 }) {
+  const [editingValue, setEditingValue] = useState(false);
+  const [modeOpen, setModeOpen] = useState(false);
+  const modeRef = useRef<HTMLSpanElement>(null);
+  useClickOutside(modeRef, () => setModeOpen(false), modeOpen);
   const mode = SIZING_MODES.find((m) => m.id === sizing.mode) ?? SIZING_MODES[0];
   return (
-    <StatRow label="Position sizing" displayValue={sizingLabel(sizing)} isFirst isLast>
-      <select
-        value={sizing.mode}
-        onChange={(e) => onUpdate({ ...sizing, mode: e.target.value as BacktestSizing["mode"] })}
-        className={selectClass}
-      >
-        {SIZING_MODES.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.label}
-          </option>
-        ))}
-      </select>
-      <input
-        type="number"
-        value={sizing.value}
-        onChange={(e) => onUpdate({ ...sizing, value: Number(e.target.value) })}
-        className={numberInputClass}
-      />
-      <span className="text-xs text-muted">{mode.unit}</span>
+    <StatRow label="Position sizing" isFirst isLast>
+      {editingValue ? (
+        <input
+          autoFocus
+          type="number"
+          defaultValue={sizing.value}
+          onBlur={(e) => {
+            onUpdate({ ...sizing, value: Number(e.target.value) });
+            setEditingValue(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className={inlineNumberClass}
+        />
+      ) : (
+        <span onClick={() => setEditingValue(true)} className={segmentClass}>
+          {sizing.value}
+        </span>
+      )}
+      {mode.id === "fixed_qty" ? (sizing.value === 1 ? "share" : "shares") : mode.unit}{" "}
+      <span ref={modeRef} className="relative">
+        <span onClick={() => setModeOpen((o) => !o)} className={segmentClass}>
+          {mode.suffix}
+        </span>
+        {modeOpen && (
+          <DropdownPanel
+            align="right"
+            value={sizing.mode}
+            options={SIZING_MODES.map((m) => ({ id: m.id, label: m.label }))}
+            onSelect={(id) => {
+              onUpdate({ ...sizing, mode: id });
+              setModeOpen(false);
+            }}
+          />
+        )}
+      </span>
     </StatRow>
   );
 }
@@ -310,17 +394,17 @@ function CategoryCard({
   return (
     <div
       onClick={isEmpty ? onClickEmpty : undefined}
-      className={`min-w-0 rounded-lg border px-2.5 py-2 text-xs transition-colors ${
+      className={`min-w-0 rounded-lg border px-3 py-2.5 transition-colors ${
         isEmpty
           ? `border-dashed border-border/50 bg-panel/20 text-muted ${onClickEmpty ? "cursor-pointer hover:border-border hover:bg-panel/40" : ""}`
           : "border-border/60 bg-panel/50"
       }`}
     >
-      <div className={`mb-1.5 flex items-center gap-1 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
+      <div className={`mb-2 flex items-center gap-1 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
         <Icon size={12} strokeWidth={2.2} />
         {label}
       </div>
-      {isEmpty ? <div className="text-[11px] leading-snug text-muted">{emptyHint}</div> : <div className="space-y-1.5">{children}</div>}
+      {isEmpty ? <div className="text-xs leading-snug text-muted">{emptyHint}</div> : <div className="space-y-1.5">{children}</div>}
     </div>
   );
 }
@@ -358,7 +442,7 @@ function ConfigSummaryCard({
 
   return (
     <div className="w-full rounded-2xl border border-violet-400/30 bg-violet-500/5 px-3 py-2.5 text-sm">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2 px-1">
         <input
           type="text"
           value={config.name}
@@ -377,13 +461,13 @@ function ConfigSummaryCard({
             aria-label="Run backtest"
             className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
           >
-            <Play size={11} strokeWidth={2.5} />
+            {running ? <Loader2 size={11} strokeWidth={2.5} className="animate-spin" /> : <Play size={11} strokeWidth={2.5} />}
             {running ? "Running…" : "Run"}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2">
         <CategoryCard
           icon={EntryIcon}
           label="Entry"
@@ -445,7 +529,7 @@ function ConfigSummaryCard({
             <button
               type="button"
               onClick={() => onUpdateStopLoss({ value: 2 })}
-              className="py-0.5 pl-4 text-xs text-muted hover:text-fg"
+              className="py-0.5 pl-4 text-sm text-muted hover:text-fg"
             >
               + Add stop loss
             </button>
@@ -463,7 +547,7 @@ function ConfigSummaryCard({
             <button
               type="button"
               onClick={() => onUpdateTakeProfit({ value: 5 })}
-              className="py-0.5 pl-4 text-xs text-muted hover:text-fg"
+              className="py-0.5 pl-4 text-sm text-muted hover:text-fg"
             >
               + Add take profit
             </button>
