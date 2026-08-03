@@ -4,8 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { api, BacktestConfig, BacktestResult, BacktestTrade, Candle, ChartAnnotation, SymbolResult } from "@/lib/api";
 import ReplayControls from "@/components/backtesting/ReplayControls";
-import ConfigEditor from "@/components/backtesting/ConfigEditor";
-import HintLibrary from "@/components/backtesting/HintLibrary";
 import BacktestChat from "@/components/backtesting/BacktestChat";
 import { Search } from "lucide-react";
 
@@ -234,9 +232,9 @@ export default function BacktestingPage() {
 
       <div className="grid flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:overflow-hidden">
         <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
-          <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+          <div className="flex min-h-[420px] flex-1 flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
             <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
-              <span className="text-xs font-semibold tracking-wide text-muted">Strategy Builder</span>
+              <span className="text-sm font-semibold tracking-wide text-muted">Strategy Builder</span>
               <button
                 onClick={runBacktest}
                 disabled={running || candles.length === 0}
@@ -245,33 +243,14 @@ export default function BacktestingPage() {
                 {running ? "Running…" : "Run backtest"}
               </button>
             </div>
-            <div className="flex-1 overflow-auto lg:min-h-0 lg:overflow-hidden">
-              <ConfigEditor config={config} onChange={setConfig} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-2">
-            <div className="flex min-h-[320px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
-              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold tracking-wide text-muted">
-                Hint Library
-              </div>
-              <div className="flex-1 overflow-auto lg:min-h-0 lg:overflow-hidden">
-                <HintLibrary onApply={(updater) => setConfig(updater)} />
-              </div>
-            </div>
-            <div className="flex min-h-[320px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
-              <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold tracking-wide text-muted">
-                Assistant
-              </div>
-              <div className="flex-1 lg:min-h-0">
-                <BacktestChat config={config} onConfigChange={setConfig} />
-              </div>
+            <div className="flex-1 lg:min-h-0">
+              <BacktestChat config={config} onConfigChange={setConfig} />
             </div>
           </div>
         </div>
 
         <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
-          <div className="shrink-0 border-b border-border px-4 py-2 text-xs font-semibold tracking-wide text-muted">
+          <div className="shrink-0 border-b border-border px-4 py-2 text-sm font-semibold tracking-wide text-muted">
             Replay Preview
           </div>
           <div className="flex-1 lg:min-h-0">

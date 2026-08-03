@@ -34,6 +34,10 @@ const config: Config = {
           "0%": { opacity: "0", transform: "translateY(8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
+        "fade-out-down": {
+          "0%": { opacity: "1", transform: "translateY(0)" },
+          "100%": { opacity: "0", transform: "translateY(8px)" },
+        },
         "bounce-dot": {
           "0%, 80%, 100%": { transform: "translateY(0)", opacity: "0.5" },
           "40%": { transform: "translateY(-4px)", opacity: "1" },
@@ -45,6 +49,7 @@ const config: Config = {
       },
       animation: {
         "fade-in-up": "fade-in-up 250ms ease-out",
+        "fade-out-down": "fade-out-down 200ms ease-in",
         "bounce-dot": "bounce-dot 1.2s ease-in-out infinite",
         "spotlight-in": "spotlight-in 300ms ease-out",
       },
