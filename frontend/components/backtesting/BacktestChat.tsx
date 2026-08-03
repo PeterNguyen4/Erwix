@@ -63,7 +63,7 @@ function TypingIndicator() {
 }
 
 const PLACEHOLDER_PROMPTS = [
-  "Describe your strategy",
+  "Load a strategy previously saved",
   "Pick a rule from the library",
   "e.g. buy when RSI drops below 30, sell when it crosses back above 70",
 ];
@@ -80,20 +80,27 @@ function RuleRow({
   rule,
   onRemove,
   onUpdate,
+  isFirst,
+  isLast,
 }: {
   rule: BacktestRule;
   onRemove: () => void;
   onUpdate: (rule: BacktestRule) => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { familyId, period } = parseIndicator(rule.indicator);
   const family = INDICATOR_FAMILIES.find((f) => f.id === familyId) ?? INDICATOR_FAMILIES[0];
 
   return (
-    <div className="rounded-md bg-panel/60 text-xs text-fg">
+    <div className="relative pl-4 text-xs text-fg">
+      <span className="absolute left-[6px] top-[12px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-[12px] w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-[12px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div
         onClick={() => setOpen((o) => !o)}
-        className="group flex cursor-pointer items-center justify-between gap-2 px-2 py-1 font-mono transition-colors hover:bg-panel"
+        className="group flex cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 font-mono transition-colors hover:bg-panel/60"
       >
         <span>
           {rule.indicator} {comparatorLabel(rule.comparator)} {rule.value}
@@ -111,7 +118,7 @@ function RuleRow({
         </button>
       </div>
       {open && (
-        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 border-t border-border/60 px-1 py-1.5">
           <select
             value={family.id}
             onChange={(e) => {
@@ -172,29 +179,31 @@ function sizingLabel(sizing: BacktestSizing): string {
 }
 
 function StatRow({
-  icon: Icon,
   label,
   displayValue,
   onRemove,
+  isFirst,
+  isLast,
   children,
 }: {
-  icon: typeof CATEGORY_ICONS.risk;
   label: string;
   displayValue: string;
   onRemove?: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-md text-xs text-fg">
+    <div className="relative pl-4">
+      <span className="absolute left-[6px] top-[12px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-[12px] w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-[12px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div
         onClick={() => setOpen((o) => !o)}
-        className="group -mx-1 flex cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 transition-colors hover:bg-panel/60"
+        className="group flex cursor-pointer items-center justify-between gap-2 rounded-md px-1 py-0.5 text-xs text-fg transition-colors hover:bg-panel/60"
       >
-        <span className="flex items-center gap-1 text-muted">
-          <Icon size={12} strokeWidth={2} />
-          {label}
-        </span>
+        <span className="text-muted">{label}</span>
         <span className="flex items-center gap-1">
           <span className="font-medium text-fg">{displayValue}</span>
           {onRemove && (
@@ -222,20 +231,22 @@ function StatRow({
 }
 
 function RiskRow({
-  icon,
   label,
   risk,
   onUpdate,
   onRemove,
+  isFirst,
+  isLast,
 }: {
-  icon: typeof CATEGORY_ICONS.risk;
   label: string;
   risk: BacktestRisk;
   onUpdate: (risk: BacktestRisk) => void;
   onRemove: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
 }) {
   return (
-    <StatRow icon={icon} label={label} displayValue={`${risk.value}%`} onRemove={onRemove}>
+    <StatRow label={label} displayValue={`${risk.value}%`} onRemove={onRemove} isFirst={isFirst} isLast={isLast}>
       <input
         type="number"
         value={risk.value}
@@ -256,7 +267,7 @@ function SizingRow({
 }) {
   const mode = SIZING_MODES.find((m) => m.id === sizing.mode) ?? SIZING_MODES[0];
   return (
-    <StatRow icon={CATEGORY_ICONS.sizing} label="Position sizing" displayValue={sizingLabel(sizing)}>
+    <StatRow label="Position sizing" displayValue={sizingLabel(sizing)} isFirst isLast>
       <select
         value={sizing.mode}
         onChange={(e) => onUpdate({ ...sizing, mode: e.target.value as BacktestSizing["mode"] })}
@@ -279,6 +290,41 @@ function SizingRow({
   );
 }
 
+function CategoryCard({
+  icon: Icon,
+  label,
+  accentClass,
+  isEmpty,
+  emptyHint,
+  onClickEmpty,
+  children,
+}: {
+  icon: typeof CATEGORY_ICONS.risk;
+  label: string;
+  accentClass: string;
+  isEmpty: boolean;
+  emptyHint: string;
+  onClickEmpty?: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={isEmpty ? onClickEmpty : undefined}
+      className={`min-w-0 rounded-lg border px-2.5 py-2 text-xs transition-colors ${
+        isEmpty
+          ? `border-dashed border-border/50 bg-panel/20 text-muted ${onClickEmpty ? "cursor-pointer hover:border-border hover:bg-panel/40" : ""}`
+          : "border-border/60 bg-panel/50"
+      }`}
+    >
+      <div className={`mb-1.5 flex items-center gap-1 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
+        <Icon size={12} strokeWidth={2.2} />
+        {label}
+      </div>
+      {isEmpty ? <div className="text-[11px] leading-snug text-muted">{emptyHint}</div> : <div className="space-y-1.5">{children}</div>}
+    </div>
+  );
+}
+
 function ConfigSummaryCard({
   config,
   onRemoveRule,
@@ -290,6 +336,7 @@ function ConfigSummaryCard({
   onUpdateStopLoss,
   onUpdateTakeProfit,
   onUpdateSizing,
+  onFocusInput,
 }: {
   config: BacktestConfig;
   onRemoveRule: (kind: "entry_rules" | "exit_rules", index: number) => void;
@@ -301,10 +348,13 @@ function ConfigSummaryCard({
   onUpdateStopLoss: (risk: BacktestRisk | null) => void;
   onUpdateTakeProfit: (risk: BacktestRisk | null) => void;
   onUpdateSizing: (sizing: BacktestSizing) => void;
+  onFocusInput?: () => void;
 }) {
   const EntryIcon = CATEGORY_ICONS.entry;
   const ExitIcon = CATEGORY_ICONS.exit;
   const RiskIcon = CATEGORY_ICONS.risk;
+  const SizingIcon = CATEGORY_ICONS.sizing;
+  const hasRisk = Boolean(config.stop_loss || config.take_profit);
 
   return (
     <div className="w-full rounded-2xl border border-violet-400/30 bg-violet-500/5 px-3 py-2.5 text-sm">
@@ -333,86 +383,96 @@ function ConfigSummaryCard({
         </div>
       </div>
 
-      {config.entry_rules.length > 0 && (
-        <div className="mb-1.5">
-          <div className="mb-1 flex items-center gap-1 text-xs font-semibold tracking-wide text-up">
-            <EntryIcon size={12} strokeWidth={2.2} />
-            Entry
-          </div>
-          <div className="space-y-1">
-            {config.entry_rules.map((r, i) => (
-              <RuleRow
-                key={i}
-                rule={r}
-                onRemove={() => onRemoveRule("entry_rules", i)}
-                onUpdate={(rule) => onUpdateRule("entry_rules", i, rule)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <CategoryCard
+          icon={EntryIcon}
+          label="Entry"
+          accentClass="text-up"
+          isEmpty={config.entry_rules.length === 0}
+          emptyHint="Describe a rule or pick from Rules"
+          onClickEmpty={onFocusInput}
+        >
+          {config.entry_rules.map((r, i) => (
+            <RuleRow
+              key={i}
+              rule={r}
+              onRemove={() => onRemoveRule("entry_rules", i)}
+              onUpdate={(rule) => onUpdateRule("entry_rules", i, rule)}
+              isFirst={i === 0}
+              isLast={i === config.entry_rules.length - 1}
+            />
+          ))}
+        </CategoryCard>
 
-      {config.exit_rules.length > 0 && (
-        <div className="mb-1.5">
-          <div className="mb-1 flex items-center gap-1 text-xs font-semibold tracking-wide text-down">
-            <ExitIcon size={12} strokeWidth={2.2} />
-            Exit
-          </div>
-          <div className="space-y-1">
-            {config.exit_rules.map((r, i) => (
-              <RuleRow
-                key={i}
-                rule={r}
-                onRemove={() => onRemoveRule("exit_rules", i)}
-                onUpdate={(rule) => onUpdateRule("exit_rules", i, rule)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+        <CategoryCard
+          icon={ExitIcon}
+          label="Exit"
+          accentClass="text-down"
+          isEmpty={config.exit_rules.length === 0}
+          emptyHint="Describe a rule or pick from Rules"
+          onClickEmpty={onFocusInput}
+        >
+          {config.exit_rules.map((r, i) => (
+            <RuleRow
+              key={i}
+              rule={r}
+              onRemove={() => onRemoveRule("exit_rules", i)}
+              onUpdate={(rule) => onUpdateRule("exit_rules", i, rule)}
+              isFirst={i === 0}
+              isLast={i === config.exit_rules.length - 1}
+            />
+          ))}
+        </CategoryCard>
 
-      {config.entry_rules.length === 0 && config.exit_rules.length === 0 && (
-        <div className="mb-1.5 text-xs text-muted">No rules yet — describe one or pick from Rules.</div>
-      )}
+        <CategoryCard
+          icon={RiskIcon}
+          label="Risk"
+          accentClass="text-fg"
+          isEmpty={!hasRisk}
+          emptyHint="No stop loss or take profit set"
+          onClickEmpty={() => onUpdateStopLoss({ value: 2 })}
+        >
+          {config.stop_loss ? (
+            <RiskRow
+              label="Stop loss"
+              risk={config.stop_loss}
+              onUpdate={onUpdateStopLoss}
+              onRemove={() => onUpdateStopLoss(null)}
+              isFirst
+              isLast={!config.take_profit}
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => onUpdateStopLoss({ value: 2 })}
+              className="py-0.5 pl-4 text-xs text-muted hover:text-fg"
+            >
+              + Add stop loss
+            </button>
+          )}
+          {config.take_profit ? (
+            <RiskRow
+              label="Take profit"
+              risk={config.take_profit}
+              onUpdate={onUpdateTakeProfit}
+              onRemove={() => onUpdateTakeProfit(null)}
+              isFirst={!config.stop_loss}
+              isLast
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => onUpdateTakeProfit({ value: 5 })}
+              className="py-0.5 pl-4 text-xs text-muted hover:text-fg"
+            >
+              + Add take profit
+            </button>
+          )}
+        </CategoryCard>
 
-      <div className="mt-1.5 space-y-0.5 border-t border-border/60 pt-1.5">
-        {config.stop_loss ? (
-          <RiskRow
-            icon={RiskIcon}
-            label="Stop loss"
-            risk={config.stop_loss}
-            onUpdate={onUpdateStopLoss}
-            onRemove={() => onUpdateStopLoss(null)}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => onUpdateStopLoss({ value: 2 })}
-            className="flex items-center gap-1 py-0.5 text-xs text-muted hover:text-fg"
-          >
-            <RiskIcon size={12} strokeWidth={2} />
-            + Add stop loss
-          </button>
-        )}
-        {config.take_profit ? (
-          <RiskRow
-            icon={RiskIcon}
-            label="Take profit"
-            risk={config.take_profit}
-            onUpdate={onUpdateTakeProfit}
-            onRemove={() => onUpdateTakeProfit(null)}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => onUpdateTakeProfit({ value: 5 })}
-            className="flex items-center gap-1 py-0.5 text-xs text-muted hover:text-fg"
-          >
-            <RiskIcon size={12} strokeWidth={2} />
-            + Add take profit
-          </button>
-        )}
-        <SizingRow sizing={config.position_sizing} onUpdate={onUpdateSizing} />
+        <CategoryCard icon={SizingIcon} label="Scale" accentClass="text-fg" isEmpty={false} emptyHint="">
+          <SizingRow sizing={config.position_sizing} onUpdate={onUpdateSizing} />
+        </CategoryCard>
       </div>
     </div>
   );
@@ -449,7 +509,6 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   const [sendHover, setSendHover] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [placeholderPhase, setPlaceholderPhase] = useState<"in" | "out">("in");
   const scrollRef = useRef<HTMLDivElement>(null);
   const sendButtonRef = useRef<HTMLButtonElement>(null);
   const rulesChipRef = useRef<HTMLButtonElement>(null);
@@ -474,11 +533,7 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   useEffect(() => {
     if (!isEmpty || input) return;
     const id = setInterval(() => {
-      setPlaceholderPhase("out");
-      setTimeout(() => {
-        setPlaceholderIndex((i) => (i + 1) % PLACEHOLDER_PROMPTS.length);
-        setPlaceholderPhase("in");
-      }, 200);
+      setPlaceholderIndex((i) => (i + 1) % PLACEHOLDER_PROMPTS.length);
     }, 10000);
     return () => clearInterval(id);
   }, [isEmpty, input]);
@@ -604,13 +659,10 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
       <div className="mx-auto flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
         <div className={`relative px-3 pt-3 ${isEmpty ? "pb-1" : "pb-0"}`}>
           {isEmpty && !input && (
-            <div
-              key={placeholderIndex}
-              className={`pointer-events-none absolute left-3 top-3 right-4 text-sm text-muted ${
-                placeholderPhase === "in" ? "animate-fade-in-up" : "animate-fade-out-down"
-              }`}
-            >
-              {PLACEHOLDER_PROMPTS[placeholderIndex]}
+            <div className="pointer-events-none absolute left-3 top-3 right-4 h-5 overflow-hidden">
+              <div key={placeholderIndex} className="animate-fade-in-up text-sm text-muted">
+                {PLACEHOLDER_PROMPTS[placeholderIndex]}
+              </div>
             </div>
           )}
           <textarea
@@ -705,6 +757,7 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
               onUpdateStopLoss={updateStopLoss}
               onUpdateTakeProfit={updateTakeProfit}
               onUpdateSizing={updateSizing}
+              onFocusInput={() => textareaRef.current?.focus()}
             />
           ) : m.kind === "action" ? (
             <ActionBadge key={m.id} label={m.label} />
