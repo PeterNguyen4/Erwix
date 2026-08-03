@@ -18,11 +18,11 @@ function WeekDelta({ value }: { value: number | null }) {
   if (value == null || Number.isNaN(value) || value === 0) return null;
   const up = value > 0;
   return (
-    <div className={`mt-1.5 flex items-center gap-1 text-[10px] font-medium tabular-nums ${up ? "text-up" : "text-down"}`}>
-      <Triangle size={7} className={up ? "" : "rotate-180"} fill="currentColor" strokeWidth={0} />
+    <div className={`flex items-center gap-0.5 text-xs font-semibold tabular-nums ${up ? "text-up" : "text-down"}`}>
+      <Triangle size={8} className={up ? "" : "rotate-180"} fill="currentColor" strokeWidth={0} />
       <span>
         {up ? "+" : ""}
-        {value.toFixed(0)}% vs last week
+        {value.toFixed(0)}%
       </span>
     </div>
   );
@@ -94,7 +94,7 @@ export default function PortfolioPage() {
   return (
     <main className="flex h-full flex-col overflow-auto">
       <header className="sticky top-0 z-10 flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
-        <div className="text-xl font-semibold text-fg">Portfolio</div>
+        <div className="text-xl font-normal text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted">Paper account</div>
           {process.env.NODE_ENV !== "production" && (
@@ -163,8 +163,8 @@ export default function PortfolioPage() {
               <div className="flex flex-wrap gap-2">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div key={i} className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="h-2.5 w-16 animate-pulse rounded bg-border/40" />
-                    <div className="mt-2 h-4 w-12 animate-pulse rounded bg-border/40" />
+                    <div className="h-3 w-16 animate-pulse rounded bg-border/40" />
+                    <div className="mt-2 h-7 w-16 animate-pulse rounded bg-border/40" />
                   </div>
                 ))}
               </div>
@@ -172,45 +172,53 @@ export default function PortfolioPage() {
               pnl && (
                 <div className="flex flex-wrap gap-2">
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">Win Rate</div>
-                    <div className="text-sm font-semibold tabular-nums text-fg">
-                      {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
+                    <div className="text-xs font-medium tracking-wide text-muted">Win Rate</div>
+                    <div className="mt-1 flex items-baseline gap-4">
+                      <span className="text-2xl font-normal tabular-nums text-fg">
+                        {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
+                      </span>
+                      <WeekDelta value={pctDelta(weekPnl?.win_rate ?? null, prevWeekPnl?.win_rate ?? null)} />
                     </div>
-                    <WeekDelta value={pctDelta(weekPnl?.win_rate ?? null, prevWeekPnl?.win_rate ?? null)} />
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">Avg Risk/Reward</div>
-                    <div className="text-sm font-semibold tabular-nums text-fg">
-                      {pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—"}
+                    <div className="text-xs font-medium tracking-wide text-muted">Avg Risk/Reward</div>
+                    <div className="mt-1 flex items-baseline gap-4">
+                      <span className="text-2xl font-normal tabular-nums text-fg">
+                        {pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—"}
+                      </span>
+                      <WeekDelta
+                        value={pctDelta(
+                          weekPnl?.avg_win != null && weekPnl?.avg_loss ? weekPnl.avg_win / Math.abs(weekPnl.avg_loss) : null,
+                          prevWeekPnl?.avg_win != null && prevWeekPnl?.avg_loss
+                            ? prevWeekPnl.avg_win / Math.abs(prevWeekPnl.avg_loss)
+                            : null
+                        )}
+                      />
                     </div>
-                    <WeekDelta
-                      value={pctDelta(
-                        weekPnl?.avg_win != null && weekPnl?.avg_loss ? weekPnl.avg_win / Math.abs(weekPnl.avg_loss) : null,
-                        prevWeekPnl?.avg_win != null && prevWeekPnl?.avg_loss
-                          ? prevWeekPnl.avg_win / Math.abs(prevWeekPnl.avg_loss)
-                          : null
-                      )}
-                    />
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">Realized PnL</div>
-                    <div className={`text-sm font-semibold tabular-nums ${pnl.total_pnl >= 0 ? "text-up" : "text-down"}`}>
-                      {pnl.total_pnl >= 0 ? "+" : ""}
-                      {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                    <div className="text-xs font-medium tracking-wide text-muted">Realized PnL</div>
+                    <div className="mt-1 flex items-baseline gap-4">
+                      <span className={`text-2xl font-normal tabular-nums ${pnl.total_pnl >= 0 ? "text-up" : "text-down"}`}>
+                        {pnl.total_pnl >= 0 ? "+" : ""}
+                        {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                      </span>
+                      <WeekDelta value={pctDelta(weekPnl?.total_pnl ?? null, prevWeekPnl?.total_pnl ?? null)} />
                     </div>
-                    <WeekDelta value={pctDelta(weekPnl?.total_pnl ?? null, prevWeekPnl?.total_pnl ?? null)} />
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-[10px] uppercase tracking-wide text-muted">W / L</div>
-                    <div className="text-sm font-semibold tabular-nums text-fg">
-                      <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
+                    <div className="text-xs font-medium tracking-wide text-muted">W / L</div>
+                    <div className="mt-1 flex items-baseline gap-4">
+                      <span className="text-2xl font-normal tabular-nums text-fg">
+                        <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
+                      </span>
+                      <WeekDelta
+                        value={pctDelta(
+                          weekPnl ? weekPnl.win_count - weekPnl.loss_count : null,
+                          prevWeekPnl ? prevWeekPnl.win_count - prevWeekPnl.loss_count : null
+                        )}
+                      />
                     </div>
-                    <WeekDelta
-                      value={pctDelta(
-                        weekPnl ? weekPnl.win_count - weekPnl.loss_count : null,
-                        prevWeekPnl ? prevWeekPnl.win_count - prevWeekPnl.loss_count : null
-                      )}
-                    />
                   </div>
                 </div>
               )

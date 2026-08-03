@@ -46,7 +46,7 @@ export default function AllocationChart({
   if (loading) {
     return (
       <div className="rounded-lg border border-border bg-panel p-4">
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Allocation</h2>
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted">Allocation</h2>
         <div className="flex items-center gap-4">
           <div className="h-32 w-32 shrink-0 animate-pulse rounded-full bg-border/40" />
           <div className="flex-1 space-y-2">
@@ -62,7 +62,7 @@ export default function AllocationChart({
   if (total <= 0) {
     return (
       <div className="rounded-lg border border-border bg-panel p-4">
-        <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Allocation</h2>
+        <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted">Allocation</h2>
         <p className="py-8 text-center text-xs text-muted">No holdings to allocate yet.</p>
       </div>
     );
@@ -78,7 +78,7 @@ export default function AllocationChart({
 
   return (
     <div className="rounded-lg border border-border bg-panel p-4">
-      <h2 className="mb-3 text-xs font-medium uppercase tracking-wide text-muted">Allocation</h2>
+      <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted">Allocation</h2>
       <div className="flex items-center gap-4">
         <svg viewBox="0 0 100 100" className="h-32 w-32 shrink-0 -rotate-90">
           {slices.map((s) => {

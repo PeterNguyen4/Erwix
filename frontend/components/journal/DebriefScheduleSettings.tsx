@@ -129,7 +129,7 @@ export default function DebriefScheduleSettings() {
           </div>
 
           <div className={prefs.debrief_enabled ? "" : "pointer-events-none opacity-40"}>
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">Day</div>
+            <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-muted">Day</div>
             <div className="mb-3 grid grid-cols-7 gap-1">
               {DAYS.map((d, i) => (
                 <button
@@ -146,8 +146,8 @@ export default function DebriefScheduleSettings() {
               ))}
             </div>
 
-            <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-              Time <span className="normal-case text-muted/70">(your local time)</span>
+            <div className="mb-1.5 text-[10px] font-semibold tracking-wide text-muted">
+              Time <span className="text-muted/70">(your local time)</span>
             </div>
             <input
               type="time"

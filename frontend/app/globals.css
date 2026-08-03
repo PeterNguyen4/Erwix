@@ -72,3 +72,17 @@ body {
   background: rgb(var(--color-border));
   border-radius: 4px;
 }
+
+.chat-scroll {
+  scrollbar-gutter: stable;
+}
+.chat-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-muted));
+  border-radius: 4px;
+}

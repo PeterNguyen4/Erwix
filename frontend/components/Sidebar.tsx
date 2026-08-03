@@ -62,7 +62,7 @@ export default function Sidebar() {
               </span>
             </button>
             <ToolbarTooltip
-              label={showBadge ? `${label} — analyst debrief ready` : label}
+              label={showBadge ? `${label} — debrief ready` : label}
               hover={hoveredHref === href}
               placement="right"
               anchorRef={{ current: navButtonRefs.current[href] ?? null }}

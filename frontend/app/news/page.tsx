@@ -66,7 +66,7 @@ export default function NewsPage() {
     <main className="flex h-full flex-col">
       <header className="flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div>
-          <div className="text-xl font-semibold text-fg">News</div>
+          <div className="text-xl font-normal text-fg">News</div>
         </div>
       </header>
 
@@ -109,7 +109,7 @@ export default function NewsPage() {
           ) : null}
 
           <div className="rounded-lg border border-border bg-panel p-4">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Headlines</div>
+            <div className="mb-3 text-sm font-semibold tracking-wide text-muted">Headlines</div>
             {loadingArticles ? (
               <ul className="flex flex-col divide-y divide-border/60">
                 {Array.from({ length: 5 }).map((_, i) => (
