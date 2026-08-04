@@ -81,12 +81,25 @@ function StrategyCard({
             onClick={() => setMenuOpen((o) => !o)}
             onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
             title="More options"
-            className="flex h-6 w-6 items-center justify-center rounded-md bg-black/20 text-white/80 opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/35 hover:text-white group-hover:opacity-100 focus:opacity-100"
+            className="flex h-6 w-6 items-center justify-center rounded-md bg-black/20 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/35 hover:text-white"
           >
             <MoreVertical size={14} strokeWidth={2} />
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-full z-20 mt-1 w-32 rounded-md border border-border bg-panel py-1 text-left shadow-lg">
+              {!s.is_active && (
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onActivate(s.id);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-muted transition-colors hover:bg-violet-500/10 hover:text-fg"
+                >
+                  <Star size={12} strokeWidth={2} />
+                  Activate
+                </button>
+              )}
               <button
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
@@ -149,20 +162,6 @@ function StrategyCard({
           <span className="text-muted">•</span>
           <span>{new Date(s.updated_at).toLocaleDateString()}</span>
         </div>
-
-        {!s.is_active && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onActivate(s.id);
-            }}
-            title="Set as active"
-            className="mt-1 flex w-fit items-center gap-1 rounded-md border border-violet-400/40 bg-violet-500/15 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-violet-400 hover:bg-violet-500/25 dark:text-violet-400"
-          >
-            <Star size={12} strokeWidth={2} />
-            Activate
-          </button>
-        )}
       </div>
     </div>
   );
