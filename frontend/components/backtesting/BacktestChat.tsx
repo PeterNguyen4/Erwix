@@ -432,6 +432,31 @@ function StatRow({
   );
 }
 
+function AddStatRow({
+  label,
+  onAdd,
+}: {
+  label: string;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="relative pl-4">
+      <Plus
+        size={10}
+        strokeWidth={2.5}
+        className="absolute left-[6px] top-[13px] -translate-x-1/2 -translate-y-1/2 text-muted"
+      />
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex w-full items-center rounded-md px-1 py-1 text-sm text-muted transition-colors hover:bg-panel/60 hover:text-fg"
+      >
+        {label}
+      </button>
+    </div>
+  );
+}
+
 function RiskRow({
   label,
   risk,
@@ -570,7 +595,7 @@ function ConfigSummaryCard({
   onUpdateStopLoss,
   onUpdateTakeProfit,
   onUpdateSizing,
-  onFocusInput,
+  onAddRule,
 }: {
   config: BacktestConfig;
   onRemoveRule: (kind: "entry_rules" | "exit_rules", index: number) => void;
@@ -582,7 +607,7 @@ function ConfigSummaryCard({
   onUpdateStopLoss: (risk: BacktestRisk | null) => void;
   onUpdateTakeProfit: (risk: BacktestRisk | null) => void;
   onUpdateSizing: (sizing: BacktestSizing) => void;
-  onFocusInput?: () => void;
+  onAddRule: (kind: "entry_rules" | "exit_rules") => void;
 }) {
   const EntryIcon = CATEGORY_ICONS.entry;
   const ExitIcon = CATEGORY_ICONS.exit;
@@ -623,8 +648,8 @@ function ConfigSummaryCard({
           label="Entry"
           accentClass="text-up"
           isEmpty={config.entry_rules.length === 0}
-          emptyHint="Describe a rule or pick from Rules"
-          onClickEmpty={onFocusInput}
+          emptyHint="Click to add a rule"
+          onClickEmpty={() => onAddRule("entry_rules")}
         >
           {config.entry_rules.map((r, i) => (
             <RuleRow
@@ -643,8 +668,8 @@ function ConfigSummaryCard({
           label="Exit"
           accentClass="text-down"
           isEmpty={config.exit_rules.length === 0}
-          emptyHint="Describe a rule or pick from Rules"
-          onClickEmpty={onFocusInput}
+          emptyHint="Click to add a rule"
+          onClickEmpty={() => onAddRule("exit_rules")}
         >
           {config.exit_rules.map((r, i) => (
             <RuleRow
@@ -673,16 +698,10 @@ function ConfigSummaryCard({
               onUpdate={onUpdateStopLoss}
               onRemove={() => onUpdateStopLoss(null)}
               isFirst
-              isLast={!config.take_profit}
+              isLast={false}
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => onUpdateStopLoss({ value: 2 })}
-              className="py-0.5 pl-4 text-sm text-muted hover:text-fg"
-            >
-              + Add stop loss
-            </button>
+            <AddStatRow label="Add stop loss" onAdd={() => onUpdateStopLoss({ value: 2 })} />
           )}
           {config.take_profit ? (
             <RiskRow
@@ -690,17 +709,11 @@ function ConfigSummaryCard({
               risk={config.take_profit}
               onUpdate={onUpdateTakeProfit}
               onRemove={() => onUpdateTakeProfit(null)}
-              isFirst={!config.stop_loss}
+              isFirst={false}
               isLast
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => onUpdateTakeProfit({ value: 5 })}
-              className="py-0.5 pl-4 text-sm text-muted hover:text-fg"
-            >
-              + Add take profit
-            </button>
+            <AddStatRow label="Add take profit" onAdd={() => onUpdateTakeProfit({ value: 5 })} />
           )}
         </CategoryCard>
 
@@ -827,6 +840,13 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     upsertConfigCard(next);
   };
 
+  const addRuleTemplate = (kind: "entry_rules" | "exit_rules") => {
+    const template: BacktestRule = { indicator: "rsi_14", comparator: "<", value: "30" };
+    const next = { ...configRef.current, [kind]: [...configRef.current[kind], template] };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
   const renameStrategy = (name: string) => {
     const next = { ...configRef.current, name };
     onConfigChange(next);
@@ -901,9 +921,9 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   const inputRow = (
     <div className="w-full shrink-0 px-4 py-3">
       <div className="mx-auto flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
-        <div className={`relative px-3 pt-3 ${isEmpty ? "pb-1" : "pb-0"}`}>
+        <div className={`relative pl-[18px] pr-3 pt-3 ${isEmpty ? "pb-1" : "pb-0"}`}>
           {isEmpty && !input && (
-            <div className="pointer-events-none absolute left-3 top-3 right-4 h-5 overflow-hidden">
+            <div className="pointer-events-none absolute left-[18px] top-3 right-4 h-5 overflow-hidden">
               <div key={placeholderIndex} className="animate-fade-in-up text-sm text-muted">
                 {PLACEHOLDER_PROMPTS[placeholderIndex]}
               </div>
@@ -921,7 +941,7 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
             }}
             placeholder={isEmpty ? "" : "Describe your strategy"}
             rows={1}
-            className="chat-scroll max-h-40 min-h-[1.75rem] pr-1 w-full resize-none overflow-y-auto bg-transparent text-sm text-fg outline-none placeholder:text-muted"
+            className="chat-scroll max-h-40 min-h-[1.75rem] pr-2 w-full resize-none overflow-y-auto bg-transparent text-sm text-fg outline-none placeholder:text-muted"
           />
         </div>
         <div className="flex items-center justify-between px-3 pb-3">
@@ -1004,7 +1024,7 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
               onUpdateStopLoss={updateStopLoss}
               onUpdateTakeProfit={updateTakeProfit}
               onUpdateSizing={updateSizing}
-              onFocusInput={() => textareaRef.current?.focus()}
+              onAddRule={addRuleTemplate}
             />
           ) : m.kind === "action" ? (
             <ActionBadge key={m.id} label={m.label} />
