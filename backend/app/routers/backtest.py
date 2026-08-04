@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime
 
@@ -99,7 +100,7 @@ async def run_config(
         raise HTTPException(status_code=404, detail="config not found")
 
     config = _config_out(row)
-    candles = alpaca_client.get_candles(config.symbol, config.timeframe, start, end)
+    candles = await asyncio.to_thread(alpaca_client.get_candles, config.symbol, config.timeframe, start, end)
 
     run_row = BacktestRunModel(
         user_id=user_id, config_id=config_id, status="running", start=start, end=end

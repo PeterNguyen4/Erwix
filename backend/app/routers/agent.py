@@ -205,14 +205,14 @@ async def watch(
         "take_profit_price": None,
     }
     try:
-        open_levels = alpaca_client.get_open_bracket_levels(symbol, user_id)
+        open_levels = await asyncio.to_thread(alpaca_client.get_open_bracket_levels, symbol, user_id)
     except Exception:  # noqa: BLE001
         logger.exception("failed to seed levels from open position for user %s symbol %s", user_id, symbol)
         open_levels = None
     if open_levels:
         levels.update(open_levels)
 
-    candles = alpaca_client.get_candles(symbol, timeframe)
+    candles = await asyncio.to_thread(alpaca_client.get_candles, symbol, timeframe)
     was_firing = evaluate_rules(candles, all_rules) if all_rules else []
     was_level_hit: str | None = None
 
@@ -223,7 +223,7 @@ async def watch(
         if mid is not None:
             await tick_queue.put(mid)
 
-    live_feed.subscribe_quotes(symbol, on_quote)
+    await asyncio.to_thread(live_feed.subscribe_quotes, symbol, on_quote)
 
     async def receive_levels() -> None:
         try:
@@ -243,7 +243,7 @@ async def watch(
         while True:
             await asyncio.sleep(refresh_seconds)
             try:
-                fresh = alpaca_client.get_candles(symbol, timeframe)
+                fresh = await asyncio.to_thread(alpaca_client.get_candles, symbol, timeframe)
             except Exception:  # noqa: BLE001
                 continue
             if fresh:
@@ -330,7 +330,7 @@ async def watch(
         except Exception:  # noqa: BLE001
             pass
     finally:
-        live_feed.unsubscribe_quotes(symbol, on_quote)
+        await asyncio.to_thread(live_feed.unsubscribe_quotes, symbol, on_quote)
         for task in (receiver_task, refresh_task):
             task.cancel()
         for task in (receiver_task, refresh_task):

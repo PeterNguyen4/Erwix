@@ -111,8 +111,8 @@ async def stream(websocket: WebSocket, symbol: str, _uid: int = Depends(get_curr
         finally:
             alpaca_client.reset_data_stream()
 
-    live_feed.subscribe_bars(symbol, on_bar)
-    live_feed.subscribe_quotes(symbol, on_quote)
+    await asyncio.to_thread(live_feed.subscribe_bars, symbol, on_bar)
+    await asyncio.to_thread(live_feed.subscribe_quotes, symbol, on_quote)
     global _stream_task
     if not data_stream._running:
         _stream_task = asyncio.create_task(run_stream())
@@ -131,7 +131,7 @@ async def stream(websocket: WebSocket, symbol: str, _uid: int = Depends(get_curr
     except Exception:  # noqa: BLE001
         logger.exception("stream error for %s", symbol)
     finally:
-        live_feed.unsubscribe_bars(symbol, on_bar)
-        live_feed.unsubscribe_quotes(symbol, on_quote)
+        await asyncio.to_thread(live_feed.unsubscribe_bars, symbol, on_bar)
+        await asyncio.to_thread(live_feed.unsubscribe_quotes, symbol, on_quote)
         if stream_task:
             stream_task.cancel()

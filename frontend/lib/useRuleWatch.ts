@@ -64,7 +64,7 @@ export function useRuleWatch(symbol: string, timeframe: string, bracket: Bracket
     return () => {
       cancelled = true;
       wsRef.current = null;
-      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+      if (ws) ws.close();
     };
   }, [symbol, timeframe, refreshSeconds]);
 

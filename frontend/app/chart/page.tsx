@@ -217,7 +217,7 @@ function ChartPage() {
     });
     return () => {
       cancelled = true;
-      if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+      if (ws) ws.close();
     };
   }, [symbol]);
 
