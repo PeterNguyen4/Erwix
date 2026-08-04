@@ -205,6 +205,8 @@ class StrategyNote(Base):
     __tablename__ = "strategy_notes"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(80), default="My Strategy")
+    is_active: Mapped[bool] = mapped_column(default=False)
     archetype: Mapped[str | None] = mapped_column(String(32))
     # Freeform text (archetype="freeform"/None). For question-driven archetypes this
     # holds the composed "Q: ... A: ..." text sent to the strategist agent, derived
@@ -233,11 +235,13 @@ class StrategyRuleSet(Base):
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     note_id: Mapped[int] = mapped_column(ForeignKey("strategy_notes.id"), index=True)
 
-    rules: Mapped[dict] = mapped_column(JSON)
+    rules: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     compiled_model: Mapped[str | None] = mapped_column(String(64))
     compiled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # sha256 of the StrategyNote.body used to compile — lets us flag staleness after an edit
     source_body_hash: Mapped[str | None] = mapped_column(String(64))
+    # set on a failed acompile_rules call, cleared on the next successful compile
+    compile_error: Mapped[str | None] = mapped_column(String(500))
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

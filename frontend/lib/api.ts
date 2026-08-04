@@ -50,11 +50,14 @@ export interface PortfolioHistory {
 }
 
 export interface BacktestRule {
+  type: "comparison";
   indicator: string;
   comparator: "<" | "<=" | ">" | ">=" | "==" | "crosses_above" | "crosses_below";
-  /** Numeric threshold (e.g. "30") or another indicator key (e.g. "sma_50") to compare against. */
   value: string;
 }
+
+
+export type AnyBacktestRule = BacktestRule | PatternRule | GatedRule;
 
 export interface BacktestSizing {
   mode: "fixed_qty" | "pct_equity" | "pct_risk";
@@ -71,8 +74,8 @@ export interface BacktestConfig {
   symbol: string;
   timeframe: string;
   direction: "long" | "short" | "both";
-  entry_rules: BacktestRule[];
-  exit_rules: BacktestRule[];
+  entry_rules: AnyBacktestRule[];
+  exit_rules: AnyBacktestRule[];
   position_sizing: BacktestSizing;
   stop_loss: BacktestRisk | null;
   take_profit: BacktestRisk | null;
@@ -351,6 +354,9 @@ export interface Archetype {
 }
 
 export interface StrategyNote {
+  id: number;
+  name: string;
+  is_active: boolean;
   archetype: string | null;
   body: string | null;
   answers: Record<string, string> | null;
@@ -358,16 +364,48 @@ export interface StrategyNote {
   summarized_at: string | null;
 }
 
+export interface StrategyNoteSummary {
+  id: number;
+  name: string;
+  archetype: string | null;
+  is_active: boolean;
+  updated_at: string;
+}
+
 export interface StrategyRule {
+  type: "comparison";
   left: string;
   comparator: "<" | "<=" | ">" | ">=" | "==" | "crosses_above" | "crosses_below";
   right: string;
   description: string;
 }
 
+export interface CandleStep {
+  color: "green" | "red";
+  min_body_ratio: number | null;
+  max_upper_wick_ratio: number | null;
+  max_lower_wick_ratio: number | null;
+}
+
+export interface PatternRule {
+  type: "pattern";
+  source: "ha" | "candle";
+  steps: CandleStep[];
+  description: string;
+}
+
+export interface GatedRule {
+  type: "gated";
+  condition: StrategyRule | PatternRule;
+  gate: StrategyRule;
+  description: string;
+}
+
+export type AnyStrategyRule = StrategyRule | PatternRule | GatedRule;
+
 export interface StrategyRuleSet {
-  entry_rules: StrategyRule[];
-  exit_rules: StrategyRule[];
+  entry_rules: AnyStrategyRule[];
+  exit_rules: AnyStrategyRule[];
 }
 
 export interface StrategyRuleSetOut {
@@ -375,6 +413,7 @@ export interface StrategyRuleSetOut {
   compiled_model: string | null;
   compiled_at: string | null;
   is_stale: boolean;
+  compile_error: string | null;
 }
 
 export interface DebriefMessage {
@@ -551,13 +590,21 @@ export const api = {
   postDebriefMessage: (id: number, message: string) =>
     postJSON<DebriefMessage>(`/api/agent/debrief/${id}/messages`, { message }),
   getArchetypes: () => getJSON<Archetype[]>("/api/strategy/archetypes"),
-  getStrategy: () => getJSON<StrategyNote>("/api/strategy"),
-  saveStrategy: (body: { archetype: string | null; body?: string; answers?: Record<string, string> }) =>
-    postJSON<StrategyNote>("/api/strategy", body, "PUT"),
-  regenerateStrategy: () => postJSON<StrategyNote>("/api/strategy/regenerate", {}),
-  getStrategyRules: () => getJSON<StrategyRuleSetOut>("/api/strategy/rules"),
-  updatePlaybook: (sections: Record<string, string[]>) =>
-    postJSON<StrategyNote>("/api/strategy/playbook", { sections }, "PUT"),
+  listStrategies: () => getJSON<StrategyNoteSummary[]>("/api/strategy"),
+  createStrategy: (body: { name: string; archetype: string | null }) =>
+    postJSON<StrategyNote>("/api/strategy", body, "POST"),
+  getActiveStrategy: () => getJSON<StrategyNote | null>("/api/strategy/active"),
+  getStrategyById: (id: number) => getJSON<StrategyNote>(`/api/strategy/${id}`),
+  saveStrategy: (id: number, body: { archetype: string | null; body?: string; answers?: Record<string, string> }) =>
+    postJSON<StrategyNote>(`/api/strategy/${id}`, body, "PUT"),
+  regenerateStrategy: (id: number) => postJSON<StrategyNote>(`/api/strategy/${id}/regenerate`, {}),
+  activateStrategy: (id: number) => postJSON<StrategyNote>(`/api/strategy/${id}/activate`, {}),
+  renameStrategy: (id: number, name: string) =>
+    postJSON<StrategyNote>(`/api/strategy/${id}/name`, { name }, "PUT"),
+  deleteStrategy: (id: number) => deleteRequest(`/api/strategy/${id}`),
+  getStrategyRules: (id: number) => getJSON<StrategyRuleSetOut>(`/api/strategy/${id}/rules`),
+  updatePlaybook: (id: number, sections: Record<string, string[]>) =>
+    postJSON<StrategyNote>(`/api/strategy/${id}/playbook`, { sections }, "PUT"),
   getPreferences: () => getJSON<UserPreference>("/api/users/preferences"),
   savePreferences: (prefs: Partial<UserPreference>) =>
     postJSON<UserPreference>("/api/users/preferences", prefs, "PATCH"),

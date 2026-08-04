@@ -81,6 +81,112 @@ def macd_signal(closes: list[float]) -> list[float | None]:
     return out
 
 
+def stochastic_k(candles: list[Candle], period: int = 14) -> list[float | None]:
+    out: list[float | None] = [None] * len(candles)
+    for i in range(period - 1, len(candles)):
+        window = candles[i - period + 1 : i + 1]
+        lowest_low = min(c.low for c in window)
+        highest_high = max(c.high for c in window)
+        rng = highest_high - lowest_low
+        out[i] = 0.0 if rng == 0 else (candles[i].close - lowest_low) / rng * 100
+    return out
+
+
+def stochastic_d(candles: list[Candle], k_period: int = 14, d_period: int = 3) -> list[float | None]:
+    k = stochastic_k(candles, k_period)
+    return _rolling_avg_optional(k, d_period)
+
+
+def _rolling_avg_optional(values: list[float | None], period: int) -> list[float | None]:
+    out: list[float | None] = [None] * len(values)
+    window: list[float] = []
+    for i, v in enumerate(values):
+        if v is None:
+            window = []
+            continue
+        window.append(v)
+        if len(window) > period:
+            window.pop(0)
+        if len(window) == period:
+            out[i] = sum(window) / period
+    return out
+
+
+def _wilder_smooth(values: list[float], period: int) -> list[float | None]:
+    """values[0] is an unused placeholder (first real bar has no prior bar to diff against)."""
+    out: list[float | None] = [None] * len(values)
+    if len(values) <= period:
+        return out
+    seed = sum(values[1 : period + 1])
+    out[period] = seed
+    prev = seed
+    for i in range(period + 1, len(values)):
+        prev = prev - prev / period + values[i]
+        out[i] = prev
+    return out
+
+
+def adx(candles: list[Candle], period: int = 14) -> list[float | None]:
+    """Wilder's ADX — average directional index, a 0-100 trend-strength measure
+    (direction-agnostic; use alongside HA candle color for direction)."""
+    n = len(candles)
+    tr = [0.0] * n
+    plus_dm = [0.0] * n
+    minus_dm = [0.0] * n
+    for i in range(1, n):
+        high, low, close = candles[i].high, candles[i].low, candles[i].close
+        prev_high, prev_low, prev_close = candles[i - 1].high, candles[i - 1].low, candles[i - 1].close
+        tr[i] = max(high - low, abs(high - prev_close), abs(low - prev_close))
+        up_move = high - prev_high
+        down_move = prev_low - low
+        plus_dm[i] = up_move if (up_move > down_move and up_move > 0) else 0.0
+        minus_dm[i] = down_move if (down_move > up_move and down_move > 0) else 0.0
+
+    tr_smooth = _wilder_smooth(tr, period)
+    plus_dm_smooth = _wilder_smooth(plus_dm, period)
+    minus_dm_smooth = _wilder_smooth(minus_dm, period)
+
+    dx: list[float | None] = [None] * n
+    for i in range(n):
+        t, p, m = tr_smooth[i], plus_dm_smooth[i], minus_dm_smooth[i]
+        if t is None or p is None or m is None or t == 0:
+            continue
+        plus_di = 100 * p / t
+        minus_di = 100 * m / t
+        denom = plus_di + minus_di
+        dx[i] = 0.0 if denom == 0 else 100 * abs(plus_di - minus_di) / denom
+
+    return _rolling_avg_optional(dx, period)
+
+
+def trend_strength(candles: list[Candle], period: int = 14) -> list[float | None]:
+    """Categorical: 1.0 = strong trend (ADX >= 25), 0.0 = weak/no trend."""
+    return [None if v is None else (1.0 if v >= 25 else 0.0) for v in adx(candles, period)]
+
+
+def candle_color(candles: list[Candle]) -> list[float | None]:
+    """Categorical: 1.0 = green (close >= open), 0.0 = red."""
+    return [1.0 if c.close >= c.open else 0.0 for c in candles]
+
+
+def candle_body_ratio(candles: list[Candle]) -> list[float | None]:
+    return [abs(c.close - c.open) / (c.high - c.low) if c.high > c.low else 0.0 for c in candles]
+
+
+def candle_upper_wick_ratio(candles: list[Candle]) -> list[float | None]:
+    return [
+        (c.high - max(c.open, c.close)) / (c.high - c.low) if c.high > c.low else 0.0
+        for c in candles
+    ]
+
+
+def candle_lower_wick_ratio(candles: list[Candle]) -> list[float | None]:
+    return [
+        (min(c.open, c.close) - c.low) / (c.high - c.low) if c.high > c.low else 0.0
+        for c in candles
+    ]
+
+
 def heikin_ashi(candles: list[Candle]) -> list[Candle]:
     """HA_close=(O+H+L+C)/4; HA_open seeded by the first real open, then averages
     the prior HA candle's open/close; HA_high/low fold in the real high/low."""
@@ -123,4 +229,18 @@ def _series(candles: list[Candle], name: str) -> list[float | None]:
         return macd_line(closes)
     if name == "macd_signal":
         return macd_signal(closes)
+    if name.startswith("stoch_k_"):
+        return stochastic_k(candles, int(name.split("_")[2]))
+    if name.startswith("stoch_d_"):
+        return stochastic_d(candles, int(name.split("_")[2]))
+    if name.startswith("trend_strength_"):
+        return trend_strength(candles, int(name.split("_")[2]))
+    if name == "color":
+        return candle_color(candles)
+    if name == "body_ratio":
+        return candle_body_ratio(candles)
+    if name == "upper_wick_ratio":
+        return candle_upper_wick_ratio(candles)
+    if name == "lower_wick_ratio":
+        return candle_lower_wick_ratio(candles)
     raise ValueError(f"Unknown indicator: {name!r}")

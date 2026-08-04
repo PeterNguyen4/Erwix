@@ -209,7 +209,7 @@ async def reconcile_recent_fills() -> None:
     since = datetime.now(timezone.utc) - _RECONCILE_LOOKBACK
     async with SessionLocal() as db:
         try:
-            orders = get_recent_filled_orders(since)
+            orders = await asyncio.to_thread(get_recent_filled_orders, since)
             if not orders:
                 return
             existing = {

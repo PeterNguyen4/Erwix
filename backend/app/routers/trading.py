@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -20,7 +21,7 @@ _read_rate_limit = rate_limit("trading-reads", limit=120, window_ms=60_000, fail
 @router.post("/orders", response_model=OrderResponse, dependencies=[Depends(_order_rate_limit)])
 @alpaca_errors(logger)
 async def create_order(order: OrderRequest, user_id: int = Depends(get_current_user_id)) -> OrderResponse:
-    response = alpaca_client.submit_order(order, user_id)
+    response = await asyncio.to_thread(alpaca_client.submit_order, order, user_id)
     await log_order_intent(response, order, user_id)
     return response
 

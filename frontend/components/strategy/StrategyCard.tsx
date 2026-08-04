@@ -55,13 +55,14 @@ function parseSummary(summary: string): Record<string, string[]> {
 }
 
 interface Props {
+  noteId: number;
   summary: string;
   onRegenerate?: () => void;
   regenerating?: boolean;
   onEdited?: (note: StrategyNote) => void;
 }
 
-export default function StrategyCard({ summary, onRegenerate, regenerating, onEdited }: Props) {
+export default function StrategyCard({ noteId, summary, onRegenerate, regenerating, onEdited }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -84,7 +85,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
           .map((line) => line.trim())
           .filter(Boolean);
       }
-      const note = await api.updatePlaybook(payload);
+      const note = await api.updatePlaybook(noteId, payload);
       onEdited?.(note);
       setEditing(false);
     } finally {
@@ -93,38 +94,57 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
   }
 
   return (
-    <div className="rounded-xl border border-accent/30 bg-gradient-to-b from-accent/10 to-panel p-5 animate-fade-in-up">
-      <div className="mb-4 flex items-center justify-between">
-        <h3 className="text-sm font-semibold tracking-wide text-accent">Your Playbook</h3>
-        {!editing && (
-          <div className="flex items-center gap-2">
-            {onEdited && (
+    <div className="animate-fade-in-up">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="mx-2 text-sm font-semibold tracking-wide text-fg">Your Playbook</h3>
+        <div className="flex items-center gap-2">
+          {editing ? (
+            <>
               <button
-                onClick={startEditing}
-                title="Edit playbook"
-                className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
+                onClick={() => setEditing(false)}
+                disabled={saving}
+                className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:text-fg"
               >
-                <Pencil size={12} strokeWidth={2} />
+                Cancel
               </button>
-            )}
-            {onRegenerate && (
               <button
-                onClick={onRegenerate}
-                disabled={regenerating}
-                className="rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg disabled:opacity-50"
+                onClick={save}
+                disabled={saving}
+                className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
               >
-                {regenerating ? "Regenerating…" : "Regenerate"}
+                {saving ? "Saving…" : "Save"}
               </button>
-            )}
-          </div>
-        )}
+            </>
+          ) : (
+            <>
+              {onEdited && (
+                <button
+                  onClick={startEditing}
+                  title="Edit playbook"
+                  className="flex h-[30px] w-[30px] items-center justify-center rounded-md border border-border text-muted transition-colors hover:border-accent hover:text-fg"
+                >
+                  <Pencil size={12} strokeWidth={2} />
+                </button>
+              )}
+              {onRegenerate && (
+                <button
+                  onClick={onRegenerate}
+                  disabled={regenerating}
+                  className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent hover:text-fg disabled:opacity-50"
+                >
+                  {regenerating ? "Regenerating…" : "Regenerate"}
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {editing ? (
-        <div className="space-y-3">
+        <div className="divide-y divide-border">
           {SECTIONS.map((s) => (
-            <div key={s.key}>
-              <label className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-fg">
+            <div key={s.key} className="py-4">
+              <label className="mb-2 mx-2 flex items-center gap-2 text-xs font-semibold text-fg">
                 <s.icon size={13} strokeWidth={2} />
                 {s.label}
               </label>
@@ -137,32 +157,16 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
               />
             </div>
           ))}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={save}
-              disabled={saving}
-              className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save"}
-            </button>
-            <button
-              onClick={() => setEditing(false)}
-              disabled={saving}
-              className="rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:text-fg"
-            >
-              Cancel
-            </button>
-          </div>
         </div>
       ) : (
-        <div className="divide-y divide-border rounded-lg border border-border bg-bg/60">
+        <div className="divide-y divide-border">
           {SECTIONS.filter((s) => (sections[s.key] ?? []).length > 0).map((s) => (
-            <div key={s.key} className="p-3">
-              <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-fg">
+            <div key={s.key} className="py-4">
+              <div className="mb-2 mx-2 flex items-center gap-2 text-xs font-semibold text-fg">
                 <s.icon size={13} strokeWidth={2} />
                 {s.label}
               </div>
-              <ul className="space-y-1 text-xs text-muted">
+              <ul className="space-y-1 rounded-lg border border-transparent p-2 text-xs text-muted">
                 {(sections[s.key] ?? []).map((b, i) => (
                   <li key={i}>{b}</li>
                 ))}
