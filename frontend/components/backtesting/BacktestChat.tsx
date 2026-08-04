@@ -210,10 +210,11 @@ function RuleRow({
           {editing === "value" ? (
             <input
               autoFocus
-              type="number"
+              type="text"
+              inputMode="decimal"
               defaultValue={rule.value}
               onBlur={(e) => {
-                onUpdate({ ...rule, value: Number(e.target.value) });
+                onUpdate({ ...rule, value: e.target.value });
                 setEditing(null);
               }}
               onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}

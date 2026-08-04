@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 class BacktestRule(BaseModel):
     indicator: str  # e.g. "rsi_14", "sma_50", "close", "sma_200"
     comparator: Literal["<", "<=", ">", ">=", "==", "crosses_above", "crosses_below"]
-    value: float
+    value: str  # numeric literal (e.g. "30") or another indicator key (e.g. "sma_50")
 
 
 class BacktestSizing(BaseModel):

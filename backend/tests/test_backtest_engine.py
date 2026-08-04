@@ -15,7 +15,7 @@ def test_run_backtest_long_entry_and_take_profit():
     config = BacktestConfig(
         symbol="TEST",
         direction="long",
-        entry_rules=[BacktestRule(indicator="close", comparator="<", value=10)],
+        entry_rules=[BacktestRule(indicator="close", comparator="<", value="10")],
         exit_rules=[],
         position_sizing=BacktestSizing(mode="fixed_qty", value=1),
         take_profit=BacktestRisk(value=10),
@@ -39,7 +39,7 @@ def test_run_backtest_no_entry_signal_yields_no_trades():
     config = BacktestConfig(
         symbol="TEST",
         direction="long",
-        entry_rules=[BacktestRule(indicator="close", comparator="<", value=0)],
+        entry_rules=[BacktestRule(indicator="close", comparator="<", value="0")],
         exit_rules=[],
         position_sizing=BacktestSizing(mode="fixed_qty", value=1),
     )
@@ -57,7 +57,7 @@ def test_run_backtest_stop_loss_triggers_exit():
     config = BacktestConfig(
         symbol="TEST",
         direction="long",
-        entry_rules=[BacktestRule(indicator="close", comparator="<=", value=10)],
+        entry_rules=[BacktestRule(indicator="close", comparator="<=", value="10")],
         exit_rules=[],
         position_sizing=BacktestSizing(mode="fixed_qty", value=1),
         stop_loss=BacktestRisk(value=10),

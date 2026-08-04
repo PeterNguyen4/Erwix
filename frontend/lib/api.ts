@@ -52,7 +52,8 @@ export interface PortfolioHistory {
 export interface BacktestRule {
   indicator: string;
   comparator: "<" | "<=" | ">" | ">=" | "==" | "crosses_above" | "crosses_below";
-  value: number;
+  /** Numeric threshold (e.g. "30") or another indicator key (e.g. "sma_50") to compare against. */
+  value: string;
 }
 
 export interface BacktestSizing {

@@ -23,17 +23,17 @@ const ENTRY_SNIPPETS: HintSnippet[] = [
   {
     label: "RSI oversold entry",
     description: "Enter when RSI(14) drops below 30",
-    apply: (config) => addRule(config, "entry_rules", { indicator: "rsi_14", comparator: "<", value: 30 }),
+    apply: (config) => addRule(config, "entry_rules", { indicator: "rsi_14", comparator: "<", value: "30" }),
   },
   {
     label: "Price crosses above SMA 50",
     description: "Enter when close crosses above the 50-period SMA",
-    apply: (config) => addRule(config, "entry_rules", { indicator: "sma_50", comparator: "crosses_above", value: 0 }),
+    apply: (config) => addRule(config, "entry_rules", { indicator: "close", comparator: "crosses_above", value: "sma_50" }),
   },
   {
     label: "MACD turns positive",
     description: "Enter when MACD line crosses above 0",
-    apply: (config) => addRule(config, "entry_rules", { indicator: "macd", comparator: "crosses_above", value: 0 }),
+    apply: (config) => addRule(config, "entry_rules", { indicator: "macd", comparator: "crosses_above", value: "0" }),
   },
 ];
 
@@ -41,12 +41,12 @@ const EXIT_SNIPPETS: HintSnippet[] = [
   {
     label: "RSI overbought exit",
     description: "Exit when RSI(14) rises above 70",
-    apply: (config) => addRule(config, "exit_rules", { indicator: "rsi_14", comparator: ">", value: 70 }),
+    apply: (config) => addRule(config, "exit_rules", { indicator: "rsi_14", comparator: ">", value: "70" }),
   },
   {
     label: "Price crosses below SMA 50",
     description: "Exit when close crosses below the 50-period SMA",
-    apply: (config) => addRule(config, "exit_rules", { indicator: "sma_50", comparator: "crosses_below", value: 0 }),
+    apply: (config) => addRule(config, "exit_rules", { indicator: "close", comparator: "crosses_below", value: "sma_50" }),
   },
 ];
 
