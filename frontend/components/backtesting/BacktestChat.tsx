@@ -12,8 +12,10 @@ import {
   BacktestRisk,
   BacktestRule,
   BacktestSizing,
+  CandleStep,
   GatedRule,
   PatternRule,
+  StrategyRule,
   StrategyRuleSet,
 } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
@@ -284,14 +286,128 @@ function IndicatorFamilyPeriod({
 
 const VALUE_TYPE_OPTIONS = [{ id: "__number__", label: "Number" }, ...INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))];
 
-function UnsupportedRuleRow({ rule, onRemove }: { rule: PatternRule | GatedRule; onRemove: () => void }) {
+function candleStepConstraints(step: CandleStep): string[] {
+  const constraints: string[] = [];
+  if (step.min_body_ratio != null) constraints.push(`body ≥${Math.round(step.min_body_ratio * 100)}%`);
+  if (step.max_upper_wick_ratio != null)
+    constraints.push(
+      step.max_upper_wick_ratio === 0 ? "no upper wick" : `upper wick ≤${Math.round(step.max_upper_wick_ratio * 100)}%`
+    );
+  if (step.max_lower_wick_ratio != null)
+    constraints.push(
+      step.max_lower_wick_ratio === 0 ? "no lower wick" : `lower wick ≤${Math.round(step.max_lower_wick_ratio * 100)}%`
+    );
+  return constraints;
+}
+
+function CandleStepChip({ step }: { step: CandleStep }) {
+  const constraints = candleStepConstraints(step);
   return (
-    <div className="flex items-center justify-between gap-2 py-1 text-sm text-fg-muted">
-      <span>{rule.description}</span>
-      <button onClick={onRemove} className="text-fg-muted hover:text-fg">
-        ×
-      </button>
+    <span className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-field px-1.5 py-0.5 text-[10px] text-fg">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${step.color === "green" ? "bg-up" : "bg-down"}`} />
+      {constraints.length > 0 ? constraints.join(", ") : step.color}
+    </span>
+  );
+}
+
+function RuleRowShell({
+  onRemove,
+  isFirst,
+  isLast,
+  children,
+}: {
+  onRemove: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative pl-4 text-sm text-fg">
+      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <div className="group flex items-start justify-between gap-2 rounded-md px-1 py-1 transition-colors hover:bg-panel/60">
+        <div className="min-w-0 flex-1">{children}</div>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Remove rule"
+          className="mt-0.5 shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
+        >
+          <X size={14} strokeWidth={2.2} />
+        </button>
+      </div>
     </div>
+  );
+}
+
+function PatternRuleRow({
+  rule,
+  onRemove,
+  isFirst,
+  isLast,
+}: {
+  rule: PatternRule;
+  onRemove: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <RuleRowShell onRemove={onRemove} isFirst={isFirst} isLast={isLast}>
+      <div className="mb-1 text-xs text-muted">{rule.description}</div>
+      <div className="flex flex-wrap items-center gap-1">
+        {rule.steps.map((step, i) => (
+          <span key={i} className="flex items-center gap-1">
+            {i > 0 && <ArrowRight size={9} strokeWidth={2.2} className="text-muted" />}
+            <CandleStepChip step={step} />
+          </span>
+        ))}
+      </div>
+    </RuleRowShell>
+  );
+}
+
+function GatedRuleRow({
+  rule,
+  onRemove,
+  isFirst,
+  isLast,
+}: {
+  rule: GatedRule;
+  onRemove: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
+  return (
+    <RuleRowShell onRemove={onRemove} isFirst={isFirst} isLast={isLast}>
+      <div className="mb-1 text-xs text-muted">{rule.description}</div>
+      <div className="flex flex-wrap items-center gap-1 font-mono text-xs">
+        <span className="text-muted">if</span>
+        <ConditionInline condition={rule.gate} />
+        <ArrowRight size={10} strokeWidth={2.2} className="text-muted" />
+        <ConditionInline condition={rule.condition} />
+      </div>
+    </RuleRowShell>
+  );
+}
+
+function ConditionInline({ condition }: { condition: StrategyRule | PatternRule }) {
+  if (condition.type === "pattern") {
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1">
+        {condition.steps.map((step, i) => (
+          <span key={i} className="flex items-center gap-1">
+            {i > 0 && <ArrowRight size={8} strokeWidth={2.2} className="text-muted" />}
+            <CandleStepChip step={step} />
+          </span>
+        ))}
+      </span>
+    );
+  }
+  return (
+    <span className="rounded border border-border/60 bg-field px-1.5 py-0.5 text-fg">
+      {condition.left} {comparatorLabel(condition.comparator)} {condition.right}
+    </span>
   );
 }
 
@@ -664,20 +780,23 @@ function ConfigSummaryCard({
           emptyHint="Click to add a rule"
           onClickEmpty={() => onAddRule("entry_rules")}
         >
-          {config.entry_rules.map((r, i) =>
-            r.type === "comparison" ? (
+          {config.entry_rules.map((r, i) => {
+            const isFirst = i === 0;
+            const isLast = i === config.entry_rules.length - 1;
+            const onRemove = () => onRemoveRule("entry_rules", i);
+            if (r.type === "pattern") return <PatternRuleRow key={i} rule={r} onRemove={onRemove} isFirst={isFirst} isLast={isLast} />;
+            if (r.type === "gated") return <GatedRuleRow key={i} rule={r} onRemove={onRemove} isFirst={isFirst} isLast={isLast} />;
+            return (
               <RuleRow
                 key={i}
                 rule={r}
-                onRemove={() => onRemoveRule("entry_rules", i)}
+                onRemove={onRemove}
                 onUpdate={(rule) => onUpdateRule("entry_rules", i, rule)}
-                isFirst={i === 0}
-                isLast={i === config.entry_rules.length - 1}
+                isFirst={isFirst}
+                isLast={isLast}
               />
-            ) : (
-              <UnsupportedRuleRow key={i} rule={r} onRemove={() => onRemoveRule("entry_rules", i)} />
-            )
-          )}
+            );
+          })}
         </CategoryCard>
 
         <CategoryCard
@@ -688,20 +807,23 @@ function ConfigSummaryCard({
           emptyHint="Click to add a rule"
           onClickEmpty={() => onAddRule("exit_rules")}
         >
-          {config.exit_rules.map((r, i) =>
-            r.type === "comparison" ? (
+          {config.exit_rules.map((r, i) => {
+            const isFirst = i === 0;
+            const isLast = i === config.exit_rules.length - 1;
+            const onRemove = () => onRemoveRule("exit_rules", i);
+            if (r.type === "pattern") return <PatternRuleRow key={i} rule={r} onRemove={onRemove} isFirst={isFirst} isLast={isLast} />;
+            if (r.type === "gated") return <GatedRuleRow key={i} rule={r} onRemove={onRemove} isFirst={isFirst} isLast={isLast} />;
+            return (
               <RuleRow
                 key={i}
                 rule={r}
-                onRemove={() => onRemoveRule("exit_rules", i)}
+                onRemove={onRemove}
                 onUpdate={(rule) => onUpdateRule("exit_rules", i, rule)}
-                isFirst={i === 0}
-                isLast={i === config.exit_rules.length - 1}
+                isFirst={isFirst}
+                isLast={isLast}
               />
-            ) : (
-              <UnsupportedRuleRow key={i} rule={r} onRemove={() => onRemoveRule("exit_rules", i)} />
-            )
-          )}
+            );
+          })}
         </CategoryCard>
 
         <CategoryCard
