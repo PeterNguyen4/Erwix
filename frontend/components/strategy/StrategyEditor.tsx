@@ -26,6 +26,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
     setError(null);
     try {
       const saved = await api.saveStrategy(
+        note.id,
         isFreeform ? { archetype: archetype.id, body } : { archetype: archetype.id, answers },
       );
       onSaved(saved);

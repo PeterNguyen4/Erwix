@@ -159,18 +159,19 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
     if (next && state.status === "idle") {
       setState({ status: "loading" });
       try {
-        const [note, archetypes, rulesOut] = await Promise.all([
-          api.getStrategy(),
-          api.getArchetypes(),
-          api.getStrategyRules(),
-        ]);
+        const note = await api.getActiveStrategy();
+        if (!note) {
+          setState({ status: "empty" });
+          return;
+        }
+        const [archetypes, rulesOut] = await Promise.all([api.getArchetypes(), api.getStrategyRules(note.id)]);
         const ruleSet = rulesOut.rules;
         if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
           setState({ status: "empty" });
           return;
         }
         const archetype = archetypes.find((a: Archetype) => a.id === note.archetype);
-        setState({ status: "ready", name: archetype?.name ?? "Your strategy", ruleSet });
+        setState({ status: "ready", name: note.name || archetype?.name || "Your strategy", ruleSet });
       } catch {
         setState({ status: "empty" });
       }

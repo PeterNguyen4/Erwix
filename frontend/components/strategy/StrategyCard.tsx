@@ -55,13 +55,14 @@ function parseSummary(summary: string): Record<string, string[]> {
 }
 
 interface Props {
+  noteId: number;
   summary: string;
   onRegenerate?: () => void;
   regenerating?: boolean;
   onEdited?: (note: StrategyNote) => void;
 }
 
-export default function StrategyCard({ summary, onRegenerate, regenerating, onEdited }: Props) {
+export default function StrategyCard({ noteId, summary, onRegenerate, regenerating, onEdited }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -84,7 +85,7 @@ export default function StrategyCard({ summary, onRegenerate, regenerating, onEd
           .map((line) => line.trim())
           .filter(Boolean);
       }
-      const note = await api.updatePlaybook(payload);
+      const note = await api.updatePlaybook(noteId, payload);
       onEdited?.(note);
       setEditing(false);
     } finally {

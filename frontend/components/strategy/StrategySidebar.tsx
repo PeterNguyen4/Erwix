@@ -34,7 +34,7 @@ export default function StrategySidebar({ archetype, note, onNoteUpdated }: Prop
 
         <div className="border-t border-border pt-4">
           {note?.structured_summary ? (
-            <StrategyCard summary={note.structured_summary} onEdited={onNoteUpdated} />
+            <StrategyCard noteId={note.id} summary={note.structured_summary} onEdited={onNoteUpdated} />
           ) : (
             <div className="text-center text-xs text-muted">
               No playbook yet — answer the questions and generate one.
