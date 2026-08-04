@@ -413,6 +413,7 @@ export interface StrategyRuleSetOut {
   compiled_model: string | null;
   compiled_at: string | null;
   is_stale: boolean;
+  compile_error: string | null;
 }
 
 export interface DebriefMessage {

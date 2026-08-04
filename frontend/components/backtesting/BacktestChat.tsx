@@ -144,37 +144,57 @@ function DropdownPanel<T extends string>({
 type LoadStrategyState =
   | { status: "idle" | "loading" }
   | { status: "empty" }
+  | { status: "failed"; noteId: number; error: string }
   | { status: "ready"; name: string; ruleSet: StrategyRuleSet };
 
 function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => void }) {
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<LoadStrategyState>({ status: "idle" });
+  const [retrying, setRetrying] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   useClickOutside(ref, () => setOpen(false), open);
+
+  const load = async () => {
+    setState({ status: "loading" });
+    try {
+      const note = await api.getActiveStrategy();
+      if (!note) {
+        setState({ status: "empty" });
+        return;
+      }
+      const [archetypes, rulesOut] = await Promise.all([api.getArchetypes(), api.getStrategyRules(note.id)]);
+      const ruleSet = rulesOut.rules;
+      if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
+        if (rulesOut.compile_error) {
+          setState({ status: "failed", noteId: note.id, error: rulesOut.compile_error });
+        } else {
+          setState({ status: "empty" });
+        }
+        return;
+      }
+      const archetype = archetypes.find((a: Archetype) => a.id === note.archetype);
+      setState({ status: "ready", name: note.name || archetype?.name || "Your strategy", ruleSet });
+    } catch {
+      setState({ status: "empty" });
+    }
+  };
 
   const toggle = async () => {
     const next = !open;
     setOpen(next);
     if (next && state.status === "idle") {
-      setState({ status: "loading" });
-      try {
-        const note = await api.getActiveStrategy();
-        if (!note) {
-          setState({ status: "empty" });
-          return;
-        }
-        const [archetypes, rulesOut] = await Promise.all([api.getArchetypes(), api.getStrategyRules(note.id)]);
-        const ruleSet = rulesOut.rules;
-        if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
-          setState({ status: "empty" });
-          return;
-        }
-        const archetype = archetypes.find((a: Archetype) => a.id === note.archetype);
-        setState({ status: "ready", name: note.name || archetype?.name || "Your strategy", ruleSet });
-      } catch {
-        setState({ status: "empty" });
-      }
+      await load();
+    }
+  };
+
+  const retry = async (noteId: number) => {
+    setRetrying(true);
+    try {
+      await api.regenerateStrategy(noteId);
+      await load();
+    } finally {
+      setRetrying(false);
     }
   };
 
@@ -201,6 +221,20 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
               >
                 Build Strategy
                 <ArrowRight size={12} strokeWidth={2.2} />
+              </button>
+            </div>
+          )}
+          {state.status === "failed" && (
+            <div className="flex flex-col items-start gap-1.5 px-3 py-2">
+              <span className="text-xs text-muted">Rule compilation failed:</span>
+              <span className="text-[10px] text-red-400 break-words">{state.error}</span>
+              <button
+                type="button"
+                onClick={() => retry(state.noteId)}
+                disabled={retrying}
+                className="flex items-center gap-1 text-xs font-medium text-accent hover:underline disabled:opacity-50 dark:text-violet-400"
+              >
+                {retrying ? "Retrying…" : "Retry"}
               </button>
             </div>
           )}

@@ -63,20 +63,32 @@ async def _regenerate_rules(db: AsyncSession, note: StrategyNote) -> None:
     if not (note.body or "").strip():
         return
 
+    row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note.id))
+    if row is None:
+        row = StrategyRuleSetModel(user_id=note.user_id, note_id=note.id)
+        db.add(row)
+
     try:
         rule_set = await acompile_rules(note.archetype, note.body)
-        body_hash = hashlib.sha256(note.body.encode()).hexdigest()
-        row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note.id))
-        if row is None:
-            row = StrategyRuleSetModel(user_id=note.user_id, note_id=note.id)
-            db.add(row)
         row.rules = rule_set.model_dump()
         row.compiled_model = "strategy_agent.acompile_rules"
         row.compiled_at = datetime.now(timezone.utc)
-        row.source_body_hash = body_hash
-        await db.commit()
-    except Exception:
+        row.source_body_hash = hashlib.sha256(note.body.encode()).hexdigest()
+        if not rule_set.entry_rules and not rule_set.exit_rules:
+            # Not an exception — the model returned a well-formed but empty ruleset.
+            # Common with smaller local models that can't reliably fill the
+            # comparison/pattern/gated discriminated schema for a complex strategy.
+            row.compile_error = (
+                "The model couldn't extract checkable rules from this strategy "
+                "(returned an empty rule set). Try simplifying the description, or "
+                "switch to a more capable LLM provider (see Settings.llm_provider)."
+            )
+        else:
+            row.compile_error = None
+    except Exception as exc:
         logger.exception("strategy rule compilation failed for note %s", note.id)
+        row.compile_error = str(exc)[:500] or "rule compilation failed"
+    await db.commit()
 
 
 async def _owned_note(db: AsyncSession, user_id: int, note_id: int) -> StrategyNote:
@@ -189,10 +201,11 @@ async def get_rules(
     is_stale = current_hash != row.source_body_hash
 
     return StrategyRuleSetOut(
-        rules=StrategyRuleSet(**row.rules),
+        rules=StrategyRuleSet(**row.rules) if row.rules is not None else None,
         compiled_model=row.compiled_model,
         compiled_at=row.compiled_at,
         is_stale=is_stale,
+        compile_error=row.compile_error,
     )
 
 

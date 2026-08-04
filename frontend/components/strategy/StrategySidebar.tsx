@@ -1,6 +1,7 @@
 "use client";
 
-import { Archetype, StrategyNote } from "@/lib/api";
+import { useState } from "react";
+import { api, Archetype, StrategyNote } from "@/lib/api";
 import { presentationFor } from "./presentation";
 import StrategyCard from "./StrategyCard";
 
@@ -13,6 +14,22 @@ interface Props {
 export default function StrategySidebar({ archetype, note, onNoteUpdated }: Props) {
   const presentation = presentationFor(archetype?.id);
   const Icon = presentation.icon;
+  const [regenerating, setRegenerating] = useState(false);
+  const [ruleError, setRuleError] = useState<string | null>(null);
+
+  async function regenerate() {
+    if (!note) return;
+    setRegenerating(true);
+    setRuleError(null);
+    try {
+      const updated = await api.regenerateStrategy(note.id);
+      onNoteUpdated(updated);
+      const rulesOut = await api.getStrategyRules(note.id);
+      if (rulesOut.compile_error) setRuleError(rulesOut.compile_error);
+    } finally {
+      setRegenerating(false);
+    }
+  }
 
   return (
     <div className="w-full shrink-0 lg:w-[26rem]">
@@ -34,7 +51,20 @@ export default function StrategySidebar({ archetype, note, onNoteUpdated }: Prop
 
         <div className="border-t border-border pt-4">
           {note?.structured_summary ? (
-            <StrategyCard noteId={note.id} summary={note.structured_summary} onEdited={onNoteUpdated} />
+            <>
+              <StrategyCard
+                noteId={note.id}
+                summary={note.structured_summary}
+                onEdited={onNoteUpdated}
+                onRegenerate={regenerate}
+                regenerating={regenerating}
+              />
+              {ruleError && (
+                <div className="mt-2 rounded-md border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-400">
+                  Rule compilation failed: {ruleError}
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center text-xs text-muted">
               No playbook yet — answer the questions and generate one.

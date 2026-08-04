@@ -50,3 +50,4 @@ class StrategyRuleSetOut(BaseModel):
     compiled_model: str | None
     compiled_at: datetime | None
     is_stale: bool
+    compile_error: str | None = None
