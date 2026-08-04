@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Hammer, ListChecks, Loader2, Pencil, Play, X } from "lucide-react";
+import { ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, BacktestChatEvent, BacktestConfig, BacktestRisk, BacktestRule, BacktestSizing } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
@@ -76,7 +76,7 @@ function comparatorLabel(c: string) {
   }
 }
 
-type RuleSegment = "family" | "period" | "comparator" | "value" | null;
+type RuleSegment = "comparator" | "value" | null;
 
 const segmentClass =
   "cursor-pointer rounded px-0.5 underline decoration-dotted decoration-2 decoration-muted underline-offset-4 transition-colors hover:bg-panel hover:text-accent hover:decoration-accent";
@@ -127,6 +127,68 @@ function DropdownPanel<T extends string>({
   );
 }
 
+function isNumericValue(value: string): boolean {
+  return value.trim() !== "" && !Number.isNaN(Number(value));
+}
+
+function IndicatorFamilyPeriod({
+  indicator,
+  onChange,
+}: {
+  indicator: string;
+  onChange: (indicator: string) => void;
+}) {
+  const [editing, setEditing] = useState<"family" | "period" | null>(null);
+  const familyRef = useRef<HTMLSpanElement>(null);
+  useClickOutside(familyRef, () => setEditing(null), editing === "family");
+  const { familyId, period } = parseIndicator(indicator);
+  const family = INDICATOR_FAMILIES.find((f) => f.id === familyId) ?? INDICATOR_FAMILIES[0];
+
+  return (
+    <>
+      <span ref={familyRef} className="relative">
+        <span onClick={() => setEditing(editing === "family" ? null : "family")} className={segmentClass}>
+          {family.id}
+        </span>
+        {editing === "family" && (
+          <DropdownPanel
+            value={family.id}
+            options={INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))}
+            onSelect={(id) => {
+              const next = INDICATOR_FAMILIES.find((f) => f.id === id)!;
+              onChange(buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null));
+              setEditing(null);
+            }}
+          />
+        )}
+      </span>
+      {family.hasPeriod &&
+        (editing === "period" ? (
+          <input
+            autoFocus
+            type="number"
+            defaultValue={period ?? family.defaultPeriod}
+            onBlur={(e) => {
+              onChange(buildIndicator(family.id, Number(e.target.value)));
+              setEditing(null);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            className={inlineNumberClass}
+          />
+        ) : (
+          <>
+            _
+            <span onClick={() => setEditing("period")} className={segmentClass}>
+              {period ?? family.defaultPeriod}
+            </span>
+          </>
+        ))}
+    </>
+  );
+}
+
+const VALUE_TYPE_OPTIONS = [{ id: "__number__", label: "Number" }, ...INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))];
+
 function RuleRow({
   rule,
   onRemove,
@@ -141,12 +203,12 @@ function RuleRow({
   isLast?: boolean;
 }) {
   const [editing, setEditing] = useState<RuleSegment>(null);
-  const { familyId, period } = parseIndicator(rule.indicator);
-  const family = INDICATOR_FAMILIES.find((f) => f.id === familyId) ?? INDICATOR_FAMILIES[0];
-  const familyRef = useRef<HTMLSpanElement>(null);
+  const [valueTypeOpen, setValueTypeOpen] = useState(false);
   const comparatorRef = useRef<HTMLSpanElement>(null);
-  useClickOutside(familyRef, () => setEditing(null), editing === "family");
+  const valueTypeRef = useRef<HTMLSpanElement>(null);
   useClickOutside(comparatorRef, () => setEditing(null), editing === "comparator");
+  useClickOutside(valueTypeRef, () => setValueTypeOpen(false), valueTypeOpen);
+  const valueIsNumeric = isNumericValue(rule.value);
 
   return (
     <div className="relative pl-4 text-sm text-fg">
@@ -155,43 +217,7 @@ function RuleRow({
       {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 font-mono transition-colors hover:bg-panel/60">
         <span className="flex flex-wrap items-center gap-0.5">
-          <span ref={familyRef} className="relative">
-            <span onClick={() => setEditing(editing === "family" ? null : "family")} className={segmentClass}>
-              {family.id}
-            </span>
-            {editing === "family" && (
-              <DropdownPanel
-                value={family.id}
-                options={INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))}
-                onSelect={(id) => {
-                  const next = INDICATOR_FAMILIES.find((f) => f.id === id)!;
-                  onUpdate({ ...rule, indicator: buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null) });
-                  setEditing(null);
-                }}
-              />
-            )}
-          </span>
-          {family.hasPeriod &&
-            (editing === "period" ? (
-              <input
-                autoFocus
-                type="number"
-                defaultValue={period ?? family.defaultPeriod}
-                onBlur={(e) => {
-                  onUpdate({ ...rule, indicator: buildIndicator(family.id, Number(e.target.value)) });
-                  setEditing(null);
-                }}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                className={inlineNumberClass}
-              />
-            ) : (
-              <>
-                _
-                <span onClick={() => setEditing("period")} className={segmentClass}>
-                  {period ?? family.defaultPeriod}
-                </span>
-              </>
-            ))}
+          <IndicatorFamilyPeriod indicator={rule.indicator} onChange={(indicator) => onUpdate({ ...rule, indicator })} />
           <span ref={comparatorRef} className="relative">
             <span onClick={() => setEditing(editing === "comparator" ? null : "comparator")} className={segmentClass}>
               {comparatorLabel(rule.comparator)}
@@ -207,24 +233,54 @@ function RuleRow({
               />
             )}
           </span>
-          {editing === "value" ? (
-            <input
-              autoFocus
-              type="text"
-              inputMode="decimal"
-              defaultValue={rule.value}
-              onBlur={(e) => {
-                onUpdate({ ...rule, value: e.target.value });
-                setEditing(null);
-              }}
-              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-              className={inlineNumberClass}
-            />
+          {valueIsNumeric ? (
+            editing === "value" ? (
+              <input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                defaultValue={rule.value}
+                onBlur={(e) => {
+                  onUpdate({ ...rule, value: e.target.value });
+                  setEditing(null);
+                }}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                className={inlineNumberClass}
+              />
+            ) : (
+              <span onClick={() => setEditing("value")} className={segmentClass}>
+                {rule.value}
+              </span>
+            )
           ) : (
-            <span onClick={() => setEditing("value")} className={segmentClass}>
-              {rule.value}
-            </span>
+            <IndicatorFamilyPeriod indicator={rule.value} onChange={(value) => onUpdate({ ...rule, value })} />
           )}
+          <span ref={valueTypeRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setValueTypeOpen((o) => !o)}
+              aria-label="Change value type"
+              className="rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-accent group-hover:opacity-100"
+            >
+              <ChevronDown size={10} strokeWidth={2.5} />
+            </button>
+            {valueTypeOpen && (
+              <DropdownPanel
+                value={valueIsNumeric ? "__number__" : parseIndicator(rule.value).familyId}
+                options={VALUE_TYPE_OPTIONS}
+                onSelect={(id) => {
+                  if (id === "__number__") {
+                    onUpdate({ ...rule, value: "0" });
+                    setEditing("value");
+                  } else {
+                    const next = INDICATOR_FAMILIES.find((f) => f.id === id)!;
+                    onUpdate({ ...rule, value: buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null) });
+                  }
+                  setValueTypeOpen(false);
+                }}
+              />
+            )}
+          </span>
         </span>
         <button
           type="button"
