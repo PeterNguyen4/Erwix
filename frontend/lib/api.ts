@@ -50,11 +50,14 @@ export interface PortfolioHistory {
 }
 
 export interface BacktestRule {
+  type: "comparison";
   indicator: string;
   comparator: "<" | "<=" | ">" | ">=" | "==" | "crosses_above" | "crosses_below";
-  /** Numeric threshold (e.g. "30") or another indicator key (e.g. "sma_50") to compare against. */
   value: string;
 }
+
+
+export type AnyBacktestRule = BacktestRule | PatternRule | GatedRule;
 
 export interface BacktestSizing {
   mode: "fixed_qty" | "pct_equity" | "pct_risk";
@@ -71,8 +74,8 @@ export interface BacktestConfig {
   symbol: string;
   timeframe: string;
   direction: "long" | "short" | "both";
-  entry_rules: BacktestRule[];
-  exit_rules: BacktestRule[];
+  entry_rules: AnyBacktestRule[];
+  exit_rules: AnyBacktestRule[];
   position_sizing: BacktestSizing;
   stop_loss: BacktestRisk | null;
   take_profit: BacktestRisk | null;
@@ -359,15 +362,39 @@ export interface StrategyNote {
 }
 
 export interface StrategyRule {
+  type: "comparison";
   left: string;
   comparator: "<" | "<=" | ">" | ">=" | "==" | "crosses_above" | "crosses_below";
   right: string;
   description: string;
 }
 
+export interface CandleStep {
+  color: "green" | "red";
+  min_body_ratio: number | null;
+  max_upper_wick_ratio: number | null;
+  max_lower_wick_ratio: number | null;
+}
+
+export interface PatternRule {
+  type: "pattern";
+  source: "ha" | "candle";
+  steps: CandleStep[];
+  description: string;
+}
+
+export interface GatedRule {
+  type: "gated";
+  condition: StrategyRule | PatternRule;
+  gate: StrategyRule;
+  description: string;
+}
+
+export type AnyStrategyRule = StrategyRule | PatternRule | GatedRule;
+
 export interface StrategyRuleSet {
-  entry_rules: StrategyRule[];
-  exit_rules: StrategyRule[];
+  entry_rules: AnyStrategyRule[];
+  exit_rules: AnyStrategyRule[];
 }
 
 export interface StrategyRuleSetOut {
