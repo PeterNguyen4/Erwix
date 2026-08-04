@@ -354,11 +354,22 @@ export interface Archetype {
 }
 
 export interface StrategyNote {
+  id: number;
+  name: string;
+  is_active: boolean;
   archetype: string | null;
   body: string | null;
   answers: Record<string, string> | null;
   structured_summary: string | null;
   summarized_at: string | null;
+}
+
+export interface StrategyNoteSummary {
+  id: number;
+  name: string;
+  archetype: string | null;
+  is_active: boolean;
+  updated_at: string;
 }
 
 export interface StrategyRule {
@@ -578,13 +589,19 @@ export const api = {
   postDebriefMessage: (id: number, message: string) =>
     postJSON<DebriefMessage>(`/api/agent/debrief/${id}/messages`, { message }),
   getArchetypes: () => getJSON<Archetype[]>("/api/strategy/archetypes"),
-  getStrategy: () => getJSON<StrategyNote>("/api/strategy"),
-  saveStrategy: (body: { archetype: string | null; body?: string; answers?: Record<string, string> }) =>
-    postJSON<StrategyNote>("/api/strategy", body, "PUT"),
-  regenerateStrategy: () => postJSON<StrategyNote>("/api/strategy/regenerate", {}),
-  getStrategyRules: () => getJSON<StrategyRuleSetOut>("/api/strategy/rules"),
-  updatePlaybook: (sections: Record<string, string[]>) =>
-    postJSON<StrategyNote>("/api/strategy/playbook", { sections }, "PUT"),
+  listStrategies: () => getJSON<StrategyNoteSummary[]>("/api/strategy"),
+  createStrategy: (body: { name: string; archetype: string | null }) =>
+    postJSON<StrategyNote>("/api/strategy", body, "POST"),
+  getActiveStrategy: () => getJSON<StrategyNote | null>("/api/strategy/active"),
+  getStrategyById: (id: number) => getJSON<StrategyNote>(`/api/strategy/${id}`),
+  saveStrategy: (id: number, body: { archetype: string | null; body?: string; answers?: Record<string, string> }) =>
+    postJSON<StrategyNote>(`/api/strategy/${id}`, body, "PUT"),
+  regenerateStrategy: (id: number) => postJSON<StrategyNote>(`/api/strategy/${id}/regenerate`, {}),
+  activateStrategy: (id: number) => postJSON<StrategyNote>(`/api/strategy/${id}/activate`, {}),
+  deleteStrategy: (id: number) => deleteRequest(`/api/strategy/${id}`),
+  getStrategyRules: (id: number) => getJSON<StrategyRuleSetOut>(`/api/strategy/${id}/rules`),
+  updatePlaybook: (id: number, sections: Record<string, string[]>) =>
+    postJSON<StrategyNote>(`/api/strategy/${id}/playbook`, { sections }, "PUT"),
   getPreferences: () => getJSON<UserPreference>("/api/users/preferences"),
   savePreferences: (prefs: Partial<UserPreference>) =>
     postJSON<UserPreference>("/api/users/preferences", prefs, "PATCH"),

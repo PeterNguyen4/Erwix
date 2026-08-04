@@ -150,6 +150,7 @@ def _base_model() -> BaseChatModel:
             # bounding generation keeps the now-per-trade loop from stalling on
             # a local model that would otherwise ramble unboundedly.
             num_predict=400,
+            timeout=30,
         )
     if settings.llm_provider == "anthropic":
         if not settings.has_anthropic_creds:
@@ -159,6 +160,8 @@ def _base_model() -> BaseChatModel:
             api_key=settings.anthropic_api_key,
             max_tokens=2048,
             thinking={"type": "adaptive"},
+            timeout=30,
+            max_retries=1,
         )
     raise RuntimeError(f"Unknown llm_provider: {settings.llm_provider!r}")
 
