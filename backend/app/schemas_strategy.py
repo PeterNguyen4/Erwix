@@ -1,8 +1,8 @@
 """Compiled strategy rules — the machine-checkable side of a StrategyNote.
 
-Separate from schemas_backtest.py's BacktestRule: that schema only compares
-an indicator to a fixed number, but a strategy like "heikin ashi close above
-EMA100" needs indicator-vs-indicator comparisons.
+Shape-compatible with schemas_backtest.py's BacktestRule (indicator/comparator/
+value, where value is a numeric literal or another indicator key) so a
+StrategyRuleSet can be loaded directly into a BacktestConfig.
 """
 
 from datetime import datetime

@@ -1,9 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
-import { api, BacktestChatEvent, BacktestConfig, BacktestRisk, BacktestRule, BacktestSizing } from "@/lib/api";
+import {
+  api,
+  Archetype,
+  BacktestChatEvent,
+  BacktestConfig,
+  BacktestRisk,
+  BacktestRule,
+  BacktestSizing,
+  StrategyRuleSet,
+} from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
@@ -123,6 +133,89 @@ function DropdownPanel<T extends string>({
           {o.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+type LoadStrategyState =
+  | { status: "idle" | "loading" }
+  | { status: "empty" }
+  | { status: "ready"; name: string; ruleSet: StrategyRuleSet };
+
+function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => void }) {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<LoadStrategyState>({ status: "idle" });
+  const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  useClickOutside(ref, () => setOpen(false), open);
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && state.status === "idle") {
+      setState({ status: "loading" });
+      try {
+        const [note, archetypes, rulesOut] = await Promise.all([
+          api.getStrategy(),
+          api.getArchetypes(),
+          api.getStrategyRules(),
+        ]);
+        const ruleSet = rulesOut.rules;
+        if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
+          setState({ status: "empty" });
+          return;
+        }
+        const archetype = archetypes.find((a: Archetype) => a.id === note.archetype);
+        setState({ status: "ready", name: archetype?.name ?? "Your strategy", ruleSet });
+      } catch {
+        setState({ status: "empty" });
+      }
+    }
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label="Load a saved strategy"
+        className="flex shrink-0 items-center justify-center rounded-full bg-field p-1.5 text-muted transition-colors hover:bg-fg/10 hover:text-fg"
+      >
+        <Plus size={15} strokeWidth={2} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-md border border-border bg-panel py-1 shadow-lg">
+          {state.status === "loading" && <div className="px-3 py-2 text-xs text-muted">Loading…</div>}
+          {state.status === "empty" && (
+            <div className="flex flex-col items-start gap-1.5 px-3 py-2">
+              <span className="text-xs text-muted">No strategy saved yet.</span>
+              <button
+                type="button"
+                onClick={() => router.push("/strategy")}
+                className="flex items-center gap-1 text-xs font-medium text-accent hover:underline dark:text-violet-400"
+              >
+                Build Strategy
+                <ArrowRight size={12} strokeWidth={2.2} />
+              </button>
+            </div>
+          )}
+          {state.status === "ready" && (
+            <button
+              type="button"
+              onClick={() => {
+                onLoad(state.ruleSet);
+                setOpen(false);
+              }}
+              className="flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10"
+            >
+              <span className="text-xs text-fg">{state.name}</span>
+              <span className="text-[10px] text-muted">
+                {state.ruleSet.entry_rules.length} entry · {state.ruleSet.exit_rules.length} exit rules
+              </span>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -288,7 +381,7 @@ function RuleRow({
           aria-label="Remove rule"
           className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
         >
-          <X size={12} strokeWidth={2.2} />
+          <X size={14} strokeWidth={2.2} />
         </button>
       </div>
     </div>
@@ -712,6 +805,16 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     setRulesOpen(false);
   };
 
+  const loadStrategy = (ruleSet: StrategyRuleSet) => {
+    const toBacktestRules = (rules: StrategyRuleSet["entry_rules"]): BacktestRule[] =>
+      rules.map((r) => ({ indicator: r.left, comparator: r.comparator, value: r.right }));
+    applyHint((config) => ({
+      ...config,
+      entry_rules: toBacktestRules(ruleSet.entry_rules),
+      exit_rules: toBacktestRules(ruleSet.exit_rules),
+    }));
+  };
+
   const removeRule = (kind: "entry_rules" | "exit_rules", index: number) => {
     const next = { ...configRef.current, [kind]: configRef.current[kind].filter((_, i) => i !== index) };
     onConfigChange(next);
@@ -822,27 +925,30 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
           />
         </div>
         <div className="flex items-center justify-between px-3 pb-3">
-          <div className="relative">
-            <button
-              ref={rulesChipRef}
-              onClick={() => setRulesOpen((v) => !v)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                rulesOpen
-                  ? "border-violet-400 bg-violet-500/10 text-fg"
-                  : "border-muted/70 text-muted hover:border-violet-400 hover:text-fg"
-              }`}
-            >
-              <ListChecks size={13} strokeWidth={2} />
-              Rules
-            </button>
-            {rulesOpen && (
-              <div
-                ref={rulesPanelRef}
-                className="absolute bottom-full left-0 z-20 mb-2 w-48 rounded-md border border-border bg-panel shadow-lg"
+          <div className="flex items-center gap-1.5">
+            <LoadStrategyMenu onLoad={loadStrategy} />
+            <div className="relative">
+              <button
+                ref={rulesChipRef}
+                onClick={() => setRulesOpen((v) => !v)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  rulesOpen
+                    ? "border-violet-400 bg-violet-500/10 text-fg"
+                    : "border-muted/70 text-muted hover:border-violet-400 hover:text-fg"
+                }`}
               >
-                <HintLibrary onApply={applyHint} />
-              </div>
-            )}
+                <ListChecks size={13} strokeWidth={2} />
+                Rules
+              </button>
+              {rulesOpen && (
+                <div
+                  ref={rulesPanelRef}
+                  className="absolute bottom-full left-0 z-20 mb-2 w-48 rounded-md border border-border bg-panel shadow-lg"
+                >
+                  <HintLibrary onApply={applyHint} />
+                </div>
+              )}
+            </div>
           </div>
           <div
             className="relative flex items-center"

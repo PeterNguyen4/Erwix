@@ -111,7 +111,7 @@ function SettingsPageInner() {
                   type="button"
                   onClick={handleConnect}
                   disabled={connecting || alpaca === null}
-                  className="flex items-center gap-1.5 rounded-md bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/30 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-md bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/30 disabled:opacity-50 dark:text-violet-400"
                 >
                   <Link2 size={14} strokeWidth={2} />
                   {connecting ? "Redirecting..." : "Connect"}
@@ -132,7 +132,7 @@ function SettingsPageInner() {
                   type="button"
                   onClick={() => setTheme("dark")}
                   className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    theme === "dark" ? "bg-accent/20 text-accent" : "text-muted hover:text-fg"
+                    theme === "dark" ? "bg-accent/20 text-accent dark:text-violet-400" : "text-muted hover:text-fg"
                   }`}
                 >
                   <Moon size={14} strokeWidth={2} />

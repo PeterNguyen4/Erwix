@@ -358,6 +358,25 @@ export interface StrategyNote {
   summarized_at: string | null;
 }
 
+export interface StrategyRule {
+  left: string;
+  comparator: "<" | "<=" | ">" | ">=" | "==" | "crosses_above" | "crosses_below";
+  right: string;
+  description: string;
+}
+
+export interface StrategyRuleSet {
+  entry_rules: StrategyRule[];
+  exit_rules: StrategyRule[];
+}
+
+export interface StrategyRuleSetOut {
+  rules: StrategyRuleSet | null;
+  compiled_model: string | null;
+  compiled_at: string | null;
+  is_stale: boolean;
+}
+
 export interface DebriefMessage {
   id: number;
   role: "user" | "assistant";
@@ -536,6 +555,7 @@ export const api = {
   saveStrategy: (body: { archetype: string | null; body?: string; answers?: Record<string, string> }) =>
     postJSON<StrategyNote>("/api/strategy", body, "PUT"),
   regenerateStrategy: () => postJSON<StrategyNote>("/api/strategy/regenerate", {}),
+  getStrategyRules: () => getJSON<StrategyRuleSetOut>("/api/strategy/rules"),
   updatePlaybook: (sections: Record<string, string[]>) =>
     postJSON<StrategyNote>("/api/strategy/playbook", { sections }, "PUT"),
   getPreferences: () => getJSON<UserPreference>("/api/users/preferences"),
