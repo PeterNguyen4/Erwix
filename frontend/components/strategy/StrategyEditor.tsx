@@ -7,10 +7,9 @@ interface Props {
   archetype: Archetype;
   note: StrategyNote;
   onSaved: (note: StrategyNote) => void;
-  onBack: () => void;
 }
 
-export default function StrategyEditor({ archetype, note, onSaved, onBack }: Props) {
+export default function StrategyEditor({ archetype, note, onSaved }: Props) {
   const questions = archetype.questions;
   const isFreeform = questions.length === 0;
 
@@ -39,16 +38,9 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
 
   return (
     <div className="animate-fade-in-up space-y-4">
-      <button
-        onClick={onBack}
-        className="flex items-center gap-1 text-xs text-muted transition-colors hover:text-fg"
-      >
-        ← Back to classes
-      </button>
-
       {isFreeform ? (
         <div>
-          <label className="mb-2 block text-sm font-semibold text-fg">
+          <label className="mx-2 mb-2 block text-sm font-semibold text-fg">
             Describe your strategy in your own words
           </label>
           <textarea
@@ -63,7 +55,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
         <div className="space-y-3">
           {questions.map((q) => (
             <div key={q.id}>
-              <label className="mb-1.5 block text-sm font-medium text-fg">{q.prompt}</label>
+              <label className="mx-2 mb-1.5 block text-sm font-medium text-fg">{q.prompt}</label>
               <textarea
                 value={answers[q.id] ?? ""}
                 onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
@@ -81,7 +73,7 @@ export default function StrategyEditor({ archetype, note, onSaved, onBack }: Pro
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="mx-2 flex items-center gap-3">
         <button
           onClick={generate}
           disabled={saving || !hasContent}

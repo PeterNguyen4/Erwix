@@ -9,7 +9,7 @@ export const ARCHETYPE_PRESENTATION: Record<string, { icon: LucideIcon; color: s
   breakout: { icon: Rocket, color: "#ef5350" },
   value: { icon: Landmark, color: "#26a69a" },
   guardian: { icon: Shield, color: "#64748b" },
-  freeform: { icon: PenLine, color: "#e6e9ef" },
+  freeform: { icon: PenLine, color: "#78716c" },
 };
 
 export function presentationFor(id: string | null | undefined) {

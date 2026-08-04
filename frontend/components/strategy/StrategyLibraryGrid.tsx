@@ -1,80 +1,201 @@
 "use client";
 
-import { Check, Pencil, Plus, Star, Trash2 } from "lucide-react";
-import { StrategyNoteSummary } from "@/lib/api";
+import { useEffect, useRef, useState } from "react";
+import { Check, MoreVertical, Pencil, Plus, Star, Trash2 } from "lucide-react";
+import { Archetype, StrategyNoteSummary } from "@/lib/api";
 import { presentationFor } from "./presentation";
 
 interface Props {
   strategies: StrategyNoteSummary[];
+  archetypes: Archetype[];
   onEdit: (id: number) => void;
   onActivate: (id: number) => void;
   onDelete: (id: number) => void;
+  onRename: (id: number, name: string) => void;
   onAdd: () => void;
 }
 
-export default function StrategyLibraryGrid({ strategies, onEdit, onActivate, onDelete, onAdd }: Props) {
+function StrategyCard({
+  strategy: s,
+  archetypeName,
+  onEdit,
+  onActivate,
+  onDelete,
+  onRename,
+}: {
+  strategy: StrategyNoteSummary;
+  archetypeName: string | null;
+  onEdit: (id: number) => void;
+  onActivate: (id: number) => void;
+  onDelete: (id: number) => void;
+  onRename: (id: number, name: string) => void;
+}) {
+  const presentation = presentationFor(s.archetype);
+  const Icon = presentation.icon;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(s.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renaming) inputRef.current?.select();
+  }, [renaming]);
+
+  const commitRename = () => {
+    setRenaming(false);
+    const trimmed = nameDraft.trim();
+    if (trimmed && trimmed !== s.name) onRename(s.id, trimmed);
+    else setNameDraft(s.name);
+  };
+
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {strategies.map((s) => {
-        const presentation = presentationFor(s.archetype);
-        const Icon = presentation.icon;
-        return (
-          <div
-            key={s.id}
-            className={`group relative flex flex-col gap-3 rounded-xl border bg-panel p-4 transition-colors ${
-              s.is_active ? "border-accent/60" : "border-border hover:border-accent/40"
-            }`}
+    <div
+      onClick={() => onEdit(s.id)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") onEdit(s.id);
+      }}
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-panel transition-all duration-150 cursor-pointer hover:border-accent/60 hover:scale-[1.02]"
+    >
+      <div
+        className="relative flex h-40 items-center justify-center"
+        style={{ backgroundColor: `${presentation.color}14` }}
+      >
+        <span
+          className="flex h-14 w-14 items-center justify-center rounded-2xl"
+          style={{ backgroundColor: `${presentation.color}22` }}
+        >
+          <Icon size={26} strokeWidth={1.75} color={presentation.color} />
+        </span>
+
+        {s.is_active && (
+          <span className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full border border-violet-400/40 bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-accent dark:text-violet-400">
+            <Check size={10} strokeWidth={2.5} />
+            Active
+          </span>
+        )}
+
+        <div className="absolute right-2 top-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
+            title="More options"
+            className="flex h-6 w-6 items-center justify-center rounded-md bg-black/20 text-white/80 opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/35 hover:text-white group-hover:opacity-100 focus:opacity-100"
           >
-            {s.is_active && (
-              <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-semibold text-accent">
-                <Check size={10} strokeWidth={2.5} />
-                Active
-              </span>
-            )}
-            <span
-              className="flex h-10 w-10 items-center justify-center rounded-full"
-              style={{ backgroundColor: `${presentation.color}22` }}
-            >
-              <Icon size={18} strokeWidth={2} color={presentation.color} />
-            </span>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-fg">{s.name}</div>
-              <div className="text-xs text-muted">{new Date(s.updated_at).toLocaleDateString()}</div>
-            </div>
-            <div className="mt-auto flex items-center gap-2 pt-1">
-              {!s.is_active && (
-                <button
-                  onClick={() => onActivate(s.id)}
-                  title="Set as active"
-                  className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
-                >
-                  <Star size={12} strokeWidth={2} />
-                  Activate
-                </button>
-              )}
+            <MoreVertical size={14} strokeWidth={2} />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full z-20 mt-1 w-32 rounded-md border border-border bg-panel py-1 text-left shadow-lg">
               <button
-                onClick={() => onEdit(s.id)}
-                title="Edit strategy"
-                className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setMenuOpen(false);
+                  setRenaming(true);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-muted transition-colors hover:bg-violet-500/10 hover:text-fg"
               >
                 <Pencil size={12} strokeWidth={2} />
-                Edit
+                Rename
               </button>
               <button
-                onClick={() => onDelete(s.id)}
-                title="Delete strategy"
-                className="ml-auto rounded-md border border-border p-1.5 text-muted transition-colors hover:border-down hover:text-down"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setMenuOpen(false);
+                  onDelete(s.id);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-down transition-colors hover:bg-down/10"
               >
                 <Trash2 size={12} strokeWidth={2} />
+                Delete
               </button>
             </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center gap-2 p-4 text-center">
+        {renaming ? (
+          <input
+            ref={inputRef}
+            value={nameDraft}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setNameDraft(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitRename();
+              if (e.key === "Escape") {
+                setNameDraft(s.name);
+                setRenaming(false);
+              }
+            }}
+            className="w-full rounded border border-violet-400 bg-field px-1.5 py-0.5 text-center text-sm font-semibold text-fg outline-none"
+          />
+        ) : (
+          <div
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setRenaming(true);
+            }}
+            title="Double-click to rename"
+            className="truncate text-sm font-semibold text-fg"
+          >
+            {s.name}
           </div>
-        );
-      })}
+        )}
+
+        <div className="flex items-center justify-center gap-1.5 text-xs text-muted">
+          <span>{archetypeName ?? "Custom"}</span>
+          <span className="text-muted">•</span>
+          <span>{new Date(s.updated_at).toLocaleDateString()}</span>
+        </div>
+
+        {!s.is_active && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onActivate(s.id);
+            }}
+            title="Set as active"
+            className="mt-1 flex w-fit items-center gap-1 rounded-md border border-violet-400/40 bg-violet-500/15 px-2 py-1 text-xs font-medium text-accent transition-colors hover:border-violet-400 hover:bg-violet-500/25 dark:text-violet-400"
+          >
+            <Star size={12} strokeWidth={2} />
+            Activate
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function StrategyLibraryGrid({
+  strategies,
+  archetypes,
+  onEdit,
+  onActivate,
+  onDelete,
+  onRename,
+  onAdd,
+}: Props) {
+  const archetypeName = (id: string | null) => archetypes.find((a) => a.id === id)?.name ?? null;
+
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {strategies.map((s) => (
+        <StrategyCard
+          key={s.id}
+          strategy={s}
+          archetypeName={archetypeName(s.archetype)}
+          onEdit={onEdit}
+          onActivate={onActivate}
+          onDelete={onDelete}
+          onRename={onRename}
+        />
+      ))}
 
       <button
         onClick={onAdd}
-        className="flex min-h-[10rem] flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 bg-panel/20 text-muted transition-colors hover:border-accent/60 hover:text-fg"
+        className="flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-panel/40 text-muted transition-colors hover:border-accent hover:bg-fg/5 hover:text-fg"
       >
         <Plus size={20} strokeWidth={2} />
         <span className="text-sm font-medium">Add Strategy</span>

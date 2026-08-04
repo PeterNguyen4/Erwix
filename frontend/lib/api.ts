@@ -599,6 +599,8 @@ export const api = {
     postJSON<StrategyNote>(`/api/strategy/${id}`, body, "PUT"),
   regenerateStrategy: (id: number) => postJSON<StrategyNote>(`/api/strategy/${id}/regenerate`, {}),
   activateStrategy: (id: number) => postJSON<StrategyNote>(`/api/strategy/${id}/activate`, {}),
+  renameStrategy: (id: number, name: string) =>
+    postJSON<StrategyNote>(`/api/strategy/${id}/name`, { name }, "PUT"),
   deleteStrategy: (id: number) => deleteRequest(`/api/strategy/${id}`),
   getStrategyRules: (id: number) => getJSON<StrategyRuleSetOut>(`/api/strategy/${id}/rules`),
   updatePlaybook: (id: number, sections: Record<string, string[]>) =>

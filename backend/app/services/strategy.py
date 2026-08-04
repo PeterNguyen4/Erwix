@@ -149,6 +149,13 @@ async def update_strategy(
     return note
 
 
+async def rename_strategy(db: AsyncSession, note: StrategyNote, name: str) -> StrategyNote:
+    note.name = name.strip() or "Untitled Strategy"
+    await db.commit()
+    await db.refresh(note)
+    return note
+
+
 async def set_active_strategy(db: AsyncSession, user_id: int, note_id: int) -> StrategyNote | None:
     """Only one strategy is ever active per user — matches the library's
     select-and-use-one-at-a-time model."""

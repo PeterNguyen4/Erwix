@@ -19,6 +19,7 @@ from app.schemas import (
     StrategyNoteOut,
     StrategyNoteSummary,
     StrategyNoteUpdate,
+    StrategyRename,
 )
 from app.schemas_strategy import StrategyRuleSet, StrategyRuleSetOut
 from app.services.strategy_agent import acompile_rules, asummarize_strategy
@@ -29,6 +30,7 @@ from app.services.strategy import (
     get_active_strategy,
     get_strategy_by_id,
     list_strategies,
+    rename_strategy,
     set_active_strategy,
     update_strategy,
 )
@@ -161,6 +163,17 @@ async def regenerate_strategy(
     await _regenerate_summary(db, note)
     await _regenerate_rules(db, note)
     return note
+
+
+@router.put("/{note_id}/name", response_model=StrategyNoteOut)
+async def rename_strategy_route(
+    note_id: int,
+    body: StrategyRename,
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> StrategyNote:
+    note = await _owned_note(db, user_id, note_id)
+    return await rename_strategy(db, note, body.name)
 
 
 @router.post("/{note_id}/activate", response_model=StrategyNoteOut)

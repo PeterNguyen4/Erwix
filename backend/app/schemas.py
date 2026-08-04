@@ -388,3 +388,7 @@ class StrategyNoteUpdate(BaseModel):
 
 class PlaybookUpdate(BaseModel):
     sections: dict[str, list[str]]
+
+
+class StrategyRename(BaseModel):
+    name: str

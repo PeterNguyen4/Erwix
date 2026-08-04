@@ -11,7 +11,7 @@ interface Props {
 
 export default function ArchetypeGrid({ archetypes, selected, onSelect }: Props) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {archetypes.map((a) => {
         const presentation = presentationFor(a.id);
         const Icon = presentation.icon;
@@ -21,28 +21,37 @@ export default function ArchetypeGrid({ archetypes, selected, onSelect }: Props)
             key={a.id}
             onClick={() => onSelect(a.id)}
             style={isSelected ? { boxShadow: `0 0 0 2px ${presentation.color}, 0 0 24px ${presentation.color}55` } : undefined}
-            className={`group relative flex flex-col items-center gap-2 rounded-xl border bg-panel px-4 py-6 text-center transition-all duration-150 ${
+            className={`group relative flex flex-col overflow-hidden rounded-xl border bg-panel text-center transition-all duration-150 ${
               isSelected
                 ? "border-transparent scale-[1.03]"
                 : "border-border hover:border-accent/60 hover:scale-[1.02]"
             }`}
           >
-            <span
-              className="flex h-14 w-14 items-center justify-center rounded-full transition-transform group-hover:scale-110"
-              style={{ backgroundColor: `${presentation.color}22` }}
+            <div
+              className="relative flex h-40 items-center justify-center"
+              style={{ backgroundColor: `${presentation.color}14` }}
             >
-              <Icon size={24} strokeWidth={2} color={presentation.color} />
-            </span>
-            <span className="text-sm font-semibold text-fg">{a.name}</span>
-            <span className="text-xs text-muted leading-snug">{a.tagline}</span>
-            {isSelected && (
               <span
-                className="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-fg"
-                style={{ backgroundColor: presentation.color }}
+                className="flex h-14 w-14 items-center justify-center rounded-2xl transition-transform group-hover:scale-110"
+                style={{ backgroundColor: `${presentation.color}22` }}
               >
-                ✓
+                <Icon size={26} strokeWidth={1.75} color={presentation.color} />
               </span>
-            )}
+
+              {isSelected && (
+                <span
+                  className="absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold text-fg"
+                  style={{ backgroundColor: presentation.color }}
+                >
+                  ✓
+                </span>
+              )}
+            </div>
+
+            <div className="flex flex-1 flex-col items-center justify-center gap-1 p-4">
+              <span className="text-sm font-semibold text-fg">{a.name}</span>
+              <span className="text-xs text-muted leading-snug">{a.tagline}</span>
+            </div>
           </button>
         );
       })}
