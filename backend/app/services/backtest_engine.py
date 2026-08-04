@@ -13,34 +13,56 @@ from app.services.indicators import indicator_series as _indicator_series
 _INITIAL_EQUITY = 100_000.0
 
 
-def _rule_holds(rule: BacktestRule, series: list[float | None], i: int) -> bool:
-    v = series[i]
-    if v is None:
+def _resolve_series(value: str, series_by_indicator: dict[str, list[float | None]], n: int) -> list[float | None]:
+    try:
+        constant = float(value)
+    except ValueError:
+        return series_by_indicator[value]
+    return [constant] * n
+
+
+def _rule_holds(rule: BacktestRule, series_by_indicator: dict[str, list[float | None]], n: int, i: int) -> bool:
+    left = series_by_indicator[rule.indicator]
+    right = _resolve_series(rule.value, series_by_indicator, n)
+    lv, rv = left[i], right[i]
+    if lv is None or rv is None:
         return False
     if rule.comparator == "<":
-        return v < rule.value
+        return lv < rv
     if rule.comparator == "<=":
-        return v <= rule.value
+        return lv <= rv
     if rule.comparator == ">":
-        return v > rule.value
+        return lv > rv
     if rule.comparator == ">=":
-        return v >= rule.value
+        return lv >= rv
     if rule.comparator == "==":
-        return v == rule.value
-    prev = series[i - 1] if i > 0 else None
-    if prev is None:
+        return lv == rv
+    lprev = left[i - 1] if i > 0 else None
+    rprev = right[i - 1] if i > 0 else None
+    if lprev is None or rprev is None:
         return False
     if rule.comparator == "crosses_above":
-        return prev <= rule.value < v
+        return lprev <= rprev and lv > rv
     if rule.comparator == "crosses_below":
-        return prev >= rule.value > v
+        return lprev >= rprev and lv < rv
     raise ValueError(f"Unknown comparator: {rule.comparator!r}")
 
 
-def _rules_hold(rules: list[BacktestRule], series_by_indicator: dict[str, list[float | None]], i: int) -> bool:
+def _rules_hold(rules: list[BacktestRule], series_by_indicator: dict[str, list[float | None]], n: int, i: int) -> bool:
     if not rules:
         return False
-    return all(_rule_holds(r, series_by_indicator[r.indicator], i) for r in rules)
+    return all(_rule_holds(r, series_by_indicator, n, i) for r in rules)
+
+
+def _needed_indicators(rules: list[BacktestRule]) -> set[str]:
+    names: set[str] = set()
+    for r in rules:
+        names.add(r.indicator)
+        try:
+            float(r.value)
+        except ValueError:
+            names.add(r.value)
+    return names
 
 
 def _position_qty(config: BacktestConfig, equity: float, price: float) -> float:
@@ -58,8 +80,9 @@ def run_backtest(candles: list[Candle], config: BacktestConfig) -> BacktestResul
     if not candles:
         return BacktestResult(trades=[], equity_curve=[], stats={})
 
-    needed = {r.indicator for r in [*config.entry_rules, *config.exit_rules]}
+    needed = _needed_indicators(config.entry_rules) | _needed_indicators(config.exit_rules)
     series_by_indicator = {name: _indicator_series(candles, name) for name in needed}
+    n = len(candles)
 
     equity = _INITIAL_EQUITY
     equity_curve: list[dict] = []
@@ -74,10 +97,10 @@ def run_backtest(candles: list[Candle], config: BacktestConfig) -> BacktestResul
 
         if open_trade is None:
             can_long = config.direction in ("long", "both") and _rules_hold(
-                config.entry_rules, series_by_indicator, i
+                config.entry_rules, series_by_indicator, n, i
             )
             can_short = config.direction in ("short", "both") and _rules_hold(
-                config.entry_rules, series_by_indicator, i
+                config.entry_rules, series_by_indicator, n, i
             )
             side = "long" if can_long else ("short" if can_short else None)
             if side is not None:
@@ -112,7 +135,7 @@ def run_backtest(candles: list[Candle], config: BacktestConfig) -> BacktestResul
             should_exit = (
                 hit_stop
                 or hit_target
-                or _rules_hold(config.exit_rules, series_by_indicator, i)
+                or _rules_hold(config.exit_rules, series_by_indicator, n, i)
             )
             if should_exit:
                 direction_mult = 1 if open_side == "long" else -1

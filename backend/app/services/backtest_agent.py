@@ -19,7 +19,11 @@ SYSTEM_PROMPT = (
     "trader's latest instruction. Return the full updated config — carry over any "
     "existing fields the instruction didn't touch rather than dropping them. Available "
     "indicators: close, sma_N, ema_N, rsi_N (N = period), macd. Comparators: <, <=, >, "
-    ">=, ==, crosses_above, crosses_below. stop_loss and take_profit are each either null "
+    ">=, ==, crosses_above, crosses_below. Each rule's value is a string — either a numeric "
+    "threshold (e.g. \"30\") or another indicator key (e.g. \"sma_50\") to compare two "
+    "indicators directly, like 'close crosses above the 50-period SMA' -> "
+    "{\"indicator\": \"close\", \"comparator\": \"crosses_above\", \"value\": \"sma_50\"}. "
+    "stop_loss and take_profit are each either null "
     "or an object shaped {\"value\": <percent>} where <percent> is a positive number "
     "(e.g. a 4% stop loss is {\"value\": 4}, never a negative number or a bare float)."
 )

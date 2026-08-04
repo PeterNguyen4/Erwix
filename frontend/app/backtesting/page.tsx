@@ -260,9 +260,6 @@ export default function BacktestingPage() {
       <div className="grid flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:overflow-hidden">
         <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
           <div className="flex min-h-[420px] flex-1 flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
-            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
-              <span className="text-sm font-semibold tracking-wide text-muted">Strategy Builder</span>
-            </div>
             <div className="flex-1 lg:min-h-0">
               <BacktestChat
                 config={config}
@@ -276,9 +273,6 @@ export default function BacktestingPage() {
         </div>
 
         <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
-          <div className="shrink-0 border-b border-border px-4 py-2 text-sm font-semibold tracking-wide text-muted">
-            Replay Preview
-          </div>
           <div className="flex-1 lg:min-h-0">
             {candles.length > 0 ? (
               <Chart

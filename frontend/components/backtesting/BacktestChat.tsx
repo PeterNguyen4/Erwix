@@ -1,9 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Hammer, ListChecks, Loader2, Pencil, Play, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
-import { api, BacktestChatEvent, BacktestConfig, BacktestRisk, BacktestRule, BacktestSizing } from "@/lib/api";
+import {
+  api,
+  Archetype,
+  BacktestChatEvent,
+  BacktestConfig,
+  BacktestRisk,
+  BacktestRule,
+  BacktestSizing,
+  StrategyRuleSet,
+} from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
@@ -76,7 +86,7 @@ function comparatorLabel(c: string) {
   }
 }
 
-type RuleSegment = "family" | "period" | "comparator" | "value" | null;
+type RuleSegment = "comparator" | "value" | null;
 
 const segmentClass =
   "cursor-pointer rounded px-0.5 underline decoration-dotted decoration-2 decoration-muted underline-offset-4 transition-colors hover:bg-panel hover:text-accent hover:decoration-accent";
@@ -127,6 +137,151 @@ function DropdownPanel<T extends string>({
   );
 }
 
+type LoadStrategyState =
+  | { status: "idle" | "loading" }
+  | { status: "empty" }
+  | { status: "ready"; name: string; ruleSet: StrategyRuleSet };
+
+function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => void }) {
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<LoadStrategyState>({ status: "idle" });
+  const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  useClickOutside(ref, () => setOpen(false), open);
+
+  const toggle = async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && state.status === "idle") {
+      setState({ status: "loading" });
+      try {
+        const [note, archetypes, rulesOut] = await Promise.all([
+          api.getStrategy(),
+          api.getArchetypes(),
+          api.getStrategyRules(),
+        ]);
+        const ruleSet = rulesOut.rules;
+        if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
+          setState({ status: "empty" });
+          return;
+        }
+        const archetype = archetypes.find((a: Archetype) => a.id === note.archetype);
+        setState({ status: "ready", name: archetype?.name ?? "Your strategy", ruleSet });
+      } catch {
+        setState({ status: "empty" });
+      }
+    }
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-label="Load a saved strategy"
+        className="flex shrink-0 items-center justify-center rounded-full bg-field p-1.5 text-muted transition-colors hover:bg-fg/10 hover:text-fg"
+      >
+        <Plus size={15} strokeWidth={2} />
+      </button>
+      {open && (
+        <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-md border border-border bg-panel py-1 shadow-lg">
+          {state.status === "loading" && <div className="px-3 py-2 text-xs text-muted">Loading…</div>}
+          {state.status === "empty" && (
+            <div className="flex flex-col items-start gap-1.5 px-3 py-2">
+              <span className="text-xs text-muted">No strategy saved yet.</span>
+              <button
+                type="button"
+                onClick={() => router.push("/strategy")}
+                className="flex items-center gap-1 text-xs font-medium text-accent hover:underline dark:text-violet-400"
+              >
+                Build Strategy
+                <ArrowRight size={12} strokeWidth={2.2} />
+              </button>
+            </div>
+          )}
+          {state.status === "ready" && (
+            <button
+              type="button"
+              onClick={() => {
+                onLoad(state.ruleSet);
+                setOpen(false);
+              }}
+              className="flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10"
+            >
+              <span className="text-xs text-fg">{state.name}</span>
+              <span className="text-[10px] text-muted">
+                {state.ruleSet.entry_rules.length} entry · {state.ruleSet.exit_rules.length} exit rules
+              </span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function isNumericValue(value: string): boolean {
+  return value.trim() !== "" && !Number.isNaN(Number(value));
+}
+
+function IndicatorFamilyPeriod({
+  indicator,
+  onChange,
+}: {
+  indicator: string;
+  onChange: (indicator: string) => void;
+}) {
+  const [editing, setEditing] = useState<"family" | "period" | null>(null);
+  const familyRef = useRef<HTMLSpanElement>(null);
+  useClickOutside(familyRef, () => setEditing(null), editing === "family");
+  const { familyId, period } = parseIndicator(indicator);
+  const family = INDICATOR_FAMILIES.find((f) => f.id === familyId) ?? INDICATOR_FAMILIES[0];
+
+  return (
+    <>
+      <span ref={familyRef} className="relative">
+        <span onClick={() => setEditing(editing === "family" ? null : "family")} className={segmentClass}>
+          {family.id}
+        </span>
+        {editing === "family" && (
+          <DropdownPanel
+            value={family.id}
+            options={INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))}
+            onSelect={(id) => {
+              const next = INDICATOR_FAMILIES.find((f) => f.id === id)!;
+              onChange(buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null));
+              setEditing(null);
+            }}
+          />
+        )}
+      </span>
+      {family.hasPeriod &&
+        (editing === "period" ? (
+          <input
+            autoFocus
+            type="number"
+            defaultValue={period ?? family.defaultPeriod}
+            onBlur={(e) => {
+              onChange(buildIndicator(family.id, Number(e.target.value)));
+              setEditing(null);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+            className={inlineNumberClass}
+          />
+        ) : (
+          <>
+            _
+            <span onClick={() => setEditing("period")} className={segmentClass}>
+              {period ?? family.defaultPeriod}
+            </span>
+          </>
+        ))}
+    </>
+  );
+}
+
+const VALUE_TYPE_OPTIONS = [{ id: "__number__", label: "Number" }, ...INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))];
+
 function RuleRow({
   rule,
   onRemove,
@@ -141,12 +296,12 @@ function RuleRow({
   isLast?: boolean;
 }) {
   const [editing, setEditing] = useState<RuleSegment>(null);
-  const { familyId, period } = parseIndicator(rule.indicator);
-  const family = INDICATOR_FAMILIES.find((f) => f.id === familyId) ?? INDICATOR_FAMILIES[0];
-  const familyRef = useRef<HTMLSpanElement>(null);
+  const [valueTypeOpen, setValueTypeOpen] = useState(false);
   const comparatorRef = useRef<HTMLSpanElement>(null);
-  useClickOutside(familyRef, () => setEditing(null), editing === "family");
+  const valueTypeRef = useRef<HTMLSpanElement>(null);
   useClickOutside(comparatorRef, () => setEditing(null), editing === "comparator");
+  useClickOutside(valueTypeRef, () => setValueTypeOpen(false), valueTypeOpen);
+  const valueIsNumeric = isNumericValue(rule.value);
 
   return (
     <div className="relative pl-4 text-sm text-fg">
@@ -155,43 +310,7 @@ function RuleRow({
       {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 font-mono transition-colors hover:bg-panel/60">
         <span className="flex flex-wrap items-center gap-0.5">
-          <span ref={familyRef} className="relative">
-            <span onClick={() => setEditing(editing === "family" ? null : "family")} className={segmentClass}>
-              {family.id}
-            </span>
-            {editing === "family" && (
-              <DropdownPanel
-                value={family.id}
-                options={INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))}
-                onSelect={(id) => {
-                  const next = INDICATOR_FAMILIES.find((f) => f.id === id)!;
-                  onUpdate({ ...rule, indicator: buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null) });
-                  setEditing(null);
-                }}
-              />
-            )}
-          </span>
-          {family.hasPeriod &&
-            (editing === "period" ? (
-              <input
-                autoFocus
-                type="number"
-                defaultValue={period ?? family.defaultPeriod}
-                onBlur={(e) => {
-                  onUpdate({ ...rule, indicator: buildIndicator(family.id, Number(e.target.value)) });
-                  setEditing(null);
-                }}
-                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                className={inlineNumberClass}
-              />
-            ) : (
-              <>
-                _
-                <span onClick={() => setEditing("period")} className={segmentClass}>
-                  {period ?? family.defaultPeriod}
-                </span>
-              </>
-            ))}
+          <IndicatorFamilyPeriod indicator={rule.indicator} onChange={(indicator) => onUpdate({ ...rule, indicator })} />
           <span ref={comparatorRef} className="relative">
             <span onClick={() => setEditing(editing === "comparator" ? null : "comparator")} className={segmentClass}>
               {comparatorLabel(rule.comparator)}
@@ -207,23 +326,54 @@ function RuleRow({
               />
             )}
           </span>
-          {editing === "value" ? (
-            <input
-              autoFocus
-              type="number"
-              defaultValue={rule.value}
-              onBlur={(e) => {
-                onUpdate({ ...rule, value: Number(e.target.value) });
-                setEditing(null);
-              }}
-              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-              className={inlineNumberClass}
-            />
+          {valueIsNumeric ? (
+            editing === "value" ? (
+              <input
+                autoFocus
+                type="text"
+                inputMode="decimal"
+                defaultValue={rule.value}
+                onBlur={(e) => {
+                  onUpdate({ ...rule, value: e.target.value });
+                  setEditing(null);
+                }}
+                onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                className={inlineNumberClass}
+              />
+            ) : (
+              <span onClick={() => setEditing("value")} className={segmentClass}>
+                {rule.value}
+              </span>
+            )
           ) : (
-            <span onClick={() => setEditing("value")} className={segmentClass}>
-              {rule.value}
-            </span>
+            <IndicatorFamilyPeriod indicator={rule.value} onChange={(value) => onUpdate({ ...rule, value })} />
           )}
+          <span ref={valueTypeRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setValueTypeOpen((o) => !o)}
+              aria-label="Change value type"
+              className="rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-accent group-hover:opacity-100"
+            >
+              <ChevronDown size={10} strokeWidth={2.5} />
+            </button>
+            {valueTypeOpen && (
+              <DropdownPanel
+                value={valueIsNumeric ? "__number__" : parseIndicator(rule.value).familyId}
+                options={VALUE_TYPE_OPTIONS}
+                onSelect={(id) => {
+                  if (id === "__number__") {
+                    onUpdate({ ...rule, value: "0" });
+                    setEditing("value");
+                  } else {
+                    const next = INDICATOR_FAMILIES.find((f) => f.id === id)!;
+                    onUpdate({ ...rule, value: buildIndicator(next.id, next.hasPeriod ? next.defaultPeriod ?? 14 : null) });
+                  }
+                  setValueTypeOpen(false);
+                }}
+              />
+            )}
+          </span>
         </span>
         <button
           type="button"
@@ -231,7 +381,7 @@ function RuleRow({
           aria-label="Remove rule"
           className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
         >
-          <X size={12} strokeWidth={2.2} />
+          <X size={14} strokeWidth={2.2} />
         </button>
       </div>
     </div>
@@ -278,6 +428,31 @@ function StatRow({
           )}
         </span>
       </div>
+    </div>
+  );
+}
+
+function AddStatRow({
+  label,
+  onAdd,
+}: {
+  label: string;
+  onAdd: () => void;
+}) {
+  return (
+    <div className="relative pl-4">
+      <Plus
+        size={10}
+        strokeWidth={2.5}
+        className="absolute left-[6px] top-[13px] -translate-x-1/2 -translate-y-1/2 text-muted"
+      />
+      <button
+        type="button"
+        onClick={onAdd}
+        className="flex w-full items-center rounded-md px-1 py-1 text-sm text-muted transition-colors hover:bg-panel/60 hover:text-fg"
+      >
+        {label}
+      </button>
     </div>
   );
 }
@@ -420,7 +595,7 @@ function ConfigSummaryCard({
   onUpdateStopLoss,
   onUpdateTakeProfit,
   onUpdateSizing,
-  onFocusInput,
+  onAddRule,
 }: {
   config: BacktestConfig;
   onRemoveRule: (kind: "entry_rules" | "exit_rules", index: number) => void;
@@ -432,7 +607,7 @@ function ConfigSummaryCard({
   onUpdateStopLoss: (risk: BacktestRisk | null) => void;
   onUpdateTakeProfit: (risk: BacktestRisk | null) => void;
   onUpdateSizing: (sizing: BacktestSizing) => void;
-  onFocusInput?: () => void;
+  onAddRule: (kind: "entry_rules" | "exit_rules") => void;
 }) {
   const EntryIcon = CATEGORY_ICONS.entry;
   const ExitIcon = CATEGORY_ICONS.exit;
@@ -473,8 +648,8 @@ function ConfigSummaryCard({
           label="Entry"
           accentClass="text-up"
           isEmpty={config.entry_rules.length === 0}
-          emptyHint="Describe a rule or pick from Rules"
-          onClickEmpty={onFocusInput}
+          emptyHint="Click to add a rule"
+          onClickEmpty={() => onAddRule("entry_rules")}
         >
           {config.entry_rules.map((r, i) => (
             <RuleRow
@@ -493,8 +668,8 @@ function ConfigSummaryCard({
           label="Exit"
           accentClass="text-down"
           isEmpty={config.exit_rules.length === 0}
-          emptyHint="Describe a rule or pick from Rules"
-          onClickEmpty={onFocusInput}
+          emptyHint="Click to add a rule"
+          onClickEmpty={() => onAddRule("exit_rules")}
         >
           {config.exit_rules.map((r, i) => (
             <RuleRow
@@ -523,16 +698,10 @@ function ConfigSummaryCard({
               onUpdate={onUpdateStopLoss}
               onRemove={() => onUpdateStopLoss(null)}
               isFirst
-              isLast={!config.take_profit}
+              isLast={false}
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => onUpdateStopLoss({ value: 2 })}
-              className="py-0.5 pl-4 text-sm text-muted hover:text-fg"
-            >
-              + Add stop loss
-            </button>
+            <AddStatRow label="Add stop loss" onAdd={() => onUpdateStopLoss({ value: 2 })} />
           )}
           {config.take_profit ? (
             <RiskRow
@@ -540,17 +709,11 @@ function ConfigSummaryCard({
               risk={config.take_profit}
               onUpdate={onUpdateTakeProfit}
               onRemove={() => onUpdateTakeProfit(null)}
-              isFirst={!config.stop_loss}
+              isFirst={false}
               isLast
             />
           ) : (
-            <button
-              type="button"
-              onClick={() => onUpdateTakeProfit({ value: 5 })}
-              className="py-0.5 pl-4 text-sm text-muted hover:text-fg"
-            >
-              + Add take profit
-            </button>
+            <AddStatRow label="Add take profit" onAdd={() => onUpdateTakeProfit({ value: 5 })} />
           )}
         </CategoryCard>
 
@@ -655,6 +818,16 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     setRulesOpen(false);
   };
 
+  const loadStrategy = (ruleSet: StrategyRuleSet) => {
+    const toBacktestRules = (rules: StrategyRuleSet["entry_rules"]): BacktestRule[] =>
+      rules.map((r) => ({ indicator: r.left, comparator: r.comparator, value: r.right }));
+    applyHint((config) => ({
+      ...config,
+      entry_rules: toBacktestRules(ruleSet.entry_rules),
+      exit_rules: toBacktestRules(ruleSet.exit_rules),
+    }));
+  };
+
   const removeRule = (kind: "entry_rules" | "exit_rules", index: number) => {
     const next = { ...configRef.current, [kind]: configRef.current[kind].filter((_, i) => i !== index) };
     onConfigChange(next);
@@ -663,6 +836,13 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
 
   const updateRule = (kind: "entry_rules" | "exit_rules", index: number, rule: BacktestRule) => {
     const next = { ...configRef.current, [kind]: configRef.current[kind].map((r, i) => (i === index ? rule : r)) };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  const addRuleTemplate = (kind: "entry_rules" | "exit_rules") => {
+    const template: BacktestRule = { indicator: "rsi_14", comparator: "<", value: "30" };
+    const next = { ...configRef.current, [kind]: [...configRef.current[kind], template] };
     onConfigChange(next);
     upsertConfigCard(next);
   };
@@ -741,9 +921,9 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   const inputRow = (
     <div className="w-full shrink-0 px-4 py-3">
       <div className="mx-auto flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
-        <div className={`relative px-3 pt-3 ${isEmpty ? "pb-1" : "pb-0"}`}>
+        <div className={`relative pl-[18px] pr-3 pt-3 ${isEmpty ? "pb-1" : "pb-0"}`}>
           {isEmpty && !input && (
-            <div className="pointer-events-none absolute left-3 top-3 right-4 h-5 overflow-hidden">
+            <div className="pointer-events-none absolute left-[18px] top-3 right-4 h-5 overflow-hidden">
               <div key={placeholderIndex} className="animate-fade-in-up text-sm text-muted">
                 {PLACEHOLDER_PROMPTS[placeholderIndex]}
               </div>
@@ -761,31 +941,34 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
             }}
             placeholder={isEmpty ? "" : "Describe your strategy"}
             rows={1}
-            className="chat-scroll max-h-40 min-h-[1.75rem] pr-1 w-full resize-none overflow-y-auto bg-transparent text-sm text-fg outline-none placeholder:text-muted"
+            className="chat-scroll max-h-40 min-h-[1.75rem] pr-2 w-full resize-none overflow-y-auto bg-transparent text-sm text-fg outline-none placeholder:text-muted"
           />
         </div>
         <div className="flex items-center justify-between px-3 pb-3">
-          <div className="relative">
-            <button
-              ref={rulesChipRef}
-              onClick={() => setRulesOpen((v) => !v)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                rulesOpen
-                  ? "border-violet-400 bg-violet-500/10 text-fg"
-                  : "border-muted/70 text-muted hover:border-violet-400 hover:text-fg"
-              }`}
-            >
-              <ListChecks size={13} strokeWidth={2} />
-              Rules
-            </button>
-            {rulesOpen && (
-              <div
-                ref={rulesPanelRef}
-                className="absolute bottom-full left-0 z-20 mb-2 w-48 rounded-md border border-border bg-panel shadow-lg"
+          <div className="flex items-center gap-1.5">
+            <LoadStrategyMenu onLoad={loadStrategy} />
+            <div className="relative">
+              <button
+                ref={rulesChipRef}
+                onClick={() => setRulesOpen((v) => !v)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                  rulesOpen
+                    ? "border-violet-400 bg-violet-500/10 text-fg"
+                    : "border-muted/70 text-muted hover:border-violet-400 hover:text-fg"
+                }`}
               >
-                <HintLibrary onApply={applyHint} />
-              </div>
-            )}
+                <ListChecks size={13} strokeWidth={2} />
+                Rules
+              </button>
+              {rulesOpen && (
+                <div
+                  ref={rulesPanelRef}
+                  className="absolute bottom-full left-0 z-20 mb-2 w-48 rounded-md border border-border bg-panel shadow-lg"
+                >
+                  <HintLibrary onApply={applyHint} />
+                </div>
+              )}
+            </div>
           </div>
           <div
             className="relative flex items-center"
@@ -841,7 +1024,7 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
               onUpdateStopLoss={updateStopLoss}
               onUpdateTakeProfit={updateTakeProfit}
               onUpdateSizing={updateSizing}
-              onFocusInput={() => textareaRef.current?.focus()}
+              onAddRule={addRuleTemplate}
             />
           ) : m.kind === "action" ? (
             <ActionBadge key={m.id} label={m.label} />
