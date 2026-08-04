@@ -12,6 +12,8 @@ import {
   BacktestRisk,
   BacktestRule,
   BacktestSizing,
+  GatedRule,
+  PatternRule,
   StrategyRuleSet,
 } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
@@ -281,6 +283,17 @@ function IndicatorFamilyPeriod({
 }
 
 const VALUE_TYPE_OPTIONS = [{ id: "__number__", label: "Number" }, ...INDICATOR_FAMILIES.map((f) => ({ id: f.id, label: f.label }))];
+
+function UnsupportedRuleRow({ rule, onRemove }: { rule: PatternRule | GatedRule; onRemove: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 py-1 text-sm text-fg-muted">
+      <span>{rule.description}</span>
+      <button onClick={onRemove} className="text-fg-muted hover:text-fg">
+        ×
+      </button>
+    </div>
+  );
+}
 
 function RuleRow({
   rule,
@@ -651,16 +664,20 @@ function ConfigSummaryCard({
           emptyHint="Click to add a rule"
           onClickEmpty={() => onAddRule("entry_rules")}
         >
-          {config.entry_rules.map((r, i) => (
-            <RuleRow
-              key={i}
-              rule={r}
-              onRemove={() => onRemoveRule("entry_rules", i)}
-              onUpdate={(rule) => onUpdateRule("entry_rules", i, rule)}
-              isFirst={i === 0}
-              isLast={i === config.entry_rules.length - 1}
-            />
-          ))}
+          {config.entry_rules.map((r, i) =>
+            r.type === "comparison" ? (
+              <RuleRow
+                key={i}
+                rule={r}
+                onRemove={() => onRemoveRule("entry_rules", i)}
+                onUpdate={(rule) => onUpdateRule("entry_rules", i, rule)}
+                isFirst={i === 0}
+                isLast={i === config.entry_rules.length - 1}
+              />
+            ) : (
+              <UnsupportedRuleRow key={i} rule={r} onRemove={() => onRemoveRule("entry_rules", i)} />
+            )
+          )}
         </CategoryCard>
 
         <CategoryCard
@@ -671,16 +688,20 @@ function ConfigSummaryCard({
           emptyHint="Click to add a rule"
           onClickEmpty={() => onAddRule("exit_rules")}
         >
-          {config.exit_rules.map((r, i) => (
-            <RuleRow
-              key={i}
-              rule={r}
-              onRemove={() => onRemoveRule("exit_rules", i)}
-              onUpdate={(rule) => onUpdateRule("exit_rules", i, rule)}
-              isFirst={i === 0}
-              isLast={i === config.exit_rules.length - 1}
-            />
-          ))}
+          {config.exit_rules.map((r, i) =>
+            r.type === "comparison" ? (
+              <RuleRow
+                key={i}
+                rule={r}
+                onRemove={() => onRemoveRule("exit_rules", i)}
+                onUpdate={(rule) => onUpdateRule("exit_rules", i, rule)}
+                isFirst={i === 0}
+                isLast={i === config.exit_rules.length - 1}
+              />
+            ) : (
+              <UnsupportedRuleRow key={i} rule={r} onRemove={() => onRemoveRule("exit_rules", i)} />
+            )
+          )}
         </CategoryCard>
 
         <CategoryCard
@@ -819,8 +840,12 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   };
 
   const loadStrategy = (ruleSet: StrategyRuleSet) => {
-    const toBacktestRules = (rules: StrategyRuleSet["entry_rules"]): BacktestRule[] =>
-      rules.map((r) => ({ indicator: r.left, comparator: r.comparator, value: r.right }));
+    const toBacktestRules = (rules: StrategyRuleSet["entry_rules"]): (BacktestRule | PatternRule | GatedRule)[] =>
+      rules.map((r) =>
+        r.type === "comparison"
+          ? { type: "comparison" as const, indicator: r.left, comparator: r.comparator, value: r.right }
+          : r
+      );
     applyHint((config) => ({
       ...config,
       entry_rules: toBacktestRules(ruleSet.entry_rules),
@@ -841,7 +866,7 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   };
 
   const addRuleTemplate = (kind: "entry_rules" | "exit_rules") => {
-    const template: BacktestRule = { indicator: "rsi_14", comparator: "<", value: "30" };
+    const template: BacktestRule = { type: "comparison", indicator: "rsi_14", comparator: "<", value: "30" };
     const next = { ...configRef.current, [kind]: [...configRef.current[kind], template] };
     onConfigChange(next);
     upsertConfigCard(next);
