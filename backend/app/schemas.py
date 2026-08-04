@@ -353,6 +353,9 @@ class ArchetypeOut(BaseModel):
 
 
 class StrategyNoteOut(BaseModel):
+    id: int
+    name: str
+    is_active: bool
     archetype: str | None
     body: str | None
     answers: dict[str, str] | None
@@ -360,6 +363,21 @@ class StrategyNoteOut(BaseModel):
     summarized_at: datetime | None
 
     model_config = {"from_attributes": True}
+
+
+class StrategyNoteSummary(BaseModel):
+    id: int
+    name: str
+    archetype: str | None
+    is_active: bool
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class StrategyCreate(BaseModel):
+    name: str
+    archetype: str | None = None
 
 
 class StrategyNoteUpdate(BaseModel):

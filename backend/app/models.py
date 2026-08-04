@@ -205,6 +205,8 @@ class StrategyNote(Base):
     __tablename__ = "strategy_notes"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(80), default="My Strategy")
+    is_active: Mapped[bool] = mapped_column(default=False)
     archetype: Mapped[str | None] = mapped_column(String(32))
     # Freeform text (archetype="freeform"/None). For question-driven archetypes this
     # holds the composed "Q: ... A: ..." text sent to the strategist agent, derived
