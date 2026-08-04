@@ -50,11 +50,13 @@ function StrategyCard({
 
   return (
     <div
-      onClick={() => onEdit(s.id)}
+      onClick={() => {
+        if (!renaming) onEdit(s.id);
+      }}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onEdit(s.id);
+        if (e.key === "Enter" && !renaming) onEdit(s.id);
       }}
       className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-panel transition-all duration-150 cursor-pointer hover:border-accent/60 hover:scale-[1.02]"
     >

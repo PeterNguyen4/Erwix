@@ -292,7 +292,7 @@ export default function StrategyPage() {
         const Icon = presentation.icon;
         return (
           <div className="fixed bottom-4 right-4 top-20 z-40 flex w-[560px] max-w-[calc(100vw-2rem)] animate-fade-in-up flex-col overflow-hidden rounded-xl border border-border bg-panel shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-border pl-6 pr-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
               <div className="flex min-w-0 items-center gap-2">
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
