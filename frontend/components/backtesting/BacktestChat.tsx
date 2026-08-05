@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, X } from "lucide-react";
+import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import {
   api,
@@ -158,7 +158,9 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
   const [list, setList] = useState<ListState>({ status: "idle" });
   const [selected, setSelected] = useState<SelectState>({ status: "none" });
   const [retrying, setRetrying] = useState(false);
+  const [query, setQuery] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   useClickOutside(ref, () => setOpen(false), open);
 
@@ -176,6 +178,7 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
     const next = !open;
     setOpen(next);
     setSelected({ status: "none" });
+    setQuery("");
     if (next && list.status === "idle") {
       await load();
     }
@@ -238,11 +241,40 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
               </button>
             </div>
           )}
+          {list.status === "ready" && list.strategies.length > 3 && (
+            <div className="px-2 pb-1.5">
+              <div className="flex items-center gap-1.5 rounded border border-border bg-field px-2 py-1 focus-within:border-violet-400">
+                <Search size={11} strokeWidth={2} className="shrink-0 text-muted" />
+                <input
+                  ref={searchRef}
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search strategies"
+                  className="w-full bg-transparent text-xs text-fg outline-none placeholder:text-muted"
+                />
+              </div>
+            </div>
+          )}
           {list.status === "ready" &&
-            list.strategies.map((s) => {
+            (() => {
+              const q = query.trim().toLowerCase();
+              const withArchetypeName = list.strategies.map((s) => ({
+                s,
+                archetypeName: list.archetypes.find((a) => a.id === s.archetype)?.name ?? "Custom",
+              }));
+              const filtered = q
+                ? withArchetypeName.filter(
+                    ({ s, archetypeName }) =>
+                      s.name.toLowerCase().includes(q) || archetypeName.toLowerCase().includes(q),
+                  )
+                : withArchetypeName;
+              if (filtered.length === 0) {
+                return <div className="px-3 py-2 text-xs text-muted">No strategies match &quot;{query}&quot;.</div>;
+              }
+              return filtered.map(({ s, archetypeName }) => {
               const presentation = presentationFor(s.archetype);
               const Icon = presentation.icon;
-              const archetypeName = list.archetypes.find((a) => a.id === s.archetype)?.name ?? "Custom";
               const isSelected = selected.status !== "none" && selected.noteId === s.id;
 
               if (isSelected && selected.status === "failed") {
@@ -285,7 +317,8 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
                   )}
                 </button>
               );
-            })}
+              });
+            })()}
         </div>
       )}
     </div>

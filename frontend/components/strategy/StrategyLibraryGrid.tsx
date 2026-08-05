@@ -181,7 +181,7 @@ export default function StrategyLibraryGrid({
   const archetypeName = (id: string | null) => archetypes.find((a) => a.id === id)?.name ?? null;
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(16rem,1fr))] gap-4">
       {strategies.map((s) => (
         <StrategyCard
           key={s.id}
