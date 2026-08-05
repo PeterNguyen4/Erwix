@@ -73,6 +73,8 @@ class UserPreference(Base):
     debrief_day_of_week: Mapped[int | None] = mapped_column(Integer)  # 0=Mon -> 6=Sun
     debrief_time: Mapped[time | None] = mapped_column(Time)
 
+    notifications_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
 
 class Trade(Base):
     __tablename__ = "trades"

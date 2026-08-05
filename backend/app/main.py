@@ -7,7 +7,19 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.db import engine
-from app.routers import agent, alpaca_oauth, analysis, news, backtest, journal, market, strategy, trading, users
+from app.routers import (
+    agent,
+    alpaca_oauth,
+    analysis,
+    news,
+    backtest,
+    journal,
+    market,
+    notifications,
+    strategy,
+    trading,
+    users,
+)
 from app.routers.market import cancel_stream_task
 from app.services.debrief_jobs import fail_orphaned_reports, start_scheduler, stop_scheduler
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
@@ -68,6 +80,7 @@ app.include_router(strategy.router)
 app.include_router(news.router)
 app.include_router(backtest.router)
 app.include_router(alpaca_oauth.router)
+app.include_router(notifications.router)
 
 
 @app.get("/api/health")

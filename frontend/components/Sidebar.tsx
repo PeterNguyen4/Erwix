@@ -2,8 +2,8 @@
 
 import { useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { useDebriefStatus } from "@/lib/useDebriefStatus";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
+import NotificationBell from "@/components/NotificationBell";
 import {
   LineChart,
   Wallet,
@@ -24,7 +24,6 @@ const NAV_ITEMS = [
 export default function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { hasNewTrades } = useDebriefStatus();
   const [hoveredHref, setHoveredHref] = useState<string | null>(null);
   const [settingsHover, setSettingsHover] = useState(false);
   const navButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -37,7 +36,6 @@ export default function Sidebar() {
       </div>
       {NAV_ITEMS.map(({ label, href, Icon }) => {
         const active = pathname === href;
-        const showBadge = href === "/portfolio" && hasNewTrades;
         return (
           <div
             key={href}
@@ -56,13 +54,10 @@ export default function Sidebar() {
             >
               <span className="relative">
                 <Icon size={20} strokeWidth={2} />
-                {showBadge && (
-                  <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-violet-400 animate-pulse" />
-                )}
               </span>
             </button>
             <ToolbarTooltip
-              label={showBadge ? `${label} — debrief ready` : label}
+              label={label}
               hover={hoveredHref === href}
               placement="right"
               anchorRef={{ current: navButtonRefs.current[href] ?? null }}
@@ -71,6 +66,7 @@ export default function Sidebar() {
         );
       })}
       <div className="flex-1" />
+      <NotificationBell />
       <div
         className="relative mb-2"
         onMouseEnter={() => setSettingsHover(true)}

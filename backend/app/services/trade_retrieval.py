@@ -174,6 +174,13 @@ async def count_trades_since(db: AsyncSession, user_id: int, since: datetime) ->
     ) or 0
 
 
+async def latest_fill_since(db: AsyncSession, user_id: int, since: datetime) -> datetime | None:
+    """Most recent fill time after last."""
+    return await db.scalar(
+        select(func.max(Trade.filled_at)).where(Trade.user_id == user_id, Trade.filled_at > since)
+    )
+
+
 def primary_symbol(trades: list[Trade]) -> str | None:
     """Most-traded symbol in a window, used to pick what the whiteboard charts
     when the caller didn't pin a symbol (e.g. a multi-symbol window debrief)."""

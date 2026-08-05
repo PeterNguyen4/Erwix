@@ -260,6 +260,21 @@ class DebriefStatus(BaseModel):
     last_debrief_at: datetime | None
 
 
+class NotificationOut(BaseModel):
+    id: str
+    type: Literal["debrief_ready", "news_insight", "alpaca_disconnected", "strategy_missing"]
+    title: str
+    body: str
+    href: str
+    created_at: datetime
+    unseen: bool
+
+
+class NotificationsOut(BaseModel):
+    items: list[NotificationOut]
+    unseen_count: int
+
+
 class DebriefStep(BaseModel):
     trade_id: int
     narrative: str

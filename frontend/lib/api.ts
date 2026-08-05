@@ -301,6 +301,21 @@ export interface DebriefStatus {
   last_debrief_at: string | null;
 }
 
+export interface NotificationItem {
+  id: string;
+  type: "debrief_ready" | "news_insight" | "alpaca_disconnected" | "strategy_missing";
+  title: string;
+  body: string;
+  href: string;
+  created_at: string;
+  unseen: boolean;
+}
+
+export interface NotificationsOut {
+  items: NotificationItem[];
+  unseen_count: number;
+}
+
 export interface DebriefRequest {
   from: string;
   to: string;
@@ -568,6 +583,8 @@ export const api = {
   reviewTrades: (req: AgentReviewRequest) =>
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
+  listNotifications: () => getJSON<NotificationsOut>("/api/notifications"),
+  markNotificationsSeen: () => postJSON<NotificationsOut>("/api/notifications/seen", {}),
   resetDebrief: () => postJSON<DebriefStatus>("/api/agent/debrief/reset", {}),
   debriefStreamUrl: async (params: DebriefRequest) => {
     const q = new URLSearchParams();
