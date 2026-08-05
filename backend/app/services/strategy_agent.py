@@ -98,15 +98,6 @@ RULE_COMPILE_RETRY_TEMPERATURES = [0.0, 0.3, 0.6]
 
 
 async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
-    """Turns the trader's strategy text into a deterministic rule set (see rule_engine.py),
-    so future live evaluation doesn't need an LLM call per candle.
-
-    Local models are non-deterministic enough (and prone enough to truncation/repetition
-    on this schema) that one attempt isn't reliable — retries a few times, nudging
-    temperature up each pass so a retry isn't just repeating the same failure, and
-    stops early on the first non-empty ruleset. If every attempt comes back empty (or
-    every attempt raises), returns/raises the last one so the caller's existing
-    empty/error handling (see routers/strategy.py's _regenerate_rules) still applies."""
     label = archetype_name(archetype) or "no specific archetype"
     prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
     messages = [SystemMessage(RULES_SYSTEM_PROMPT), HumanMessage(prompt)]
