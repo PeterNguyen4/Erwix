@@ -15,10 +15,12 @@ import {
   CandleStep,
   GatedRule,
   PatternRule,
+  StrategyNoteSummary,
   StrategyRule,
   StrategyRuleSet,
 } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
+import { presentationFor } from "@/components/strategy/presentation";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
   { id: "rsi", label: "RSI", hasPeriod: true, defaultPeriod: 14 },
@@ -141,50 +143,62 @@ function DropdownPanel<T extends string>({
   );
 }
 
-type LoadStrategyState =
+type ListState =
   | { status: "idle" | "loading" }
   | { status: "empty" }
-  | { status: "failed"; noteId: number; error: string }
-  | { status: "ready"; name: string; ruleSet: StrategyRuleSet };
+  | { status: "ready"; strategies: StrategyNoteSummary[]; archetypes: Archetype[] };
+
+type SelectState =
+  | { status: "none" }
+  | { status: "loading"; noteId: number }
+  | { status: "failed"; noteId: number; error: string };
 
 function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => void }) {
   const [open, setOpen] = useState(false);
-  const [state, setState] = useState<LoadStrategyState>({ status: "idle" });
+  const [list, setList] = useState<ListState>({ status: "idle" });
+  const [selected, setSelected] = useState<SelectState>({ status: "none" });
   const [retrying, setRetrying] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   useClickOutside(ref, () => setOpen(false), open);
 
   const load = async () => {
-    setState({ status: "loading" });
+    setList({ status: "loading" });
     try {
-      const note = await api.getActiveStrategy();
-      if (!note) {
-        setState({ status: "empty" });
-        return;
-      }
-      const [archetypes, rulesOut] = await Promise.all([api.getArchetypes(), api.getStrategyRules(note.id)]);
-      const ruleSet = rulesOut.rules;
-      if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
-        if (rulesOut.compile_error) {
-          setState({ status: "failed", noteId: note.id, error: rulesOut.compile_error });
-        } else {
-          setState({ status: "empty" });
-        }
-        return;
-      }
-      const archetype = archetypes.find((a: Archetype) => a.id === note.archetype);
-      setState({ status: "ready", name: note.name || archetype?.name || "Your strategy", ruleSet });
+      const [strategies, archetypes] = await Promise.all([api.listStrategies(), api.getArchetypes()]);
+      setList(strategies.length === 0 ? { status: "empty" } : { status: "ready", strategies, archetypes });
     } catch {
-      setState({ status: "empty" });
+      setList({ status: "empty" });
     }
   };
 
   const toggle = async () => {
     const next = !open;
     setOpen(next);
-    if (next && state.status === "idle") {
+    setSelected({ status: "none" });
+    if (next && list.status === "idle") {
       await load();
+    }
+  };
+
+  const selectStrategy = async (noteId: number) => {
+    setSelected({ status: "loading", noteId });
+    try {
+      const rulesOut = await api.getStrategyRules(noteId);
+      const ruleSet = rulesOut.rules;
+      if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
+        setSelected({
+          status: "failed",
+          noteId,
+          error: rulesOut.compile_error ?? "This strategy has no compiled rules yet.",
+        });
+        return;
+      }
+      onLoad(ruleSet);
+      setOpen(false);
+      setSelected({ status: "none" });
+    } catch {
+      setSelected({ status: "failed", noteId, error: "Couldn't load this strategy's rules." });
     }
   };
 
@@ -192,7 +206,7 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
     setRetrying(true);
     try {
       await api.regenerateStrategy(noteId);
-      await load();
+      await selectStrategy(noteId);
     } finally {
       setRetrying(false);
     }
@@ -209,11 +223,11 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
         <Plus size={15} strokeWidth={2} />
       </button>
       {open && (
-        <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-md border border-border bg-panel py-1 shadow-lg">
-          {state.status === "loading" && <div className="px-3 py-2 text-xs text-muted">Loading…</div>}
-          {state.status === "empty" && (
+        <div className="absolute bottom-full left-0 z-20 mb-2 w-60 rounded-md border border-border bg-panel py-1 shadow-lg">
+          {list.status === "loading" && <div className="px-3 py-2 text-xs text-muted">Loading…</div>}
+          {list.status === "empty" && (
             <div className="flex flex-col items-start gap-1.5 px-3 py-2">
-              <span className="text-xs text-muted">No strategy saved yet.</span>
+              <span className="text-xs text-muted">No strategies saved yet.</span>
               <button
                 type="button"
                 onClick={() => router.push("/strategy")}
@@ -224,35 +238,54 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
               </button>
             </div>
           )}
-          {state.status === "failed" && (
-            <div className="flex flex-col items-start gap-1.5 px-3 py-2">
-              <span className="text-xs text-muted">Rule compilation failed:</span>
-              <span className="text-[10px] text-red-400 break-words">{state.error}</span>
-              <button
-                type="button"
-                onClick={() => retry(state.noteId)}
-                disabled={retrying}
-                className="flex items-center gap-1 text-xs font-medium text-accent hover:underline disabled:opacity-50 dark:text-violet-400"
-              >
-                {retrying ? "Retrying…" : "Retry"}
-              </button>
-            </div>
-          )}
-          {state.status === "ready" && (
-            <button
-              type="button"
-              onClick={() => {
-                onLoad(state.ruleSet);
-                setOpen(false);
-              }}
-              className="flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10"
-            >
-              <span className="text-xs text-fg">{state.name}</span>
-              <span className="text-[10px] text-muted">
-                {state.ruleSet.entry_rules.length} entry · {state.ruleSet.exit_rules.length} exit rules
-              </span>
-            </button>
-          )}
+          {list.status === "ready" &&
+            list.strategies.map((s) => {
+              const presentation = presentationFor(s.archetype);
+              const Icon = presentation.icon;
+              const archetypeName = list.archetypes.find((a) => a.id === s.archetype)?.name ?? "Custom";
+              const isSelected = selected.status !== "none" && selected.noteId === s.id;
+
+              if (isSelected && selected.status === "failed") {
+                return (
+                  <div key={s.id} className="flex flex-col items-start gap-1.5 px-3 py-2">
+                    <span className="text-xs text-fg">{s.name}</span>
+                    <span className="text-[10px] text-red-400 break-words">{selected.error}</span>
+                    <button
+                      type="button"
+                      onClick={() => retry(s.id)}
+                      disabled={retrying}
+                      className="flex items-center gap-1 text-xs font-medium text-accent hover:underline disabled:opacity-50 dark:text-violet-400"
+                    >
+                      {retrying ? "Retrying…" : "Retry"}
+                    </button>
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => selectStrategy(s.id)}
+                  disabled={selected.status === "loading"}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10 disabled:opacity-50"
+                >
+                  <span
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg"
+                    style={{ backgroundColor: `${presentation.color}22` }}
+                  >
+                    <Icon size={12} strokeWidth={2} color={presentation.color} />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-xs text-fg">{s.name}</span>
+                    <span className="truncate text-[10px] text-muted">{archetypeName}</span>
+                  </span>
+                  {isSelected && selected.status === "loading" && (
+                    <Loader2 size={12} strokeWidth={2.5} className="shrink-0 animate-spin text-muted" />
+                  )}
+                </button>
+              );
+            })}
         </div>
       )}
     </div>

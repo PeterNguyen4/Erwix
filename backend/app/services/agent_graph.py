@@ -140,7 +140,7 @@ def _initial_state(
     }
 
 
-def _base_model() -> BaseChatModel:
+def _base_model(num_predict: int = 400, temperature: float | None = None) -> BaseChatModel:
     settings = get_settings()
     if settings.llm_provider == "ollama":
         return ChatOllama(
@@ -148,8 +148,17 @@ def _base_model() -> BaseChatModel:
             base_url=settings.ollama_base_url,
             # Per-trade turns only need a few sentences or a small tool call —
             # bounding generation keeps the now-per-trade loop from stalling on
-            # a local model that would otherwise ramble unboundedly.
-            num_predict=400,
+            # a local model that would otherwise ramble unboundedly. Callers with
+            # larger structured-output payloads (e.g. multi-rule StrategyRuleSet
+            # JSON) should raise this, or Ollama truncates mid-object and structured
+            # output parsing fails on the cut-off JSON.
+            num_predict=num_predict,
+            # Left at the Ollama default (~0.8) unless a caller overrides it — long
+            # structured-output JSON is where a small local model is most prone to
+            # drifting into a repetition loop (duplicating the same rule object
+            # until it burns the whole num_predict budget), so callers emitting
+            # multi-rule schemas should pin this near 0.
+            temperature=temperature,
             timeout=30,
         )
     if settings.llm_provider == "anthropic":
