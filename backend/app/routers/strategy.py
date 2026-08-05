@@ -30,6 +30,7 @@ from app.services.strategy import (
     get_active_strategy,
     get_strategy_by_id,
     list_strategies,
+    render_playbook,
     rename_strategy,
     set_active_strategy,
     update_strategy,
@@ -43,8 +44,6 @@ _llm_rate_limit = rate_limit("strategy-llm", limit=10, window_ms=60_000, fail_op
 
 
 async def _regenerate_summary(db: AsyncSession, note: StrategyNote) -> None:
-    """Best-effort strategist-agent call — never blocks the save it's attached to,
-    matching execution_logger.py's embed_trade_best_effort pattern."""
     if not (note.body or "").strip():
         return  # nothing to summarize yet (e.g. archetype picked, no answers filled in)
 
@@ -59,11 +58,17 @@ async def _regenerate_summary(db: AsyncSession, note: StrategyNote) -> None:
 
 
 async def _regenerate_rules(db: AsyncSession, note: StrategyNote) -> None:
-    """Best-effort rule-compile call, independent of _regenerate_summary so a
-    failure here never blocks the strategy save. Scoped by note_id, not user_id,
-    since a user's library can hold many notes each with their own ruleset."""
     if not (note.body or "").strip():
         return
+
+    source_text = note.body
+    if note.structured_summary:
+        try:
+            rendered = render_playbook(json.loads(note.structured_summary))
+        except (json.JSONDecodeError, TypeError):
+            rendered = ""
+        if rendered.strip():
+            source_text = rendered
 
     row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note.id))
     if row is None:
@@ -71,7 +76,7 @@ async def _regenerate_rules(db: AsyncSession, note: StrategyNote) -> None:
         db.add(row)
 
     try:
-        rule_set = await acompile_rules(note.archetype, note.body)
+        rule_set = await acompile_rules(note.archetype, source_text)
         row.rules = rule_set.model_dump()
         row.compiled_model = "strategy_agent.acompile_rules"
         row.compiled_at = datetime.now(timezone.utc)

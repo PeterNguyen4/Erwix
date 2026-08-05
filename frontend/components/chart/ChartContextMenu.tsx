@@ -168,7 +168,10 @@ export default function ChartContextMenu({
           <button
             key={t.id}
             type="button"
-            onClick={() => onChartTypeChange(t.id)}
+            onClick={() => {
+              onChartTypeChange(t.id);
+              onClose();
+            }}
             className={itemClass(t.id === chartTypeId)}
           >
             <t.icon />
@@ -187,7 +190,10 @@ export default function ChartContextMenu({
       >
         <button
           type="button"
-          onClick={() => onDrawingModeChange("crosshair")}
+          onClick={() => {
+            onDrawingModeChange("crosshair");
+            onClose();
+          }}
           className={itemClass(drawingMode === "crosshair")}
         >
           Cursor
@@ -196,7 +202,10 @@ export default function ChartContextMenu({
           <button
             key={t.id}
             type="button"
-            onClick={() => onDrawingModeChange(t.id)}
+            onClick={() => {
+              onDrawingModeChange(t.id);
+              onClose();
+            }}
             className={itemClass(t.id === drawingMode)}
           >
             <t.icon />

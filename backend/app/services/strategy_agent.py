@@ -42,7 +42,7 @@ async def asummarize_strategy(archetype: str | None, body: str) -> dict:
     structured playbook (see StrategyPlaybook)."""
     label = archetype_name(archetype) or "no specific archetype"
     prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
-    model = _base_model().with_structured_output(StrategyPlaybook)
+    model = _base_model(num_predict=800).with_structured_output(StrategyPlaybook)
     result = await model.ainvoke([SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)])
     return result.model_dump()
 
@@ -94,10 +94,28 @@ RULES_SYSTEM_PROMPT = (
 )
 
 
+RULE_COMPILE_RETRY_TEMPERATURES = [0.0, 0.3, 0.6]
+
+
 async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
-    """Turns the trader's strategy text into a deterministic rule set (see rule_engine.py),
-    so future live evaluation doesn't need an LLM call per candle."""
     label = archetype_name(archetype) or "no specific archetype"
     prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
-    model = _base_model().with_structured_output(StrategyRuleSet)
-    return await model.ainvoke([SystemMessage(RULES_SYSTEM_PROMPT), HumanMessage(prompt)])
+    messages = [SystemMessage(RULES_SYSTEM_PROMPT), HumanMessage(prompt)]
+
+    last_result: StrategyRuleSet | None = None
+    last_error: Exception | None = None
+    for temperature in RULE_COMPILE_RETRY_TEMPERATURES:
+        model = _base_model(num_predict=1500, temperature=temperature).with_structured_output(StrategyRuleSet)
+        try:
+            result = await model.ainvoke(messages)
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            continue
+        last_error = None
+        last_result = result
+        if result.entry_rules or result.exit_rules:
+            return result
+
+    if last_result is not None:
+        return last_result
+    raise last_error

@@ -140,16 +140,14 @@ def _initial_state(
     }
 
 
-def _base_model() -> BaseChatModel:
+def _base_model(num_predict: int = 400, temperature: float | None = None) -> BaseChatModel:
     settings = get_settings()
     if settings.llm_provider == "ollama":
         return ChatOllama(
             model=settings.ollama_model,
             base_url=settings.ollama_base_url,
-            # Per-trade turns only need a few sentences or a small tool call —
-            # bounding generation keeps the now-per-trade loop from stalling on
-            # a local model that would otherwise ramble unboundedly.
-            num_predict=400,
+            num_predict=num_predict,
+            temperature=temperature,
             timeout=30,
         )
     if settings.llm_provider == "anthropic":
@@ -173,10 +171,6 @@ def _tool_model() -> BaseChatModel:
 
 
 def _extract_tool_events(response) -> list[dict]:
-    """Normalizes tool calls into the events streamed over the debrief WS. Both
-    spotlight tools collapse to the same {"type": "spotlight", "selector", "message"}
-    shape — the frontend just needs a CSS selector to point at, it doesn't care
-    whether the target was a calendar day or a journal trade row."""
     raw_calls = getattr(response, "tool_calls", None) or []
     logger.info("tool-call turn: %s", [c["name"] for c in raw_calls] or "(none)")
     events: list[dict] = []
@@ -388,11 +382,6 @@ async def agenerate_steps(
     symbol: str | None = None,
     query: str | None = None,
 ) -> AsyncIterator[dict]:
-    """Non-streaming counterpart to astream_review, used by the background debrief
-    job (app.services.debrief_jobs): runs the same per-trade narrative+tool turns,
-    but yields one finished step dict per trade (see _step_from_tool_events) instead
-    of token-level events, so a caller can persist DebriefReport.steps incrementally
-    without needing a live connection."""
     state = _initial_state(user_id, window_start, window_end, symbol, query)
     retrieved = await _retrieve(state, db)
     context_messages = retrieved["messages"]

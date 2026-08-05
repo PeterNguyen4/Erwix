@@ -780,7 +780,7 @@ export default function Chart({
 
       // Preview line while placing second point.
       if (drawingState.mode === "line" && drawingState.points.length > 0) {
-        ctx.strokeStyle = "#8b5cf6";
+        ctx.strokeStyle = "#3b82f6";
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(drawingState.points[0].x, drawingState.points[0].y);
