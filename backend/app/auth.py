@@ -133,3 +133,13 @@ async def get_current_user_id(
     if user is None or user.token_version != token_version:
         raise unauthorized
     return user_id
+
+
+async def require_admin(
+    user_id: Annotated[int, Depends(get_current_user_id)],
+    db: AsyncSession = Depends(get_db),
+) -> int:
+    user = await db.get(User, user_id)
+    if user is None or user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return user_id

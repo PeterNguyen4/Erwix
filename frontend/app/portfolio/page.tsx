@@ -13,6 +13,7 @@ import DebriefReportView from "@/components/journal/DebriefReportView";
 import DebriefScheduleSettings from "@/components/journal/DebriefScheduleSettings";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import { useDebriefReport } from "@/lib/useDebriefReport";
+import { useAuth } from "@/components/AuthProvider";
 
 function WeekDelta({ value }: { value: number | null }) {
   if (value == null || Number.isNaN(value) || value === 0) return null;
@@ -35,6 +36,7 @@ function pctDelta(current: number | null, prev: number | null): number | null {
 }
 
 export default function PortfolioPage() {
+  const { isAdmin } = useAuth();
   const [account, setAccount] = useState<Account | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [positionsLoading, setPositionsLoading] = useState(true);
@@ -97,7 +99,7 @@ export default function PortfolioPage() {
         <div className="text-xl font-normal text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted">Paper account</div>
-          {process.env.NODE_ENV !== "production" && (
+          {process.env.NODE_ENV !== "production" && isAdmin && (
             <button
               onClick={() => api.resetDebrief().then(() => api.generateDebriefNow()).then(refresh)}
               title="Dev: resets last_debrief_at and immediately starts generating a debrief report, bypassing the schedule"

@@ -251,6 +251,7 @@ export interface UserPrivate {
   id: number;
   username: string;
   email: string;
+  role: "user" | "admin";
 }
 
 export interface RegisterRequest {
@@ -658,4 +659,7 @@ export const api = {
     window.location.href = url;
   },
   disconnectAlpaca: () => postJSON<{ success: boolean }>("/api/alpaca/disconnect", {}),
+  listUsers: () => getJSON<UserPrivate[]>("/api/users/admin/users"),
+  updateUserRole: (userId: number, role: "user" | "admin") =>
+    postJSON<UserPrivate>(`/api/users/admin/users/${userId}/role`, { role }, "PATCH"),
 };

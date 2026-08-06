@@ -18,6 +18,7 @@ from app.auth import (
     hash_password,
     hash_password_reset_token,
     hash_refresh_token,
+    require_admin,
     verify_password,
 )
 from app.config import get_settings
@@ -31,6 +32,7 @@ from app.schemas import (
     UserPreferenceOut,
     UserPreferenceUpdate,
     UserPrivate,
+    UserRoleUpdate,
     UserUpdate,
 )
 from app.services.email import send_password_reset_email
@@ -309,6 +311,31 @@ async def update_me(
     await db.commit()
     await db.refresh(user)
     return user
+
+
+@router.get("/admin/users", response_model=list[UserPrivate], dependencies=[Depends(require_admin)])
+async def list_users(db: AsyncSession = Depends(get_db)) -> list[models.User]:
+    return (await db.execute(select(models.User).order_by(models.User.username))).scalars().all()
+
+
+@router.patch("/admin/users/{target_user_id}/role", response_model=UserPrivate)
+async def update_user_role(
+    target_user_id: int,
+    payload: UserRoleUpdate,
+    user_id: int = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> models.User:
+    if target_user_id == user_id and payload.role != "admin":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot remove your own admin access")
+
+    target = await db.get(models.User, target_user_id)
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    target.role = payload.role
+    await db.commit()
+    await db.refresh(target)
+    return target
 
 
 async def _get_or_create_preferences(db: AsyncSession, user_id: int) -> UserPreference:

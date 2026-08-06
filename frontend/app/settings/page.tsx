@@ -3,10 +3,10 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
-import { Moon, Sun, Link2, Unlink, LogOut } from "lucide-react";
+import { Moon, Sun, Link2, Unlink, LogOut, UserRoundCog } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useAuth } from "@/components/AuthProvider";
-import { api, AlpacaStatus } from "@/lib/api";
+import { api, AlpacaStatus, UserPrivate } from "@/lib/api";
 
 export default function SettingsPage() {
   return (
@@ -18,7 +18,7 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const { theme, setTheme } = useTheme();
-  const { logout } = useAuth();
+  const { user, isAdmin, logout } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -27,9 +27,35 @@ function SettingsPageInner() {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
+  const [users, setUsers] = useState<UserPrivate[] | null>(null);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [pendingUserId, setPendingUserId] = useState<number | null>(null);
+
   useEffect(() => {
     api.alpacaStatus().then(setAlpaca).catch(() => setAlpaca({ connected: false, env: null }));
   }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api
+      .listUsers()
+      .then(setUsers)
+      .catch(() => setUsersError("Couldn't load users."));
+  }, [isAdmin]);
+
+  const handleRoleToggle = async (target: UserPrivate) => {
+    const nextRole = target.role === "admin" ? "user" : "admin";
+    setPendingUserId(target.id);
+    setUsersError(null);
+    try {
+      const updated = await api.updateUserRole(target.id, nextRole);
+      setUsers((prev) => prev?.map((u) => (u.id === updated.id ? updated : u)) ?? prev);
+    } catch {
+      setUsersError("Couldn't update that user's role.");
+    } finally {
+      setPendingUserId(null);
+    }
+  };
 
   useEffect(() => {
     const result = searchParams.get("alpaca");
@@ -162,6 +188,58 @@ function SettingsPageInner() {
               </button>
             </div>
           </div>
+
+          {isAdmin && (
+            <div className="rounded-lg border border-border bg-panel p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <UserRoundCog size={16} strokeWidth={2} className="text-accent dark:text-violet-400" />
+                <h2 className="text-lg font-semibold text-fg">Admins</h2>
+              </div>
+
+              {usersError && <div className="mb-3 text-xs text-red-500">{usersError}</div>}
+
+              {users === null ? (
+                <div className="text-xs text-muted">Loading users...</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {users.map((u) => (
+                    <div key={u.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                      <div>
+                        <div className="text-sm font-medium text-fg">
+                          {u.username}
+                          {u.id === user?.id && <span className="ml-1.5 text-xs text-muted">(you)</span>}
+                        </div>
+                        <div className="text-xs text-muted">{u.email}</div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            u.role === "admin"
+                              ? "bg-accent/20 text-accent dark:text-violet-400"
+                              : "bg-field text-muted"
+                          }`}
+                        >
+                          {u.role}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleRoleToggle(u)}
+                          disabled={pendingUserId === u.id || (u.id === user?.id && u.role === "admin")}
+                          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted hover:text-fg disabled:opacity-50"
+                        >
+                          {pendingUserId === u.id
+                            ? "Updating..."
+                            : u.role === "admin"
+                              ? "Remove admin"
+                              : "Make admin"}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </main>

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import alpaca_client
-from app.auth import get_current_user_id
+from app.auth import get_current_user_id, require_admin
 from app.db import get_db
 from app.models import DebriefMessage, DebriefReport, UserPreference
 from app.schemas import (
@@ -93,7 +93,7 @@ async def debrief_status(
 @router.post("/debrief/reset", response_model=DebriefStatus)
 async def reset_debrief(
     db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(require_admin),
 ) -> DebriefStatus:
     """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
     for new fills. Not linked from any production UI path."""
@@ -348,7 +348,7 @@ async def watch(
 @router.post("/debrief/generate", response_model=DebriefReportOut, dependencies=[Depends(_llm_rate_limit)])
 async def generate_debrief_now(
     db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
+    user_id: int = Depends(require_admin),
 ) -> DebriefReportOut:
     """Dev/manual trigger: creates (or returns the already in-flight)
     DebriefReport for the current window and starts generation immediately,
