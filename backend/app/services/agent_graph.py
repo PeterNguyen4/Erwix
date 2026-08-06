@@ -475,12 +475,16 @@ async def arun_followup(
     message: str,
     symbol: str | None = None,
     query: str | None = None,
+    attached_context: list[str] | None = None,
 ) -> tuple[str, list[dict]]:
     """Answer a follow-up question about an already-generated DebriefReport, grounded
     in the same trade window/retrieval context used to generate it (re-fetched here
     rather than trusting only the stored narrative, so questions about specific
     trades can still be checked against real data). `history` is prior
-    (role, content) DebriefMessage pairs in order. Returns (reply_text, tool_events)."""
+    (role, content) DebriefMessage pairs in order. `attached_context` holds resolved
+    text for any trade/journal-entry/day/symbol the user attached to this follow-up
+    (see reference_resolver.py), injected ahead of the question itself. Returns
+    (reply_text, tool_events)."""
     state = _initial_state(user_id, window_start, window_end, symbol, query)
     retrieved = await _retrieve(state, db)
     context_messages = retrieved["messages"]
@@ -492,6 +496,8 @@ async def arun_followup(
     ]
     for role, content in history:
         messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
+    if attached_context:
+        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
     messages.append(HumanMessage(message))
 
     response = await _tool_model().ainvoke(messages)
