@@ -155,6 +155,8 @@ export default function BacktestingPage() {
   const runBacktest = async () => {
     setRunning(true);
     setError(null);
+    setResult(null);
+    setPlaying(false);
     try {
       const freshCandles = await loadCandles(
         config.symbol,
@@ -298,6 +300,9 @@ export default function BacktestingPage() {
                 windowEnd={windowEnd}
                 onUpdateWindowStart={setWindowStart}
                 onUpdateWindowEnd={setWindowEnd}
+                hasResult={result !== null}
+                chartSymbol={chartSymbol}
+                chartTimeframe={chartTimeframe}
               />
             </div>
           </div>

@@ -1123,7 +1123,49 @@ function ConfigSummaryCard({
 export type ChatItem =
   | { id: number; kind: "text"; role: "user" | "assistant"; text: string; done: boolean }
   | { id: number; kind: "config"; role: "assistant"; config: BacktestConfig }
-  | { id: number; kind: "action"; role: "assistant"; label: "Build" | "Edit" };
+  | { id: number; kind: "action"; role: "assistant"; label: "Build" | "Edit" }
+  | { id: number; kind: "confirm"; role: "assistant"; message: string; resolved?: "confirmed" | "cancelled" };
+
+function RunConfirm({
+  message,
+  resolved,
+  onConfirm,
+  onCancel,
+}: {
+  message: string;
+  resolved?: "confirmed" | "cancelled";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (resolved) {
+    return (
+      <div className="px-1 py-1 text-sm text-muted">
+        {message} {resolved === "confirmed" ? "Running…" : "Cancelled."}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-border/60 bg-panel/50 px-3 py-2.5 text-sm text-fg">
+      <div className="mb-2">{message}</div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
+        >
+          Run anyway
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:text-fg"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function ActionBadge({ label }: { label: "Build" | "Edit" }) {
   const Icon = label === "Build" ? Hammer : Pencil;
@@ -1145,6 +1187,9 @@ interface BacktestChatProps {
   windowEnd: string | null;
   onUpdateWindowStart: (v: string | null) => void;
   onUpdateWindowEnd: (v: string | null) => void;
+  hasResult: boolean;
+  chartSymbol: string;
+  chartTimeframe: string;
 }
 
 export default function BacktestChat({
@@ -1157,6 +1202,9 @@ export default function BacktestChat({
   windowEnd,
   onUpdateWindowStart,
   onUpdateWindowEnd,
+  hasResult,
+  chartSymbol,
+  chartTimeframe,
 }: BacktestChatProps) {
   const [messages, setMessages] = useState<ChatItem[]>(() => backtestDraft.messages);
   const [input, setInput] = useState(() => backtestDraft.input);
@@ -1317,19 +1365,45 @@ export default function BacktestChat({
     upsertConfigCard(next);
   };
 
-  const handleRun = () => {
-    const tfLabel = CHAT_TIMEFRAMES.find((t) => t.id === configRef.current.timeframe)?.label ?? configRef.current.timeframe;
+  const runNow = () => {
+    const symbol = configRef.current.symbol;
+    const timeframe = configRef.current.timeframe;
+    const tfLabel = CHAT_TIMEFRAMES.find((t) => t.id === timeframe)?.label ?? timeframe;
+    const alreadySet = symbol === chartSymbol && timeframe === chartTimeframe;
     setMessages((prev) => [
       ...prev,
       {
         id: nextId.current++,
         kind: "text",
         role: "assistant",
-        text: `Setting the timeframe to ${tfLabel} and running on ${configRef.current.symbol}.`,
+        text: alreadySet
+          ? "Symbol and timeframe already set correctly — running."
+          : `Setting the timeframe to ${tfLabel} and running on ${symbol}.`,
         done: true,
       },
     ]);
     onRunBacktest();
+  };
+
+  const handleRun = () => {
+    if (!hasResult) {
+      runNow();
+      return;
+    }
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId.current++,
+        kind: "confirm",
+        role: "assistant",
+        message: "This will clear your current backtest result. Run anyway?",
+      },
+    ]);
+  };
+
+  const resolveRunConfirm = (id: number, confirmed: boolean) => {
+    setMessages((prev) => prev.map((m) => (m.id === id && m.kind === "confirm" ? { ...m, resolved: confirmed ? "confirmed" : "cancelled" } : m)));
+    if (confirmed) runNow();
   };
 
   const resetPreferences = () => {
@@ -1507,6 +1581,8 @@ export default function BacktestChat({
             />
           ) : m.kind === "action" ? (
             <ActionBadge key={m.id} label={m.label} />
+          ) : m.kind === "confirm" ? (
+            <RunConfirm key={m.id} message={m.message} resolved={m.resolved} onConfirm={() => resolveRunConfirm(m.id, true)} onCancel={() => resolveRunConfirm(m.id, false)} />
           ) : (
             <div
               key={m.id}
