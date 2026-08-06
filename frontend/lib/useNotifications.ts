@@ -30,9 +30,9 @@ export function useNotifications() {
     };
   }, []);
 
-  const markSeen = () => {
+  const markRead = (key: string) => {
     api
-      .markNotificationsSeen()
+      .markNotificationRead(key)
       .then((res) => {
         setItems(res.items);
         setUnseenCount(res.unseen_count);
@@ -40,5 +40,15 @@ export function useNotifications() {
       .catch(() => {});
   };
 
-  return { items, unseenCount, markSeen };
+  const dismiss = (key: string) => {
+    api
+      .dismissNotification(key)
+      .then((res) => {
+        setItems(res.items);
+        setUnseenCount(res.unseen_count);
+      })
+      .catch(() => {});
+  };
+
+  return { items, unseenCount, markRead, dismiss };
 }

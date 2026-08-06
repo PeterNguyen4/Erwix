@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
 export default function NotificationBell() {
   const router = useRouter();
-  const { items, unseenCount, markSeen } = useNotifications();
+  const { items, unseenCount, markRead, dismiss } = useNotifications();
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -28,17 +28,17 @@ export default function NotificationBell() {
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, [open]);
 
-  const toggleOpen = () => {
-    setOpen((prev) => {
-      const next = !prev;
-      if (next && unseenCount > 0) markSeen();
-      return next;
-    });
+  const toggleOpen = () => setOpen((prev) => !prev);
+
+  const handleItemClick = (key: string, href: string) => {
+    markRead(key);
+    setOpen(false);
+    router.push(href);
   };
 
   return (
     <div
-      className="relative mb-2"
+      className="relative"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
@@ -73,23 +73,30 @@ export default function NotificationBell() {
           ) : (
             <ul className="max-h-96 overflow-y-auto">
               {items.map((item) => (
-                <li key={item.id} className="border-b border-auth-field/20 last:border-b-0">
+                <li key={item.id} className="group relative border-b border-auth-field/20 last:border-b-0">
                   <button
-                    onClick={() => {
-                      setOpen(false);
-                      router.push(item.href);
-                    }}
-                    className="w-full text-left px-4 py-3 hover:bg-violet-500/10 transition-colors"
+                    onClick={() => handleItemClick(item.id, item.href)}
+                    className="w-full text-left pl-4 pr-9 py-3 hover:bg-violet-500/10 transition-colors"
                   >
                     <div className="flex items-start gap-2">
                       {item.unseen && (
-                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+                        <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
                       )}
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-fg">{item.title}</div>
                         <div className="text-xs text-muted mt-0.5">{item.body}</div>
                       </div>
                     </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      dismiss(item.id);
+                    }}
+                    aria-label="Dismiss"
+                    className="absolute right-2 top-3 flex h-5 w-5 items-center justify-center rounded text-muted opacity-0 group-hover:opacity-100 hover:bg-violet-500/20 hover:text-fg transition-opacity"
+                  >
+                    <X size={14} strokeWidth={2} />
                   </button>
                 </li>
               ))}

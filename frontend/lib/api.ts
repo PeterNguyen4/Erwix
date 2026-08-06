@@ -584,7 +584,8 @@ export const api = {
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
   listNotifications: () => getJSON<NotificationsOut>("/api/notifications"),
-  markNotificationsSeen: () => postJSON<NotificationsOut>("/api/notifications/seen", {}),
+  markNotificationRead: (key: string) => postJSON<NotificationsOut>("/api/notifications/read", { key }),
+  dismissNotification: (key: string) => postJSON<NotificationsOut>("/api/notifications/dismiss", { key }),
   resetDebrief: () => postJSON<DebriefStatus>("/api/agent/debrief/reset", {}),
   debriefStreamUrl: async (params: DebriefRequest) => {
     const q = new URLSearchParams();

@@ -275,6 +275,10 @@ class NotificationsOut(BaseModel):
     unseen_count: int
 
 
+class NotificationKeyIn(BaseModel):
+    key: str
+
+
 class DebriefStep(BaseModel):
     trade_id: int
     narrative: str

@@ -1,6 +1,6 @@
 from datetime import date, datetime, time
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, Time, func
+from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, Time, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -73,7 +73,19 @@ class UserPreference(Base):
     debrief_day_of_week: Mapped[int | None] = mapped_column(Integer)  # 0=Mon -> 6=Sun
     debrief_time: Mapped[time | None] = mapped_column(Time)
 
-    notifications_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+class NotificationDismissal(Base):
+    __tablename__ = "notification_dismissals"
+    __table_args__ = (UniqueConstraint("user_id", "notification_key", name="uq_notification_dismissal"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    notification_key: Mapped[str] = mapped_column(String(160), index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Trade(Base):
