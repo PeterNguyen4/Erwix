@@ -755,7 +755,7 @@ export default function Chart({
         ctx.beginPath();
         ctx.roundRect(bx, by, tw + px * 2, 16 + py, 3);
         ctx.fill();
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "#f4f4f5";
         ctx.textBaseline = "middle";
         ctx.fillText(timeLabel, bx + px, by + 8 + py / 2);
       }
@@ -773,7 +773,7 @@ export default function Chart({
         ctx.beginPath();
         ctx.roundRect(bx, by, bw, 16 + py, 3);
         ctx.fill();
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = "#f4f4f5";
         ctx.textBaseline = "middle";
         ctx.fillText(priceLabel, bx + px, by + 8 + py / 2);
       }

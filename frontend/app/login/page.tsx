@@ -123,7 +123,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-4 px-3 py-2.5 rounded-lg bg-auth-button hover:bg-auth-button-hover text-white font-medium disabled:opacity-50 transition-colors"
+              className="mt-4 px-3 py-2.5 rounded-lg bg-auth-button hover:bg-auth-button-hover text-zinc-100 font-medium disabled:opacity-50 transition-colors"
             >
               {submitting
                 ? "Please wait…"

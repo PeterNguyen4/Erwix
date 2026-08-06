@@ -272,7 +272,7 @@ function ChartPage() {
 
   return (
     <main className="flex h-full flex-col overflow-auto">
-      <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
+      <header className="sticky top-0 z-50 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
         <div className="text-xl font-normal text-fg">Chart</div>
 
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
@@ -289,7 +289,7 @@ function ChartPage() {
             <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
           </button>
           {tfOpen && (
-            <div className="absolute top-full left-0 z-30 mt-1 w-24 rounded-md border border-border bg-panel py-1 shadow-lg">
+            <div className="absolute top-full left-0 z-40 mt-1 w-24 rounded-md border border-border bg-panel py-1 shadow-lg">
               {TIMEFRAMES.map((tf) => (
                 <button
                   key={tf.value}
@@ -340,7 +340,7 @@ function ChartPage() {
             />
           </div>
           {showSymbolDropdown && (searchResults.length > 0 || searchLoading) && (
-            <div className="absolute top-full left-0 right-0 mt-1 rounded border border-border bg-panel shadow-lg z-30 max-h-72 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 rounded border border-border bg-panel shadow-lg z-40 max-h-72 overflow-y-auto">
               {searchLoading && (
                 <div className="px-3 py-2 text-xs text-muted">Searching…</div>
               )}
