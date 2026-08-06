@@ -6,7 +6,7 @@ import { api, BacktestConfig, BacktestResult, BacktestTrade, Candle, ChartAnnota
 import ReplayControls from "@/components/backtesting/ReplayControls";
 import BacktestChat from "@/components/backtesting/BacktestChat";
 import { Search, ChevronDown } from "lucide-react";
-import { backtestDraft, DEFAULT_BACKTEST_CONFIG } from "@/lib/backtestDraft";
+import { backtestDraft } from "@/lib/backtestDraft";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -76,6 +76,8 @@ function resultToAnnotations(result: BacktestResult | null): ChartAnnotation[] {
 
 export default function BacktestingPage() {
   const [config, setConfigState] = useState<BacktestConfig>(() => backtestDraft.config);
+  const [chartSymbol, setChartSymbol] = useState(() => backtestDraft.config.symbol);
+  const [chartTimeframe, setChartTimeframe] = useState(() => backtestDraft.config.timeframe);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [cursorIndex, setCursorIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -99,21 +101,26 @@ export default function BacktestingPage() {
   const [tfOpen, setTfOpen] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const loadCandles = async (symbol: string, timeframe: string) => {
+    const data = await api.candles(symbol, timeframe);
+    setCandles(data);
+    setCursorIndex(Math.max(data.length - 1, 0));
+    setChartSymbol(symbol);
+    setChartTimeframe(timeframe);
+    return data;
+  };
+
   useEffect(() => {
-    api
-      .candles(config.symbol, config.timeframe)
-      .then((data) => {
-        setCandles(data);
-        setCursorIndex(Math.max(data.length - 1, 0));
-      })
-      .catch((e) => setError((e as Error).message));
+    loadCandles(config.symbol, config.timeframe).catch((e) => setError((e as Error).message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.symbol, config.timeframe]);
+  }, []);
 
   const handleSymbolSelect = (sym: string) => {
-    setConfig({ ...config, symbol: sym.toUpperCase() });
+    const symbol = sym.toUpperCase();
+    setConfig({ ...config, symbol });
     setSymbolSearch("");
     setShowSymbolDropdown(false);
+    loadCandles(symbol, chartTimeframe).catch((e) => setError((e as Error).message));
   };
 
   const handleSearchChange = (value: string) => {
@@ -134,21 +141,25 @@ export default function BacktestingPage() {
   };
 
   const runBacktest = async () => {
-    if (candles.length === 0) return;
     setRunning(true);
     setError(null);
     try {
+      const freshCandles = await loadCandles(config.symbol, config.timeframe);
+      if (freshCandles.length === 0) {
+        setError("No candle data for this symbol/timeframe.");
+        return;
+      }
       const saved = await api.saveBacktestConfig(config);
       setConfig(saved);
       const run = await api.runBacktest(saved.id!, {
-        start: new Date(candles[0].time * 1000).toISOString(),
-        end: new Date(candles[candles.length - 1].time * 1000).toISOString(),
+        start: new Date(freshCandles[0].time * 1000).toISOString(),
+        end: new Date(freshCandles[freshCandles.length - 1].time * 1000).toISOString(),
       });
       if (run.status === "error") {
         setError(run.error_detail ?? "Backtest failed");
       } else {
         setResult(run.result);
-        setCursorIndex(candles.length - 1);
+        setCursorIndex(freshCandles.length - 1);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -162,7 +173,6 @@ export default function BacktestingPage() {
       <header className="sticky top-0 z-40 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
         <div className="text-xl font-normal text-fg">Backtesting</div>
         <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
-          {/* Timeframe selector */}
           <div className="relative flex items-center">
             <button
               type="button"
@@ -172,7 +182,7 @@ export default function BacktestingPage() {
                 tfOpen ? "border-violet-400" : "border-border"
               }`}
             >
-              {TIMEFRAMES.find((tf) => tf.value === config.timeframe)?.label}
+              {TIMEFRAMES.find((tf) => tf.value === chartTimeframe)?.label}
               <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
             </button>
             {tfOpen && (
@@ -185,9 +195,10 @@ export default function BacktestingPage() {
                     onClick={() => {
                       setConfig({ ...config, timeframe: tf.value });
                       setTfOpen(false);
+                      loadCandles(chartSymbol, tf.value).catch((e) => setError((e as Error).message));
                     }}
                     className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
-                      tf.value === config.timeframe ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
+                      tf.value === chartTimeframe ? "bg-violet-500/20 text-fg" : "text-muted hover:bg-violet-500/10 hover:text-fg"
                     }`}
                   >
                     {tf.label}
@@ -205,7 +216,7 @@ export default function BacktestingPage() {
               </span>
               <input
                 type="text"
-                placeholder={config.symbol}
+                placeholder={chartSymbol}
                 value={symbolSearch}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => {
@@ -275,7 +286,7 @@ export default function BacktestingPage() {
               <Chart
                 candles={candles}
                 cursorIndex={cursorIndex}
-                symbol={config.symbol}
+                symbol={chartSymbol}
                 annotations={resultToAnnotations(result)}
               />
             ) : (

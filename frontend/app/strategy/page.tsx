@@ -350,6 +350,9 @@ export default function StrategyPage() {
                     <StrategyCard
                       noteId={note.id}
                       summary={note.structured_summary}
+                      preferredSymbols={note.preferred_symbols}
+                      contextTimeframe={note.context_timeframe}
+                      entryTimeframe={note.entry_timeframe}
                       onEdited={setNote}
                       onRegenerate={regeneratePlaybook}
                       regenerating={regenerating}

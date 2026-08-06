@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, X } from "lucide-react";
+import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, Settings2, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import {
   api,
@@ -22,7 +22,7 @@ import {
 } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 import { presentationFor } from "@/components/strategy/presentation";
-import { backtestDraft } from "@/lib/backtestDraft";
+import { backtestDraft, DEFAULT_BACKTEST_CONFIG } from "@/lib/backtestDraft";
 import { useClickOutside } from "@/lib/useClickOutside";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
@@ -778,6 +778,7 @@ function CategoryCard({
   isEmpty,
   emptyHint,
   onClickEmpty,
+  className,
   children,
 }: {
   icon: typeof CATEGORY_ICONS.risk;
@@ -786,6 +787,7 @@ function CategoryCard({
   isEmpty: boolean;
   emptyHint: string;
   onClickEmpty?: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -795,7 +797,7 @@ function CategoryCard({
         isEmpty
           ? `border-dashed border-border/50 bg-panel/20 text-muted ${onClickEmpty ? "cursor-pointer hover:border-border hover:bg-panel/40" : ""}`
           : "border-border/60 bg-panel/50"
-      }`}
+      } ${className ?? ""}`}
     >
       <div className={`mb-2 flex items-center gap-1 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
         <Icon size={12} strokeWidth={2.2} />
@@ -803,6 +805,69 @@ function CategoryCard({
       </div>
       {isEmpty ? <div className="text-xs leading-snug text-muted">{emptyHint}</div> : <div className="space-y-1.5">{children}</div>}
     </div>
+  );
+}
+
+const CHAT_TIMEFRAMES: { id: string; label: string }[] = [
+  { id: "1Min", label: "1m" },
+  { id: "5Min", label: "5m" },
+  { id: "15Min", label: "15m" },
+  { id: "1Hour", label: "1H" },
+  { id: "1Day", label: "1D" },
+  { id: "1Week", label: "1W" },
+  { id: "1Month", label: "1M" },
+];
+
+function PreferencesRow({ config, onUpdateSymbol, onUpdateTimeframe, onReset }: {
+  config: BacktestConfig;
+  onUpdateSymbol: (symbol: string) => void;
+  onUpdateTimeframe: (timeframe: string) => void;
+  onReset: () => void;
+}) {
+  const [editingSymbol, setEditingSymbol] = useState(false);
+  const [tfOpen, setTfOpen] = useState(false);
+  const tfRef = useRef<HTMLSpanElement>(null);
+  useClickOutside(tfRef, () => setTfOpen(false), tfOpen);
+  const isDefault =
+    config.symbol === DEFAULT_BACKTEST_CONFIG.symbol && config.timeframe === DEFAULT_BACKTEST_CONFIG.timeframe;
+
+  return (
+    <StatRow label="Symbol / Timeframe" onRemove={isDefault ? undefined : onReset} isFirst isLast>
+      {editingSymbol ? (
+        <input
+          autoFocus
+          type="text"
+          defaultValue={config.symbol}
+          onBlur={(e) => {
+            const v = e.target.value.trim().toUpperCase();
+            if (v) onUpdateSymbol(v);
+            setEditingSymbol(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className={numberInputClass}
+        />
+      ) : (
+        <span onClick={() => setEditingSymbol(true)} className={segmentClass}>
+          {config.symbol}
+        </span>
+      )}
+      <span ref={tfRef} className="relative">
+        <span onClick={() => setTfOpen((o) => !o)} className={segmentClass}>
+          {CHAT_TIMEFRAMES.find((t) => t.id === config.timeframe)?.label ?? config.timeframe}
+        </span>
+        {tfOpen && (
+          <DropdownPanel
+            align="right"
+            value={config.timeframe}
+            options={CHAT_TIMEFRAMES}
+            onSelect={(id) => {
+              onUpdateTimeframe(id);
+              setTfOpen(false);
+            }}
+          />
+        )}
+      </span>
+    </StatRow>
   );
 }
 
@@ -817,6 +882,9 @@ function ConfigSummaryCard({
   onUpdateStopLoss,
   onUpdateTakeProfit,
   onUpdateSizing,
+  onUpdateSymbol,
+  onUpdateTimeframe,
+  onResetPreferences,
   onAddRule,
 }: {
   config: BacktestConfig;
@@ -829,6 +897,9 @@ function ConfigSummaryCard({
   onUpdateStopLoss: (risk: BacktestRisk | null) => void;
   onUpdateTakeProfit: (risk: BacktestRisk | null) => void;
   onUpdateSizing: (sizing: BacktestSizing) => void;
+  onUpdateSymbol: (symbol: string) => void;
+  onUpdateTimeframe: (timeframe: string) => void;
+  onResetPreferences: () => void;
   onAddRule: (kind: "entry_rules" | "exit_rules") => void;
 }) {
   const EntryIcon = CATEGORY_ICONS.entry;
@@ -865,6 +936,15 @@ function ConfigSummaryCard({
       </div>
 
       <div className="grid grid-cols-2 gap-2">
+        <CategoryCard icon={Settings2} label="Preferences" accentClass="text-fg" isEmpty={false} emptyHint="" className="col-span-2">
+          <PreferencesRow
+            config={config}
+            onUpdateSymbol={onUpdateSymbol}
+            onUpdateTimeframe={onUpdateTimeframe}
+            onReset={onResetPreferences}
+          />
+        </CategoryCard>
+
         <CategoryCard
           icon={EntryIcon}
           label="Entry"
@@ -1123,6 +1203,46 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     upsertConfigCard(next);
   };
 
+  // Stages into the plan only — the chart/backtest data doesn't switch symbol or
+  // timeframe until Run is clicked (backtesting/page.tsx's runBacktest fetches fresh
+  // candles for whatever's staged here).
+  const updateSymbol = (symbol: string) => {
+    const next = { ...configRef.current, symbol };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  const updateTimeframe = (timeframe: string) => {
+    const next = { ...configRef.current, timeframe };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  const handleRun = () => {
+    const tfLabel = CHAT_TIMEFRAMES.find((t) => t.id === configRef.current.timeframe)?.label ?? configRef.current.timeframe;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId.current++,
+        kind: "text",
+        role: "assistant",
+        text: `Setting the timeframe to ${tfLabel} and running on ${configRef.current.symbol}.`,
+        done: true,
+      },
+    ]);
+    onRunBacktest();
+  };
+
+  const resetPreferences = () => {
+    const next = {
+      ...configRef.current,
+      symbol: DEFAULT_BACKTEST_CONFIG.symbol,
+      timeframe: DEFAULT_BACKTEST_CONFIG.timeframe,
+    };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
   const send = async () => {
     const message = input.trim();
     if (!message || streaming) return;
@@ -1270,12 +1390,15 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
               onRemoveRule={removeRule}
               onUpdateRule={updateRule}
               onRename={renameStrategy}
-              onRun={onRunBacktest}
+              onRun={handleRun}
               running={running}
               canRun={canRun}
               onUpdateStopLoss={updateStopLoss}
               onUpdateTakeProfit={updateTakeProfit}
               onUpdateSizing={updateSizing}
+              onUpdateSymbol={updateSymbol}
+              onUpdateTimeframe={updateTimeframe}
+              onResetPreferences={resetPreferences}
               onAddRule={addRuleTemplate}
             />
           ) : m.kind === "action" ? (
