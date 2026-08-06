@@ -19,6 +19,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
@@ -158,6 +159,18 @@ def _base_model(num_predict: int = 400, temperature: float | None = None) -> Bas
             api_key=settings.anthropic_api_key,
             max_tokens=2048,
             thinking={"type": "adaptive"},
+            timeout=30,
+            max_retries=1,
+        )
+    if settings.llm_provider == "openrouter":
+        if not settings.has_openrouter_creds:
+            raise RuntimeError("OpenRouter API key not configured")
+        return ChatOpenAI(
+            model=settings.openrouter_model,
+            api_key=settings.openrouter_api_key,
+            base_url=settings.openrouter_base_url,
+            max_tokens=2048,
+            temperature=temperature,
             timeout=30,
             max_retries=1,
         )

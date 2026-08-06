@@ -6,11 +6,13 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 (Anthropic/Ollama) here — that branching is meant to stay in one place.
 """
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from app.schemas import Candle
 from app.schemas_strategy import StrategyRuleSet
 from app.services.agent_graph import _base_model
+from app.services.rule_engine import evaluate_rule
 from app.services.strategy import archetype_name
 
 STRATEGIST_SYSTEM_PROMPT = (
@@ -96,6 +98,34 @@ RULES_SYSTEM_PROMPT = (
 
 RULE_COMPILE_RETRY_TEMPERATURES = [0.0, 0.3, 0.6]
 
+_SYNTHETIC_CANDLE_COUNT = 250
+
+
+def _synthetic_candles() -> list[Candle]:
+    """Set of previous candles for malformed rules."""
+    candles = []
+    price = 100.0
+    for i in range(_SYNTHETIC_CANDLE_COUNT):
+        price += ((i * 37) % 7 - 3) * 0.4
+        high = price + 1.5
+        low = price - 1.5
+        open_ = price - 0.5 + (i % 3) * 0.3
+        candles.append(Candle(time=i, open=open_, high=high, low=low, close=price, volume=1000.0))
+    return candles
+
+
+def _validate_ruleset(rule_set: StrategyRuleSet) -> str | None:
+    """Runs rules to check proper formatting."""
+    candles = _synthetic_candles()
+    for section, rules in (("entry_rules", rule_set.entry_rules), ("exit_rules", rule_set.exit_rules)):
+        for rule in rules:
+            try:
+                for i in range(len(candles)):
+                    evaluate_rule(rule, candles, i)
+            except Exception as exc:  # noqa: BLE001
+                return f"{section} rule {rule.description!r} failed to evaluate: {exc}"
+    return None
+
 
 async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
     label = archetype_name(archetype) or "no specific archetype"
@@ -103,14 +133,30 @@ async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
     messages = [SystemMessage(RULES_SYSTEM_PROMPT), HumanMessage(prompt)]
 
     last_result: StrategyRuleSet | None = None
-    last_error: Exception | None = None
+    last_error: Exception | str | None = None
     for temperature in RULE_COMPILE_RETRY_TEMPERATURES:
-        model = _base_model(num_predict=1500, temperature=temperature).with_structured_output(StrategyRuleSet)
+        model = _base_model(num_predict=1500, temperature=temperature).with_structured_output(
+            StrategyRuleSet, method="function_calling"
+        )
         try:
             result = await model.ainvoke(messages)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
             continue
+
+        validation_error = _validate_ruleset(result)
+        if validation_error is not None:
+            last_error = validation_error
+            messages = messages + [
+                AIMessage(result.model_dump_json()),
+                HumanMessage(
+                    f"That rule set doesn't load: {validation_error}. Fix only the offending "
+                    "rule(s) — reuse the indicator keys and comparators listed above and keep "
+                    "everything else the same."
+                ),
+            ]
+            continue
+
         last_error = None
         last_result = result
         if result.entry_rules or result.exit_rules:
@@ -118,4 +164,6 @@ async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
 
     if last_result is not None:
         return last_result
+    if isinstance(last_error, str):
+        raise ValueError(last_error)
     raise last_error

@@ -7,6 +7,7 @@ from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 
 from app.config import get_settings
 from app.schemas_backtest import BacktestConfig
@@ -74,6 +75,15 @@ def _base_model() -> BaseChatModel:
             max_tokens=2048,
             thinking={"type": "adaptive"},
         )
+    if settings.llm_provider == "openrouter":
+        if not settings.has_openrouter_creds:
+            raise RuntimeError("OpenRouter API key not configured")
+        return ChatOpenAI(
+            model=settings.openrouter_model,
+            api_key=settings.openrouter_api_key,
+            base_url=settings.openrouter_base_url,
+            max_tokens=2048,
+        )
     raise RuntimeError(f"Unknown llm_provider: {settings.llm_provider!r}")
 
 
@@ -109,7 +119,7 @@ async def astream_config_chat(current_config: BacktestConfig, message: str):
         ack = "".join(b.get("text", "") for b in ack if isinstance(b, dict) and b.get("type") == "text")
     yield {"type": "token", "text": _sanitize_ack(ack)}
 
-    structured_model = _base_model().with_structured_output(BacktestConfig)
+    structured_model = _base_model().with_structured_output(BacktestConfig, method="function_calling")
     try:
         result = await structured_model.ainvoke([SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)])
     except Exception as exc:  # noqa: BLE001 — model returned a shape we can't coerce
