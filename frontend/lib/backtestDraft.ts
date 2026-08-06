@@ -20,6 +20,10 @@ interface BacktestDraft {
   messages: ChatItem[];
   nextId: number;
   input: string;
+  // Staged backtest window (YYYY-MM-DD) — null means "use the timeframe's default
+  // lookback." Not part of BacktestConfig since the backend doesn't persist it.
+  windowStart: string | null;
+  windowEnd: string | null;
 }
 
 export const backtestDraft: BacktestDraft = {
@@ -28,4 +32,6 @@ export const backtestDraft: BacktestDraft = {
   messages: [],
   nextId: 0,
   input: "",
+  windowStart: null,
+  windowEnd: null,
 };

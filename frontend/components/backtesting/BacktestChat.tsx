@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, Settings2, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Calendar as CalendarIcon, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, Settings2, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import {
   api,
@@ -416,9 +416,9 @@ function RuleRowShell({
 }) {
   return (
     <div className="relative pl-4 text-sm text-fg">
-      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <span className="absolute left-[6px] top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-1/2 w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-1/2 bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-start justify-between gap-2 rounded-md px-1 py-1 transition-colors hover:bg-panel/60">
         <div className="min-w-0 flex-1">{children}</div>
         <button
@@ -427,7 +427,7 @@ function RuleRowShell({
           aria-label="Remove rule"
           className="mt-0.5 shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
         >
-          <X size={14} strokeWidth={2.2} />
+          <X size={16} strokeWidth={2.2} />
         </button>
       </div>
     </div>
@@ -451,7 +451,7 @@ function PatternRuleRow({
       <div className="flex flex-wrap items-center gap-1">
         {rule.steps.map((step, i) => (
           <span key={i} className="flex items-center gap-1">
-            {i > 0 && <ArrowRight size={9} strokeWidth={2.2} className="text-muted" />}
+            {i > 0 && <ArrowRight size={12} strokeWidth={2.2} className="text-muted" />}
             <CandleStepChip step={step} />
           </span>
         ))}
@@ -477,7 +477,7 @@ function GatedRuleRow({
       <div className="flex flex-wrap items-center gap-1 font-mono text-xs">
         <span className="text-muted">if</span>
         <ConditionInline condition={rule.gate} />
-        <ArrowRight size={10} strokeWidth={2.2} className="text-muted" />
+        <ArrowRight size={13} strokeWidth={2.2} className="text-muted" />
         <ConditionInline condition={rule.condition} />
       </div>
     </RuleRowShell>
@@ -490,7 +490,7 @@ function ConditionInline({ condition }: { condition: StrategyRule | PatternRule 
       <span className="inline-flex flex-wrap items-center gap-1">
         {condition.steps.map((step, i) => (
           <span key={i} className="flex items-center gap-1">
-            {i > 0 && <ArrowRight size={8} strokeWidth={2.2} className="text-muted" />}
+            {i > 0 && <ArrowRight size={11} strokeWidth={2.2} className="text-muted" />}
             <CandleStepChip step={step} />
           </span>
         ))}
@@ -527,9 +527,9 @@ function RuleRow({
 
   return (
     <div className="relative pl-4 text-sm text-fg">
-      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <span className="absolute left-[6px] top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-1/2 w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-1/2 bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 font-mono transition-colors hover:bg-panel/60">
         <span className="flex flex-wrap items-center gap-0.5">
           <IndicatorFamilyPeriod indicator={rule.indicator} onChange={(indicator) => onUpdate({ ...rule, indicator })} />
@@ -577,7 +577,7 @@ function RuleRow({
               aria-label="Change value type"
               className="rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-accent group-hover:opacity-100"
             >
-              <ChevronDown size={10} strokeWidth={2.5} />
+              <ChevronDown size={13} strokeWidth={2.5} />
             </button>
             {valueTypeOpen && (
               <DropdownPanel
@@ -603,7 +603,7 @@ function RuleRow({
           aria-label="Remove rule"
           className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
         >
-          <X size={14} strokeWidth={2.2} />
+          <X size={16} strokeWidth={2.2} />
         </button>
       </div>
     </div>
@@ -631,9 +631,9 @@ function StatRow({
 }) {
   return (
     <div className="relative pl-4">
-      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <span className="absolute left-[6px] top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-1/2 w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-1/2 bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 text-sm text-fg transition-colors hover:bg-panel/60">
         <span className="text-muted">{label}</span>
         <span className="flex items-center gap-1 font-mono">
@@ -645,7 +645,7 @@ function StatRow({
               aria-label={`Remove ${label}`}
               className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
             >
-              <X size={11} strokeWidth={2.2} />
+              <X size={14} strokeWidth={2.2} />
             </button>
           )}
         </span>
@@ -664,9 +664,9 @@ function AddStatRow({
   return (
     <div className="relative pl-4">
       <Plus
-        size={10}
+        size={13}
         strokeWidth={2.5}
-        className="absolute left-[6px] top-[13px] -translate-x-1/2 -translate-y-1/2 text-muted"
+        className="absolute left-[6px] top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted"
       />
       <button
         type="button"
@@ -715,6 +715,50 @@ function RiskRow({
         </span>
       )}
       %
+    </StatRow>
+  );
+}
+
+function formatMMDDYYYY(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return y && m && d ? `${m}/${d}/${y}` : isoDate;
+}
+
+function WindowRow({
+  label,
+  value,
+  onUpdate,
+  onRemove,
+  isFirst,
+  isLast,
+}: {
+  label: string;
+  value: string;
+  onUpdate: (v: string) => void;
+  onRemove: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <StatRow label={label} onRemove={onRemove} isFirst={isFirst} isLast={isLast}>
+      {editing ? (
+        <input
+          autoFocus
+          type="date"
+          defaultValue={value}
+          onBlur={(e) => {
+            if (e.target.value) onUpdate(e.target.value);
+            setEditing(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className={`${selectClass} w-32`}
+        />
+      ) : (
+        <span onClick={() => setEditing(true)} className={segmentClass}>
+          {formatMMDDYYYY(value)}
+        </span>
+      )}
     </StatRow>
   );
 }
@@ -804,8 +848,8 @@ function CategoryCard({
           : "border-border/60 bg-panel/50"
       } ${className ?? ""}`}
     >
-      <div className={`mb-2 flex items-center gap-1 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
-        <Icon size={12} strokeWidth={2.2} />
+      <div className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
+        <Icon size={16} strokeWidth={2.2} />
         {label}
       </div>
       {isEmpty ? <div className="text-xs leading-snug text-muted">{emptyHint}</div> : <div className="space-y-1.5">{children}</div>}
@@ -891,6 +935,10 @@ function ConfigSummaryCard({
   onUpdateSymbol,
   onUpdateTimeframe,
   onResetPreferences,
+  windowStart,
+  windowEnd,
+  onUpdateWindowStart,
+  onUpdateWindowEnd,
   onAddRule,
 }: {
   config: BacktestConfig;
@@ -907,6 +955,10 @@ function ConfigSummaryCard({
   onUpdateSymbol: (symbol: string) => void;
   onUpdateTimeframe: (timeframe: string) => void;
   onResetPreferences: () => void;
+  windowStart: string | null;
+  windowEnd: string | null;
+  onUpdateWindowStart: (v: string | null) => void;
+  onUpdateWindowEnd: (v: string | null) => void;
   onAddRule: (kind: "entry_rules" | "exit_rules") => void;
 }) {
   const EntryIcon = CATEGORY_ICONS.entry;
@@ -936,28 +988,19 @@ function ConfigSummaryCard({
             aria-label="Run backtest"
             className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
           >
-            {running ? <Loader2 size={11} strokeWidth={2.5} className="animate-spin" /> : <Play size={11} strokeWidth={2.5} />}
+            {running ? <Loader2 size={14} strokeWidth={2.5} className="animate-spin" /> : <Play size={14} strokeWidth={2.5} />}
             {running ? "Running…" : "Run"}
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">
-        <CategoryCard icon={Settings2} label="Preferences" accentClass="text-fg" isEmpty={false} emptyHint="" className="col-span-2">
-          <PreferencesRow
-            config={config}
-            onUpdateSymbol={onUpdateSymbol}
-            onUpdateTimeframe={onUpdateTimeframe}
-            onReset={onResetPreferences}
-          />
-        </CategoryCard>
-
         <CategoryCard
           icon={EntryIcon}
           label="Entry"
           accentClass="text-up"
           isEmpty={config.entry_rules.length === 0}
-          emptyHint="Click to add a rule"
+          emptyHint="Add an entry condition"
           onClickEmpty={() => onAddRule("entry_rules")}
         >
           {config.entry_rules.map((r, i) => {
@@ -984,7 +1027,7 @@ function ConfigSummaryCard({
           label="Exit"
           accentClass="text-down"
           isEmpty={config.exit_rules.length === 0}
-          emptyHint="Click to add a rule"
+          emptyHint="Add an exit condition"
           onClickEmpty={() => onAddRule("exit_rules")}
         >
           {config.exit_rules.map((r, i) => {
@@ -1011,7 +1054,7 @@ function ConfigSummaryCard({
           label="Risk"
           accentClass="text-fg"
           isEmpty={!hasRisk}
-          emptyHint="No stop loss or take profit set"
+          emptyHint="Set a stop loss and take profit"
           onClickEmpty={() => onUpdateStopLoss({ value: 2 })}
         >
           {config.stop_loss ? (
@@ -1043,6 +1086,35 @@ function ConfigSummaryCard({
         <CategoryCard icon={SizingIcon} label="Scale" accentClass="text-fg" isEmpty={false} emptyHint="">
           <SizingRow sizing={config.position_sizing} onUpdate={onUpdateSizing} onReset={onResetSizing} />
         </CategoryCard>
+
+        <CategoryCard icon={Settings2} label="Preferences" accentClass="text-fg" isEmpty={false} emptyHint="">
+          <PreferencesRow
+            config={config}
+            onUpdateSymbol={onUpdateSymbol}
+            onUpdateTimeframe={onUpdateTimeframe}
+            onReset={onResetPreferences}
+          />
+        </CategoryCard>
+
+        <CategoryCard
+          icon={CalendarIcon}
+          label="Window"
+          accentClass="text-fg"
+          isEmpty={!windowStart && !windowEnd}
+          emptyHint="Set a start and end date for the backtest"
+          onClickEmpty={() => onUpdateWindowStart(new Date().toISOString().slice(0, 10))}
+        >
+          {windowStart ? (
+            <WindowRow label="From" value={windowStart} onUpdate={onUpdateWindowStart} onRemove={() => onUpdateWindowStart(null)} isFirst isLast={false} />
+          ) : (
+            <AddStatRow label="Add start date" onAdd={() => onUpdateWindowStart(new Date().toISOString().slice(0, 10))} />
+          )}
+          {windowEnd ? (
+            <WindowRow label="To" value={windowEnd} onUpdate={onUpdateWindowEnd} onRemove={() => onUpdateWindowEnd(null)} isFirst={false} isLast />
+          ) : (
+            <AddStatRow label="Add end date" onAdd={() => onUpdateWindowEnd(new Date().toISOString().slice(0, 10))} />
+          )}
+        </CategoryCard>
       </div>
     </div>
   );
@@ -1069,9 +1141,23 @@ interface BacktestChatProps {
   onRunBacktest: () => void;
   running: boolean;
   canRun: boolean;
+  windowStart: string | null;
+  windowEnd: string | null;
+  onUpdateWindowStart: (v: string | null) => void;
+  onUpdateWindowEnd: (v: string | null) => void;
 }
 
-export default function BacktestChat({ config, onConfigChange, onRunBacktest, running, canRun }: BacktestChatProps) {
+export default function BacktestChat({
+  config,
+  onConfigChange,
+  onRunBacktest,
+  running,
+  canRun,
+  windowStart,
+  windowEnd,
+  onUpdateWindowStart,
+  onUpdateWindowEnd,
+}: BacktestChatProps) {
   const [messages, setMessages] = useState<ChatItem[]>(() => backtestDraft.messages);
   const [input, setInput] = useState(() => backtestDraft.input);
   const [streaming, setStreaming] = useState(false);
@@ -1413,6 +1499,10 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
               onUpdateSymbol={updateSymbol}
               onUpdateTimeframe={updateTimeframe}
               onResetPreferences={resetPreferences}
+              windowStart={windowStart}
+              windowEnd={windowEnd}
+              onUpdateWindowStart={onUpdateWindowStart}
+              onUpdateWindowEnd={onUpdateWindowEnd}
               onAddRule={addRuleTemplate}
             />
           ) : m.kind === "action" ? (

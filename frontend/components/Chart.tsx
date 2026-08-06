@@ -25,7 +25,7 @@ import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
 import ChartContextMenu from "@/components/chart/ChartContextMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
-import { INDICATORS } from "@/components/chart/indicators";
+import { INDICATORS, resolveIndicator } from "@/components/chart/indicators";
 
 const COMPANY_NAMES: Record<string, string> = {
   AAPL: "Apple Inc.",
@@ -60,6 +60,7 @@ interface ChartProps {
   cursorIndex?: number | null;
   onQuickOrder?: (side: "buy" | "sell") => void;
   infoOverlay?: boolean;
+  requiredIndicators?: string[];
 }
 
 interface HoveredCandle {
@@ -155,6 +156,7 @@ export default function Chart({
   cursorIndex = null,
   onQuickOrder,
   infoOverlay = false,
+  requiredIndicators,
 }: ChartProps) {
   const candles = useMemo(
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
@@ -187,6 +189,22 @@ export default function Chart({
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
   const [crosshairData, setCrosshairData] = useState<{ time: number | null; price: number | null }>({ time: null, price: null });
   const [activeIndicators, setActiveIndicators] = useState<Set<string>>(new Set());
+  // Merges in indicators a strategy plan references (e.g. after Run) without ever
+  // removing ones the trader turned on manually — additive only.
+  useEffect(() => {
+    if (!requiredIndicators || requiredIndicators.length === 0) return;
+    setActiveIndicators((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of requiredIndicators) {
+        if (!next.has(id) && resolveIndicator(id)) {
+          next.add(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [requiredIndicators]);
   const [pinnedIndicators, setPinnedIndicators] = useState<Set<string>>(new Set());
   const [pinnedDrawingTools, setPinnedDrawingTools] = useState<Set<DrawingToolId>>(new Set());
   const [pinnedChartTypes, setPinnedChartTypes] = useState<Set<ChartTypeId>>(new Set());
@@ -246,7 +264,7 @@ export default function Chart({
   };
 
   const activeOscillatorIds = useMemo(
-    () => [...activeIndicators].filter((id) => INDICATORS.find((i) => i.id === id)?.kind === "oscillator"),
+    () => [...activeIndicators].filter((id) => resolveIndicator(id)?.kind === "oscillator"),
     [activeIndicators],
   );
 
@@ -426,7 +444,7 @@ export default function Chart({
     const activeKeys = new Set<string>();
 
     for (const id of activeIndicators) {
-      const def = INDICATORS.find((i) => i.id === id);
+      const def = resolveIndicator(id);
       if (!def || def.kind !== "overlay" || !def.lines) continue;
       for (const line of def.lines) {
         const key = `${id}:${line.key}`;
@@ -461,7 +479,7 @@ export default function Chart({
     const activeKeys = new Set<string>();
 
     for (const id of activeOscillatorIds) {
-      const def = INDICATORS.find((i) => i.id === id);
+      const def = resolveIndicator(id);
       if (!def?.lines) continue;
       for (const line of def.lines) {
         const key = `${id}:${line.key}`;
@@ -640,7 +658,7 @@ export default function Chart({
       const chart = chartRef.current;
       const mainSeries = seriesRef.current;
       for (const id of activeIndicators) {
-        const def = INDICATORS.find((i) => i.id === id);
+        const def = resolveIndicator(id);
         if (!def || def.kind !== "zone" || !def.computeZones) continue;
         for (const zone of def.computeZones(candles)) {
           const x1 = chart.timeScale().timeToCoordinate(zone.startTime);

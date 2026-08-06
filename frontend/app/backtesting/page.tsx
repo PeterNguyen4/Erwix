@@ -7,6 +7,7 @@ import ReplayControls from "@/components/backtesting/ReplayControls";
 import BacktestChat from "@/components/backtesting/BacktestChat";
 import { Search, ChevronDown } from "lucide-react";
 import { backtestDraft } from "@/lib/backtestDraft";
+import { indicatorsForConfig } from "@/lib/backtestIndicators";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -78,6 +79,17 @@ export default function BacktestingPage() {
   const [config, setConfigState] = useState<BacktestConfig>(() => backtestDraft.config);
   const [chartSymbol, setChartSymbol] = useState(() => backtestDraft.config.symbol);
   const [chartTimeframe, setChartTimeframe] = useState(() => backtestDraft.config.timeframe);
+  const [chartIndicators, setChartIndicators] = useState<string[]>([]);
+  const [windowStart, setWindowStartState] = useState(() => backtestDraft.windowStart);
+  const [windowEnd, setWindowEndState] = useState(() => backtestDraft.windowEnd);
+  const setWindowStart = (v: string | null) => {
+    backtestDraft.windowStart = v;
+    setWindowStartState(v);
+  };
+  const setWindowEnd = (v: string | null) => {
+    backtestDraft.windowEnd = v;
+    setWindowEndState(v);
+  };
   const [candles, setCandles] = useState<Candle[]>([]);
   const [cursorIndex, setCursorIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -101,8 +113,8 @@ export default function BacktestingPage() {
   const [tfOpen, setTfOpen] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadCandles = async (symbol: string, timeframe: string) => {
-    const data = await api.candles(symbol, timeframe);
+  const loadCandles = async (symbol: string, timeframe: string, start?: string | null, end?: string | null) => {
+    const data = await api.candles(symbol, timeframe, start, end);
     setCandles(data);
     setCursorIndex(Math.max(data.length - 1, 0));
     setChartSymbol(symbol);
@@ -144,11 +156,17 @@ export default function BacktestingPage() {
     setRunning(true);
     setError(null);
     try {
-      const freshCandles = await loadCandles(config.symbol, config.timeframe);
+      const freshCandles = await loadCandles(
+        config.symbol,
+        config.timeframe,
+        windowStart,
+        windowEnd ? `${windowEnd}T23:59:59` : null,
+      );
       if (freshCandles.length === 0) {
         setError("No candle data for this symbol/timeframe.");
         return;
       }
+      setChartIndicators(indicatorsForConfig(config));
       const saved = await api.saveBacktestConfig(config);
       setConfig(saved);
       const run = await api.runBacktest(saved.id!, {
@@ -159,7 +177,8 @@ export default function BacktestingPage() {
         setError(run.error_detail ?? "Backtest failed");
       } else {
         setResult(run.result);
-        setCursorIndex(freshCandles.length - 1);
+        setCursorIndex(0);
+        setPlaying(true);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -275,6 +294,10 @@ export default function BacktestingPage() {
                 onRunBacktest={runBacktest}
                 running={running}
                 canRun={candles.length > 0}
+                windowStart={windowStart}
+                windowEnd={windowEnd}
+                onUpdateWindowStart={setWindowStart}
+                onUpdateWindowEnd={setWindowEnd}
               />
             </div>
           </div>
@@ -288,6 +311,7 @@ export default function BacktestingPage() {
                 cursorIndex={cursorIndex}
                 symbol={chartSymbol}
                 annotations={resultToAnnotations(result)}
+                requiredIndicators={chartIndicators}
               />
             ) : (
               <div className="flex h-full items-center justify-center text-xs text-muted">Loading candles…</div>

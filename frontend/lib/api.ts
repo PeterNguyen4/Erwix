@@ -545,10 +545,12 @@ export const api = {
   resetPassword: (token: string, new_password: string) =>
     postJSON<{ success: boolean }>("/api/users/reset-password", { token, new_password }),
   me: () => getJSON<UserPrivate>("/api/users/me"),
-  candles: (symbol: string, timeframe = "1Day") =>
-    getJSON<Candle[]>(
-      `/api/market/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`,
-    ),
+  candles: (symbol: string, timeframe = "1Day", start?: string | null, end?: string | null) => {
+    const q = new URLSearchParams({ symbol, timeframe });
+    if (start) q.set("start", start);
+    if (end) q.set("end", end);
+    return getJSON<Candle[]>(`/api/market/candles?${q.toString()}`);
+  },
   quote: (symbol: string) =>
     getJSON<Quote>(`/api/market/quote?symbol=${encodeURIComponent(symbol)}`),
   positions: () => getJSON<Position[]>("/api/trading/positions"),
