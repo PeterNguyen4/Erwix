@@ -6,6 +6,7 @@ import { api, BacktestConfig, BacktestResult, BacktestTrade, Candle, ChartAnnota
 import ReplayControls from "@/components/backtesting/ReplayControls";
 import BacktestChat from "@/components/backtesting/BacktestChat";
 import { Search, ChevronDown } from "lucide-react";
+import { backtestDraft, DEFAULT_BACKTEST_CONFIG } from "@/lib/backtestDraft";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
@@ -49,19 +50,6 @@ function IconSearch() {
   return <Search size={14} strokeWidth={2} className="shrink-0" />;
 }
 
-const DEFAULT_CONFIG: BacktestConfig = {
-  name: "Plan",
-  symbol: "AAPL",
-  timeframe: "1Day",
-  direction: "long",
-  entry_rules: [],
-  exit_rules: [],
-  position_sizing: { mode: "fixed_qty", value: 1 },
-  stop_loss: null,
-  take_profit: null,
-  max_concurrent_positions: 1,
-};
-
 function resultToAnnotations(result: BacktestResult | null): ChartAnnotation[] {
   if (!result) return [];
   return result.trades.flatMap((t: BacktestTrade): ChartAnnotation[] => {
@@ -87,12 +75,21 @@ function resultToAnnotations(result: BacktestResult | null): ChartAnnotation[] {
 }
 
 export default function BacktestingPage() {
-  const [config, setConfig] = useState<BacktestConfig>(DEFAULT_CONFIG);
+  const [config, setConfigState] = useState<BacktestConfig>(() => backtestDraft.config);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [cursorIndex, setCursorIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speedMs, setSpeedMs] = useState(200);
-  const [result, setResult] = useState<BacktestResult | null>(null);
+  const [result, setResultState] = useState<BacktestResult | null>(() => backtestDraft.result);
+
+  const setConfig = (next: BacktestConfig) => {
+    backtestDraft.config = next;
+    setConfigState(next);
+  };
+  const setResult = (next: BacktestResult | null) => {
+    backtestDraft.result = next;
+    setResultState(next);
+  };
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [symbolSearch, setSymbolSearch] = useState("");
@@ -114,7 +111,7 @@ export default function BacktestingPage() {
   }, [config.symbol, config.timeframe]);
 
   const handleSymbolSelect = (sym: string) => {
-    setConfig((c) => ({ ...c, symbol: sym.toUpperCase() }));
+    setConfig({ ...config, symbol: sym.toUpperCase() });
     setSymbolSearch("");
     setShowSymbolDropdown(false);
   };

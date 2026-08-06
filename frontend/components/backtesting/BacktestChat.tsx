@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 import { presentationFor } from "@/components/strategy/presentation";
+import { backtestDraft } from "@/lib/backtestDraft";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
   { id: "rsi", label: "RSI", hasPeriod: true, defaultPeriod: 14 },
@@ -969,7 +970,7 @@ function ConfigSummaryCard({
   );
 }
 
-type ChatItem =
+export type ChatItem =
   | { id: number; kind: "text"; role: "user" | "assistant"; text: string; done: boolean }
   | { id: number; kind: "config"; role: "assistant"; config: BacktestConfig }
   | { id: number; kind: "action"; role: "assistant"; label: "Build" | "Edit" };
@@ -993,7 +994,7 @@ interface BacktestChatProps {
 }
 
 export default function BacktestChat({ config, onConfigChange, onRunBacktest, running, canRun }: BacktestChatProps) {
-  const [messages, setMessages] = useState<ChatItem[]>([]);
+  const [messages, setMessages] = useState<ChatItem[]>(() => backtestDraft.messages);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1005,10 +1006,15 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   const rulesChipRef = useRef<HTMLButtonElement>(null);
   const rulesPanelRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const nextId = useRef(0);
+  const nextId = useRef(backtestDraft.nextId);
   const configRef = useRef(config);
   configRef.current = config;
   const isEmpty = messages.length === 0;
+
+  useEffect(() => {
+    backtestDraft.messages = messages;
+    backtestDraft.nextId = nextId.current;
+  }, [messages]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
