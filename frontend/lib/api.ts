@@ -251,6 +251,7 @@ export interface UserPrivate {
   id: number;
   username: string;
   email: string;
+  role: "user" | "admin";
 }
 
 export interface RegisterRequest {

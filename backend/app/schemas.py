@@ -21,6 +21,7 @@ class UserPublic(BaseModel):
 
 class UserPrivate(UserPublic):
     email: EmailStr = Field(max_length=120)
+    role: Literal["user", "admin"] = "user"
 
 
 class UserUpdate(BaseModel):

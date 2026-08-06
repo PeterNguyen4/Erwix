@@ -15,6 +15,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(256))
+    role: Mapped[str] = mapped_column(String(16), default="user", server_default="user")  # user | admin
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

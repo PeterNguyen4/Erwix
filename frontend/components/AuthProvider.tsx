@@ -6,6 +6,7 @@ import { api, UserPrivate } from "@/lib/api";
 
 interface AuthContextValue {
   user: UserPrivate | null;
+  isAdmin: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -59,7 +60,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ user, isAdmin: user?.role === "admin", isLoading, login, logout }}>
       {isLoading || (!user && !isPublicPath) ? null : children}
     </AuthContext.Provider>
   );
