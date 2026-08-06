@@ -22,6 +22,7 @@ import {
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 import { presentationFor } from "@/components/strategy/presentation";
 import { backtestDraft } from "@/lib/backtestDraft";
+import { useClickOutside } from "@/lib/useClickOutside";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
   { id: "rsi", label: "RSI", hasPeriod: true, defaultPeriod: 14 },
@@ -98,17 +99,6 @@ type RuleSegment = "comparator" | "value" | null;
 const segmentClass =
   "cursor-pointer rounded px-0.5 underline decoration-dotted decoration-2 decoration-muted underline-offset-4 transition-colors hover:bg-panel hover:text-accent hover:decoration-accent";
 const inlineNumberClass = `${numberInputClass} h-6 py-0`;
-
-function useClickOutside(ref: React.RefObject<HTMLElement | null>, onOutside: () => void, active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    const onClick = (e: MouseEvent) => {
-      if (!ref.current?.contains(e.target as Node)) onOutside();
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [active, onOutside, ref]);
-}
 
 function DropdownPanel<T extends string>({
   options,
