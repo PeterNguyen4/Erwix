@@ -173,7 +173,7 @@ export default function PortfolioPage() {
                 <div className="flex flex-wrap gap-2">
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
                     <div className="text-xs font-medium tracking-wide text-muted">Win Rate</div>
-                    <div className="mt-1 flex items-baseline gap-4">
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
                       <span className="text-2xl font-normal tabular-nums text-fg">
                         {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
                       </span>
@@ -181,8 +181,8 @@ export default function PortfolioPage() {
                     </div>
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-xs font-medium tracking-wide text-muted">Avg Risk/Reward</div>
-                    <div className="mt-1 flex items-baseline gap-4">
+                    <div className="text-xs font-medium tracking-wide text-muted">Risk : Reward</div>
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
                       <span className="text-2xl font-normal tabular-nums text-fg">
                         {pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—"}
                       </span>
@@ -198,7 +198,7 @@ export default function PortfolioPage() {
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
                     <div className="text-xs font-medium tracking-wide text-muted">Realized PnL</div>
-                    <div className="mt-1 flex items-baseline gap-4">
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
                       <span className={`text-2xl font-normal tabular-nums ${pnl.total_pnl >= 0 ? "text-up" : "text-down"}`}>
                         {pnl.total_pnl >= 0 ? "+" : ""}
                         {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
@@ -208,7 +208,7 @@ export default function PortfolioPage() {
                   </div>
                   <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
                     <div className="text-xs font-medium tracking-wide text-muted">W / L</div>
-                    <div className="mt-1 flex items-baseline gap-4">
+                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
                       <span className="text-2xl font-normal tabular-nums text-fg">
                         <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
                       </span>

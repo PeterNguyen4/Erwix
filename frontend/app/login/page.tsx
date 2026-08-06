@@ -51,10 +51,10 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="relative z-10 flex items-center gap-2">
           <Image src="/entro-white.svg" alt="Entro" width={32} height={32} />
-          <span className="text-3xl font-normal text-white leading-tight">Entro</span>
+          <span className="text-3xl font-normal text-zinc-100 leading-tight">Entro</span>
         </div>
         <div className="relative z-10">
-          <h2 className="text-4xl font-normal text-white leading-tight">
+          <h2 className="text-4xl font-normal text-zinc-100 leading-tight">
             Strategize, Test, Trade
           </h2>
         </div>
@@ -66,7 +66,7 @@ export default function LoginPage() {
             className="flex flex-col gap-4 w-full max-w-sm"
           >
             <div className="mb-3">
-              <h1 className="text-4xl font-normal text-gray-100">
+              <h1 className="text-4xl font-normal text-zinc-100">
                 {mode === "login" ? "Log in" : mode === "register" ? "Create an account" : "Reset your password"}
               </h1>
               {mode === "register" && (
@@ -123,7 +123,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-4 px-3 py-2.5 rounded-lg bg-auth-button hover:bg-auth-button-hover text-white font-medium disabled:opacity-50 transition-colors"
+              className="mt-4 px-3 py-2.5 rounded-lg bg-auth-button hover:bg-auth-button-hover text-zinc-100 font-medium disabled:opacity-50 transition-colors"
             >
               {submitting
                 ? "Please wait…"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { PortfolioPoint } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
 import { CHART_PALETTES } from "@/lib/chartTheme";
@@ -27,6 +28,7 @@ export default function PortfolioChart({
   loading,
 }: PortfolioChartProps) {
   const [hover, setHover] = useState<number | null>(null);
+  const [periodOpen, setPeriodOpen] = useState(false);
   const { theme } = useTheme();
   const palette = CHART_PALETTES[theme];
 
@@ -73,7 +75,40 @@ export default function PortfolioChart({
             </span>
           </div>
         </div>
-        <div className="flex gap-1">
+        <div className="relative sm:hidden">
+          <button
+            type="button"
+            onClick={() => setPeriodOpen((o) => !o)}
+            onBlur={() => setTimeout(() => setPeriodOpen(false), 150)}
+            className={`flex items-center gap-1 rounded border bg-field px-2.5 py-1.5 text-xs font-medium text-fg transition-colors outline-none ${
+              periodOpen ? "border-accent" : "border-border"
+            }`}
+          >
+            {period === "1A" ? "1Y" : period === "all" ? "All" : period}
+            <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
+          </button>
+          {periodOpen && (
+            <div className="absolute right-0 top-full z-30 mt-1 w-20 rounded-md border border-border bg-panel py-1 shadow-lg">
+              {PERIODS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onPeriodChange(p);
+                    setPeriodOpen(false);
+                  }}
+                  className={`flex w-full items-center px-3 py-1.5 text-xs transition-colors ${
+                    period === p ? "bg-accent/20 text-fg" : "text-muted hover:bg-accent/10 hover:text-fg"
+                  }`}
+                >
+                  {p === "1A" ? "1Y" : p === "all" ? "All" : p}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="hidden gap-1 sm:flex">
           {PERIODS.map((p) => (
             <button
               key={p}

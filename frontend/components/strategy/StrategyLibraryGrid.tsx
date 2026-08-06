@@ -83,7 +83,7 @@ function StrategyCard({
             onClick={() => setMenuOpen((o) => !o)}
             onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
             title="More options"
-            className="flex h-6 w-6 items-center justify-center rounded-md bg-black/20 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/35 hover:text-white"
+            className="flex h-6 w-6 items-center justify-center rounded-md bg-black/20 text-zinc-100/80 backdrop-blur-sm transition-colors hover:bg-black/35 hover:text-zinc-100"
           >
             <MoreVertical size={14} strokeWidth={2} />
           </button>

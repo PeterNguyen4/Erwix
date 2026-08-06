@@ -62,7 +62,7 @@ function ResetPasswordForm() {
           <button
             type="button"
             onClick={() => router.push("/login")}
-            className="px-3 py-2 rounded bg-accent text-white font-medium"
+            className="px-3 py-2 rounded bg-accent text-on-accent font-medium"
           >
             Log in
           </button>
