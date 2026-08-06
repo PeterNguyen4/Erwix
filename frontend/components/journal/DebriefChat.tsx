@@ -4,16 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, AttachedReference, DebriefMessage } from "@/lib/api";
-import ReferencePicker, { ReferencePickerHandle } from "@/components/journal/ReferencePicker";
+import ReferencePicker, { REFERENCE_TYPE_STYLE, ReferencePickerHandle } from "@/components/journal/ReferencePicker";
+import { getDebriefChatDraft } from "@/lib/debriefChatDraft";
 
-/** Persisted follow-up chat tied to a ready DebriefReport — request/response
- * (not streaming), since a single Q&A turn doesn't need token-level streaming
- * the way the multi-trade generation does. Reloading the report replays this
- * history via GET /api/agent/debrief/{id}/messages. */
+
 export default function DebriefChat({ reportId }: { reportId: number }) {
-  const [messages, setMessages] = useState<DebriefMessage[]>([]);
-  const [input, setInput] = useState("");
-  const [attached, setAttached] = useState<AttachedReference[]>([]);
+  const [messages, setMessages] = useState<DebriefMessage[]>(() => getDebriefChatDraft(reportId).messages);
+  const [input, setInput] = useState(() => getDebriefChatDraft(reportId).input);
+  const [attached, setAttached] = useState<AttachedReference[]>(() => getDebriefChatDraft(reportId).attached);
   const [sending, setSending] = useState(false);
   const [sendHover, setSendHover] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -22,8 +20,29 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
   const pickerRef = useRef<ReferencePickerHandle>(null);
 
   useEffect(() => {
-    api.debriefMessages(reportId).then(setMessages).catch(() => {});
+    const draft = getDebriefChatDraft(reportId);
+    if (draft.loaded) return;
+    api
+      .debriefMessages(reportId)
+      .then((msgs) => {
+        draft.loaded = true;
+        draft.messages = msgs;
+        setMessages(msgs);
+      })
+      .catch(() => {});
   }, [reportId]);
+
+  useEffect(() => {
+    getDebriefChatDraft(reportId).messages = messages;
+  }, [messages, reportId]);
+
+  useEffect(() => {
+    getDebriefChatDraft(reportId).input = input;
+  }, [input, reportId]);
+
+  useEffect(() => {
+    getDebriefChatDraft(reportId).attached = attached;
+  }, [attached, reportId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -96,22 +115,27 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
         <div className="flex w-full flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
           {attached.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-[18px] pt-3">
-              {attached.map((ref) => (
-                <span
-                  key={`${ref.type}-${ref.refId}`}
-                  className="flex items-center gap-1 rounded-full border border-border/60 bg-panel px-2 py-0.5 text-[11px] text-fg"
-                >
-                  {ref.label}
-                  <button
-                    type="button"
-                    onClick={() => detach(ref)}
-                    aria-label={`Remove ${ref.label}`}
-                    className="text-muted transition-colors hover:text-fg"
+              {attached.map((ref) => {
+                const style = REFERENCE_TYPE_STYLE[ref.type];
+                const Icon = style.icon;
+                return (
+                  <span
+                    key={`${ref.type}-${ref.refId}`}
+                    className={`flex items-center gap-1.5 rounded-full border ${style.borderClass} ${style.bgClass} px-3 py-1 text-[11px] text-fg`}
                   >
-                    <X size={10} strokeWidth={2.2} />
-                  </button>
-                </span>
-              ))}
+                    <Icon size={11} strokeWidth={2.2} className={`shrink-0 ${style.textClass}`} />
+                    {ref.label}
+                    <button
+                      type="button"
+                      onClick={() => detach(ref)}
+                      aria-label={`Remove ${ref.label}`}
+                      className="text-muted transition-colors hover:text-fg"
+                    >
+                      <X size={10} strokeWidth={2.2} />
+                    </button>
+                  </span>
+                );
+              })}
             </div>
           )}
           <div className="pl-[18px] pr-3 pt-3">

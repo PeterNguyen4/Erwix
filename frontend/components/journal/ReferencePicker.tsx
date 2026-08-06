@@ -12,15 +12,43 @@ type ListState =
 
 interface PickerItem {
   ref: AttachedReference;
-  icon: typeof Receipt;
   title: string;
   subtitle: string;
 }
 
+export const REFERENCE_TYPE_STYLE: Record<
+  AttachedReference["type"],
+  { icon: typeof Receipt; textClass: string; bgClass: string; borderClass: string }
+> = {
+  trade: {
+    icon: Receipt,
+    textClass: "text-violet-600 dark:text-violet-400",
+    bgClass: "bg-violet-500/5 dark:bg-violet-500/10",
+    borderClass: "border-violet-500/25 dark:border-violet-400/30",
+  },
+  journal_entry: {
+    icon: NotebookPen,
+    textClass: "text-amber-600 dark:text-amber-400",
+    bgClass: "bg-amber-500/5 dark:bg-amber-500/10",
+    borderClass: "border-amber-500/25 dark:border-amber-400/30",
+  },
+  day: {
+    icon: Calendar,
+    textClass: "text-sky-600 dark:text-sky-400",
+    bgClass: "bg-sky-500/5 dark:bg-sky-500/10",
+    borderClass: "border-sky-500/25 dark:border-sky-400/30",
+  },
+  symbol: {
+    icon: CandlestickChart,
+    textClass: "text-emerald-600 dark:text-emerald-400",
+    bgClass: "bg-emerald-500/5 dark:bg-emerald-500/10",
+    borderClass: "border-emerald-500/25 dark:border-emerald-400/30",
+  },
+};
+
 function tradeItem(t: Trade): PickerItem {
   return {
     ref: { type: "trade", refId: String(t.id), label: `${t.symbol} ${t.side}` },
-    icon: Receipt,
     title: `${t.side.toUpperCase()} ${t.symbol} @ ${t.fill_price != null ? `$${t.fill_price.toFixed(2)}` : "—"}`,
     subtitle: t.filled_at ? new Date(t.filled_at).toLocaleString() : "unfilled",
   };
@@ -29,7 +57,6 @@ function tradeItem(t: Trade): PickerItem {
 function journalEntryItem(e: JournalEntry): PickerItem {
   return {
     ref: { type: "journal_entry", refId: String(e.id), label: e.symbol ?? e.entry_date },
-    icon: NotebookPen,
     title: e.symbol ? `${e.symbol} journal entry` : "Journal entry",
     subtitle: e.entry_date,
   };
@@ -43,7 +70,6 @@ function dayItems(trades: Trade[], entries: JournalEntry[]): PickerItem[] {
     .sort((a, b) => b.localeCompare(a))
     .map((day) => ({
       ref: { type: "day", refId: day, label: day },
-      icon: Calendar,
       title: day,
       subtitle: "Day summary",
     }));
@@ -53,7 +79,6 @@ function symbolItems(trades: Trade[]): PickerItem[] {
   const symbols = new Set(trades.map((t) => t.symbol));
   return [...symbols].sort().map((symbol) => ({
     ref: { type: "symbol", refId: symbol, label: symbol },
-    icon: CandlestickChart,
     title: symbol,
     subtitle: "Recent trades",
   }));
@@ -166,7 +191,7 @@ const ReferencePicker = forwardRef<ReferencePickerHandle, { onAttach: (ref: Atta
                         {g.label}
                       </div>
                       {g.items.slice(0, 8).map((item, i) => {
-                        const Icon = item.icon;
+                        const Icon = REFERENCE_TYPE_STYLE[item.ref.type].icon;
                         return (
                           <button
                             key={`${item.ref.type}-${item.ref.refId}-${i}`}
@@ -174,7 +199,7 @@ const ReferencePicker = forwardRef<ReferencePickerHandle, { onAttach: (ref: Atta
                             onClick={() => select(item)}
                             className="flex w-full items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10"
                           >
-                            <Icon size={12} strokeWidth={2} className="shrink-0 text-muted" />
+                            <Icon size={12} strokeWidth={2} className={`shrink-0 ${REFERENCE_TYPE_STYLE[item.ref.type].textClass}`} />
                             <span className="flex min-w-0 flex-1 flex-col">
                               <span className="truncate text-xs text-fg">{item.title}</span>
                               <span className="truncate text-[10px] text-muted">{item.subtitle}</span>
