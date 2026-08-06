@@ -438,6 +438,12 @@ export interface DebriefMessage {
   created_at: string;
 }
 
+export interface AttachedReference {
+  type: "trade" | "journal_entry" | "day" | "symbol";
+  refId: string;
+  label: string;
+}
+
 export type RuleWatchEvent =
   | { type: "signal"; kind: "entry" | "exit"; description: string; annotation: ChartAnnotation }
   | { type: "error"; detail: string };
@@ -605,8 +611,11 @@ export const api = {
   latestDebriefReport: () => getJSON<DebriefReport | null>("/api/agent/debrief/latest"),
   getDebriefReport: (id: number) => getJSON<DebriefReport>(`/api/agent/debrief/${id}`),
   debriefMessages: (id: number) => getJSON<DebriefMessage[]>(`/api/agent/debrief/${id}/messages`),
-  postDebriefMessage: (id: number, message: string) =>
-    postJSON<DebriefMessage>(`/api/agent/debrief/${id}/messages`, { message }),
+  postDebriefMessage: (id: number, message: string, references: AttachedReference[] = []) =>
+    postJSON<DebriefMessage>(`/api/agent/debrief/${id}/messages`, {
+      message,
+      references: references.map(({ type, refId }) => ({ type, ref_id: refId })),
+    }),
   getArchetypes: () => getJSON<Archetype[]>("/api/strategy/archetypes"),
   listStrategies: () => getJSON<StrategyNoteSummary[]>("/api/strategy"),
   createStrategy: (body: { name: string; archetype: string | null }) =>

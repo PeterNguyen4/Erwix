@@ -23,6 +23,7 @@ from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.services.agent_graph import arun_followup, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
+from app.services.reference_resolver import resolve_references
 from app.services.rule_engine import evaluate_rules, price_level_signal, rules_just_fired
 from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
@@ -443,10 +444,12 @@ async def post_debrief_message(
     db.add(user_message)
     await db.commit()
 
+    attached_context = await resolve_references(db, user_id, body.references)
+
     try:
         reply, _events = await arun_followup(
             db, user_id, report.window_start, report.window_end, narrative, history, body.message,
-            symbol=report.symbol, query=report.query,
+            symbol=report.symbol, query=report.query, attached_context=attached_context,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

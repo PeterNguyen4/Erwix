@@ -306,8 +306,14 @@ class DebriefReportOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AttachedReferenceIn(BaseModel):
+    type: Literal["trade", "journal_entry", "day", "symbol"]
+    ref_id: str
+
+
 class DebriefMessageIn(BaseModel):
     message: str
+    references: list[AttachedReferenceIn] = []
 
 
 class DebriefMessageOut(BaseModel):
