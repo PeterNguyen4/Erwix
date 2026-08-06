@@ -722,17 +722,22 @@ function RiskRow({
 function SizingRow({
   sizing,
   onUpdate,
+  onReset,
 }: {
   sizing: BacktestSizing;
   onUpdate: (sizing: BacktestSizing) => void;
+  onReset: () => void;
 }) {
   const [editingValue, setEditingValue] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const modeRef = useRef<HTMLSpanElement>(null);
   useClickOutside(modeRef, () => setModeOpen(false), modeOpen);
   const mode = SIZING_MODES.find((m) => m.id === sizing.mode) ?? SIZING_MODES[0];
+  const isDefault =
+    sizing.mode === DEFAULT_BACKTEST_CONFIG.position_sizing.mode &&
+    sizing.value === DEFAULT_BACKTEST_CONFIG.position_sizing.value;
   return (
-    <StatRow label="Position sizing" isFirst isLast>
+    <StatRow label="Position sizing" onRemove={isDefault ? undefined : onReset} isFirst isLast>
       {editingValue ? (
         <input
           autoFocus
@@ -882,6 +887,7 @@ function ConfigSummaryCard({
   onUpdateStopLoss,
   onUpdateTakeProfit,
   onUpdateSizing,
+  onResetSizing,
   onUpdateSymbol,
   onUpdateTimeframe,
   onResetPreferences,
@@ -897,6 +903,7 @@ function ConfigSummaryCard({
   onUpdateStopLoss: (risk: BacktestRisk | null) => void;
   onUpdateTakeProfit: (risk: BacktestRisk | null) => void;
   onUpdateSizing: (sizing: BacktestSizing) => void;
+  onResetSizing: () => void;
   onUpdateSymbol: (symbol: string) => void;
   onUpdateTimeframe: (timeframe: string) => void;
   onResetPreferences: () => void;
@@ -1034,7 +1041,7 @@ function ConfigSummaryCard({
         </CategoryCard>
 
         <CategoryCard icon={SizingIcon} label="Scale" accentClass="text-fg" isEmpty={false} emptyHint="">
-          <SizingRow sizing={config.position_sizing} onUpdate={onUpdateSizing} />
+          <SizingRow sizing={config.position_sizing} onUpdate={onUpdateSizing} onReset={onResetSizing} />
         </CategoryCard>
       </div>
     </div>
@@ -1199,6 +1206,12 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
 
   const updateSizing = (sizing: BacktestSizing) => {
     const next = { ...configRef.current, position_sizing: sizing };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  const resetSizing = () => {
+    const next = { ...configRef.current, position_sizing: DEFAULT_BACKTEST_CONFIG.position_sizing };
     onConfigChange(next);
     upsertConfigCard(next);
   };
@@ -1396,6 +1409,7 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
               onUpdateStopLoss={updateStopLoss}
               onUpdateTakeProfit={updateTakeProfit}
               onUpdateSizing={updateSizing}
+              onResetSizing={resetSizing}
               onUpdateSymbol={updateSymbol}
               onUpdateTimeframe={updateTimeframe}
               onResetPreferences={resetPreferences}
