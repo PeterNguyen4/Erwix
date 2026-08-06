@@ -995,7 +995,7 @@ interface BacktestChatProps {
 
 export default function BacktestChat({ config, onConfigChange, onRunBacktest, running, canRun }: BacktestChatProps) {
   const [messages, setMessages] = useState<ChatItem[]>(() => backtestDraft.messages);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => backtestDraft.input);
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sendHover, setSendHover] = useState(false);
@@ -1015,6 +1015,10 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     backtestDraft.messages = messages;
     backtestDraft.nextId = nextId.current;
   }, [messages]);
+
+  useEffect(() => {
+    backtestDraft.input = input;
+  }, [input]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });

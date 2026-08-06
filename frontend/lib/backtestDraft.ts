@@ -19,6 +19,7 @@ interface BacktestDraft {
   result: BacktestResult | null;
   messages: ChatItem[];
   nextId: number;
+  input: string;
 }
 
 export const backtestDraft: BacktestDraft = {
@@ -26,4 +27,5 @@ export const backtestDraft: BacktestDraft = {
   result: null,
   messages: [],
   nextId: 0,
+  input: "",
 };
