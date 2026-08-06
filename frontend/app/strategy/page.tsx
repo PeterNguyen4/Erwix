@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, NotebookPen, Plus, Search } from "lucide-react";
+import { ArrowLeft, ChevronDown, NotebookPen, Plus, Search } from "lucide-react";
 import { api, Archetype, StrategyNote, StrategyNoteSummary } from "@/lib/api";
 import ArchetypeGrid from "@/components/strategy/ArchetypeGrid";
 import StrategyEditor from "@/components/strategy/StrategyEditor";
@@ -251,7 +251,11 @@ export default function StrategyPage() {
                         </p>
                       </div>
                       <button
-                        onClick={() => setView("select")}
+                        onClick={() => {
+                          setDrawerOpen(false);
+                          setNote(null);
+                          setView("select");
+                        }}
                         className="flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent/90"
                       >
                         <Plus size={16} strokeWidth={2.5} />
@@ -270,20 +274,25 @@ export default function StrategyPage() {
                       onActivate={activate}
                       onDelete={remove}
                       onRename={rename}
-                      onAdd={() => setView("select")}
+                      onAdd={() => {
+                        setDrawerOpen(false);
+                        setNote(null);
+                        setView("select");
+                      }}
                     />
                   ))}
 
                 {view === "select" && (
-                  <>
+                  <div className="mx-auto max-w-[67rem]">
                     <button
                       onClick={() => setView("library")}
                       className="mb-4 flex items-center gap-1 text-xs text-muted transition-colors hover:text-fg"
                     >
-                      ← Back to library
+                      <ArrowLeft size={12} strokeWidth={2} />
+                      Back to library
                     </button>
                     <ArchetypeGrid archetypes={archetypes} selected={note?.archetype ?? null} onSelect={startCreate} />
-                  </>
+                  </div>
                 )}
               </>
             )}
