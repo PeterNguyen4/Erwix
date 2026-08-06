@@ -391,6 +391,9 @@ class StrategyNoteOut(BaseModel):
     answers: dict[str, str] | None
     structured_summary: str | None
     summarized_at: datetime | None
+    preferred_symbols: list[str] | None
+    context_timeframe: str | None
+    entry_timeframe: str | None
 
     model_config = {"from_attributes": True}
 

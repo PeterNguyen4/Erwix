@@ -378,6 +378,9 @@ export interface StrategyNote {
   answers: Record<string, string> | null;
   structured_summary: string | null;
   summarized_at: string | null;
+  preferred_symbols: string[] | null;
+  context_timeframe: string | null;
+  entry_timeframe: string | null;
 }
 
 export interface StrategyNoteSummary {

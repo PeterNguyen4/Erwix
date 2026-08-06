@@ -6,6 +6,8 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 (Anthropic/Ollama) here — that branching is meant to stay in one place.
 """
 
+from typing import Literal
+
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
@@ -47,6 +49,40 @@ async def asummarize_strategy(archetype: str | None, body: str) -> dict:
     model = _base_model(num_predict=800).with_structured_output(StrategyPlaybook)
     result = await model.ainvoke([SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)])
     return result.model_dump()
+
+
+_TIMEFRAMES = Literal["1Min", "5Min", "15Min", "1Hour", "1Day", "1Week", "1Month"]
+
+PREFERENCES_SYSTEM_PROMPT = (
+    "You are a trading strategist. A trader has described their strategy in their own "
+    "words. Extract only their trading preferences — do not invent ones they didn't "
+    "state. symbols: tickers they explicitly say they trade (e.g. 'I always trade "
+    "Tesla' -> ['TSLA']); empty list if none mentioned, don't guess a default watchlist. "
+    "entry_timeframe: the candle timeframe they actually place entries/exits on. "
+    "context_timeframe: a separate, usually higher, timeframe they say they check first "
+    "for broader trend/context before entering (e.g. 'I check the 1-hour premarket "
+    "trend, then trade the 5 or 15 minute chart' -> context_timeframe '1Hour', "
+    "entry_timeframe '15Min' — pick the finer of the two if a range is given). Leave a "
+    "field null if the trader didn't state it; only one timeframe stated means "
+    "entry_timeframe is that one and context_timeframe is null."
+)
+
+
+class TradingPreferences(BaseModel):
+    symbols: list[str] = Field(description="Tickers the trader explicitly says they trade, e.g. ['TSLA']")
+    context_timeframe: _TIMEFRAMES | None = Field(
+        description="Higher timeframe checked for context/trend before entering, if the trader mentioned one"
+    )
+    entry_timeframe: _TIMEFRAMES | None = Field(
+        description="The timeframe the trader actually places entries/exits on, if stated"
+    )
+
+
+async def aextract_preferences(archetype: str | None, body: str) -> TradingPreferences:
+    label = archetype_name(archetype) or "no specific archetype"
+    prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
+    model = _base_model(num_predict=200).with_structured_output(TradingPreferences)
+    return await model.ainvoke([SystemMessage(PREFERENCES_SYSTEM_PROMPT), HumanMessage(prompt)])
 
 
 RULES_SYSTEM_PROMPT = (

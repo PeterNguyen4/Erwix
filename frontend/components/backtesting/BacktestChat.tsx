@@ -15,6 +15,7 @@ import {
   CandleStep,
   GatedRule,
   PatternRule,
+  StrategyNote,
   StrategyNoteSummary,
   StrategyRule,
   StrategyRuleSet,
@@ -144,7 +145,7 @@ type SelectState =
   | { status: "loading"; noteId: number }
   | { status: "failed"; noteId: number; error: string };
 
-function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => void }) {
+function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet, note: StrategyNote) => void }) {
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<ListState>({ status: "idle" });
   const [selected, setSelected] = useState<SelectState>({ status: "none" });
@@ -178,7 +179,7 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
   const selectStrategy = async (noteId: number) => {
     setSelected({ status: "loading", noteId });
     try {
-      const rulesOut = await api.getStrategyRules(noteId);
+      const [rulesOut, note] = await Promise.all([api.getStrategyRules(noteId), api.getStrategyById(noteId)]);
       const ruleSet = rulesOut.rules;
       if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
         setSelected({
@@ -188,7 +189,7 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
         });
         return;
       }
-      onLoad(ruleSet);
+      onLoad(ruleSet, note);
       setOpen(false);
       setSelected({ status: "none" });
     } catch {
@@ -1062,17 +1063,20 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     setRulesOpen(false);
   };
 
-  const loadStrategy = (ruleSet: StrategyRuleSet) => {
+  const loadStrategy = (ruleSet: StrategyRuleSet, note: StrategyNote) => {
     const toBacktestRules = (rules: StrategyRuleSet["entry_rules"]): (BacktestRule | PatternRule | GatedRule)[] =>
       rules.map((r) =>
         r.type === "comparison"
           ? { type: "comparison" as const, indicator: r.left, comparator: r.comparator, value: r.right }
           : r
       );
+    const symbol = note.preferred_symbols?.[0];
     applyHint((config) => ({
       ...config,
       entry_rules: toBacktestRules(ruleSet.entry_rules),
       exit_rules: toBacktestRules(ruleSet.exit_rules),
+      symbol: symbol ?? config.symbol,
+      timeframe: note.entry_timeframe ?? config.timeframe,
     }));
   };
 

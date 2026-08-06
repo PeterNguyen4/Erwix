@@ -22,7 +22,7 @@ from app.schemas import (
     StrategyRename,
 )
 from app.schemas_strategy import StrategyRuleSet, StrategyRuleSetOut
-from app.services.strategy_agent import acompile_rules, asummarize_strategy
+from app.services.strategy_agent import acompile_rules, aextract_preferences, asummarize_strategy
 from app.services.strategy import (
     archetypes_with_questions,
     create_strategy,
@@ -98,6 +98,20 @@ async def _regenerate_rules(db: AsyncSession, note: StrategyNote) -> None:
     await db.commit()
 
 
+async def _regenerate_preferences(db: AsyncSession, note: StrategyNote) -> None:
+    if not (note.body or "").strip():
+        return
+
+    try:
+        prefs = await aextract_preferences(note.archetype, note.body)
+        note.preferred_symbols = prefs.symbols
+        note.context_timeframe = prefs.context_timeframe
+        note.entry_timeframe = prefs.entry_timeframe
+        await db.commit()
+    except Exception:
+        logger.exception("strategy preference extraction failed for user %s", note.user_id)
+
+
 async def _owned_note(db: AsyncSession, user_id: int, note_id: int) -> StrategyNote:
     note = await get_strategy_by_id(db, user_id, note_id)
     if note is None:
@@ -155,6 +169,7 @@ async def save_strategy(
     note = await update_strategy(db, note, body.archetype, body.body, body.answers)
     await _regenerate_summary(db, note)
     await _regenerate_rules(db, note)
+    await _regenerate_preferences(db, note)
     return note
 
 
@@ -167,6 +182,7 @@ async def regenerate_strategy(
     note = await _owned_note(db, user_id, note_id)
     await _regenerate_summary(db, note)
     await _regenerate_rules(db, note)
+    await _regenerate_preferences(db, note)
     return note
 
 
