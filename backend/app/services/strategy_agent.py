@@ -6,11 +6,15 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 (Anthropic/Ollama) here — that branching is meant to stay in one place.
 """
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from typing import Literal
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
+from app.schemas import Candle
 from app.schemas_strategy import StrategyRuleSet
 from app.services.agent_graph import _base_model
+from app.services.rule_engine import evaluate_rule
 from app.services.strategy import archetype_name
 
 STRATEGIST_SYSTEM_PROMPT = (
@@ -45,6 +49,40 @@ async def asummarize_strategy(archetype: str | None, body: str) -> dict:
     model = _base_model(num_predict=800).with_structured_output(StrategyPlaybook)
     result = await model.ainvoke([SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)])
     return result.model_dump()
+
+
+_TIMEFRAMES = Literal["1Min", "5Min", "15Min", "1Hour", "1Day", "1Week", "1Month"]
+
+PREFERENCES_SYSTEM_PROMPT = (
+    "You are a trading strategist. A trader has described their strategy in their own "
+    "words. Extract only their trading preferences — do not invent ones they didn't "
+    "state. symbols: tickers they explicitly say they trade (e.g. 'I always trade "
+    "Tesla' -> ['TSLA']); empty list if none mentioned, don't guess a default watchlist. "
+    "entry_timeframe: the candle timeframe they actually place entries/exits on. "
+    "context_timeframe: a separate, usually higher, timeframe they say they check first "
+    "for broader trend/context before entering (e.g. 'I check the 1-hour premarket "
+    "trend, then trade the 5 or 15 minute chart' -> context_timeframe '1Hour', "
+    "entry_timeframe '15Min' — pick the finer of the two if a range is given). Leave a "
+    "field null if the trader didn't state it; only one timeframe stated means "
+    "entry_timeframe is that one and context_timeframe is null."
+)
+
+
+class TradingPreferences(BaseModel):
+    symbols: list[str] = Field(description="Tickers the trader explicitly says they trade, e.g. ['TSLA']")
+    context_timeframe: _TIMEFRAMES | None = Field(
+        description="Higher timeframe checked for context/trend before entering, if the trader mentioned one"
+    )
+    entry_timeframe: _TIMEFRAMES | None = Field(
+        description="The timeframe the trader actually places entries/exits on, if stated"
+    )
+
+
+async def aextract_preferences(archetype: str | None, body: str) -> TradingPreferences:
+    label = archetype_name(archetype) or "no specific archetype"
+    prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
+    model = _base_model(num_predict=200).with_structured_output(TradingPreferences)
+    return await model.ainvoke([SystemMessage(PREFERENCES_SYSTEM_PROMPT), HumanMessage(prompt)])
 
 
 RULES_SYSTEM_PROMPT = (
@@ -96,6 +134,34 @@ RULES_SYSTEM_PROMPT = (
 
 RULE_COMPILE_RETRY_TEMPERATURES = [0.0, 0.3, 0.6]
 
+_SYNTHETIC_CANDLE_COUNT = 250
+
+
+def _synthetic_candles() -> list[Candle]:
+    """Set of previous candles for malformed rules."""
+    candles = []
+    price = 100.0
+    for i in range(_SYNTHETIC_CANDLE_COUNT):
+        price += ((i * 37) % 7 - 3) * 0.4
+        high = price + 1.5
+        low = price - 1.5
+        open_ = price - 0.5 + (i % 3) * 0.3
+        candles.append(Candle(time=i, open=open_, high=high, low=low, close=price, volume=1000.0))
+    return candles
+
+
+def _validate_ruleset(rule_set: StrategyRuleSet) -> str | None:
+    """Runs rules to check proper formatting."""
+    candles = _synthetic_candles()
+    for section, rules in (("entry_rules", rule_set.entry_rules), ("exit_rules", rule_set.exit_rules)):
+        for rule in rules:
+            try:
+                for i in range(len(candles)):
+                    evaluate_rule(rule, candles, i)
+            except Exception as exc:  # noqa: BLE001
+                return f"{section} rule {rule.description!r} failed to evaluate: {exc}"
+    return None
+
 
 async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
     label = archetype_name(archetype) or "no specific archetype"
@@ -103,14 +169,30 @@ async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
     messages = [SystemMessage(RULES_SYSTEM_PROMPT), HumanMessage(prompt)]
 
     last_result: StrategyRuleSet | None = None
-    last_error: Exception | None = None
+    last_error: Exception | str | None = None
     for temperature in RULE_COMPILE_RETRY_TEMPERATURES:
-        model = _base_model(num_predict=1500, temperature=temperature).with_structured_output(StrategyRuleSet)
+        model = _base_model(num_predict=1500, temperature=temperature).with_structured_output(
+            StrategyRuleSet, method="function_calling"
+        )
         try:
             result = await model.ainvoke(messages)
         except Exception as exc:  # noqa: BLE001
             last_error = exc
             continue
+
+        validation_error = _validate_ruleset(result)
+        if validation_error is not None:
+            last_error = validation_error
+            messages = messages + [
+                AIMessage(result.model_dump_json()),
+                HumanMessage(
+                    f"That rule set doesn't load: {validation_error}. Fix only the offending "
+                    "rule(s) — reuse the indicator keys and comparators listed above and keep "
+                    "everything else the same."
+                ),
+            ]
+            continue
+
         last_error = None
         last_result = result
         if result.entry_rules or result.exit_rules:
@@ -118,4 +200,6 @@ async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
 
     if last_result is not None:
         return last_result
+    if isinstance(last_error, str):
+        raise ValueError(last_error)
     raise last_error

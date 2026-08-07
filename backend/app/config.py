@@ -44,10 +44,13 @@ class Settings(BaseSettings):
     voyage_api_key: str = ""
 
     # Analyst Agent
-    llm_provider: str = "ollama"  # "anthropic" | "ollama"
+    llm_provider: str = "ollama"  # "anthropic" | "ollama" | "openrouter"
     anthropic_api_key: str = ""
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "anthropic/claude-sonnet-4.5"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
     # Background weekly debrief job
     debrief_poll_interval_minutes: int = 15
@@ -76,6 +79,10 @@ class Settings(BaseSettings):
     @property
     def has_anthropic_creds(self) -> bool:
         return bool(self.anthropic_api_key)
+
+    @property
+    def has_openrouter_creds(self) -> bool:
+        return bool(self.openrouter_api_key)
 
     @property
     def has_resend_creds(self) -> bool:

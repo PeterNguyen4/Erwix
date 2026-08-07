@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Calendar as CalendarIcon, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, Settings2, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import {
   api,
@@ -15,13 +15,14 @@ import {
   CandleStep,
   GatedRule,
   PatternRule,
+  StrategyNote,
   StrategyNoteSummary,
   StrategyRule,
   StrategyRuleSet,
 } from "@/lib/api";
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 import { presentationFor } from "@/components/strategy/presentation";
-import { backtestDraft } from "@/lib/backtestDraft";
+import { backtestDraft, DEFAULT_BACKTEST_CONFIG } from "@/lib/backtestDraft";
 import { useClickOutside } from "@/lib/useClickOutside";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
@@ -144,7 +145,7 @@ type SelectState =
   | { status: "loading"; noteId: number }
   | { status: "failed"; noteId: number; error: string };
 
-function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => void }) {
+function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet, note: StrategyNote) => void }) {
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<ListState>({ status: "idle" });
   const [selected, setSelected] = useState<SelectState>({ status: "none" });
@@ -178,7 +179,7 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
   const selectStrategy = async (noteId: number) => {
     setSelected({ status: "loading", noteId });
     try {
-      const rulesOut = await api.getStrategyRules(noteId);
+      const [rulesOut, note] = await Promise.all([api.getStrategyRules(noteId), api.getStrategyById(noteId)]);
       const ruleSet = rulesOut.rules;
       if (!ruleSet || (ruleSet.entry_rules.length === 0 && ruleSet.exit_rules.length === 0)) {
         setSelected({
@@ -188,7 +189,7 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet) => vo
         });
         return;
       }
-      onLoad(ruleSet);
+      onLoad(ruleSet, note);
       setOpen(false);
       setSelected({ status: "none" });
     } catch {
@@ -415,9 +416,9 @@ function RuleRowShell({
 }) {
   return (
     <div className="relative pl-4 text-sm text-fg">
-      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <span className="absolute left-[6px] top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-1/2 w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-1/2 bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-start justify-between gap-2 rounded-md px-1 py-1 transition-colors hover:bg-panel/60">
         <div className="min-w-0 flex-1">{children}</div>
         <button
@@ -426,7 +427,7 @@ function RuleRowShell({
           aria-label="Remove rule"
           className="mt-0.5 shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
         >
-          <X size={14} strokeWidth={2.2} />
+          <X size={16} strokeWidth={2.2} />
         </button>
       </div>
     </div>
@@ -450,7 +451,7 @@ function PatternRuleRow({
       <div className="flex flex-wrap items-center gap-1">
         {rule.steps.map((step, i) => (
           <span key={i} className="flex items-center gap-1">
-            {i > 0 && <ArrowRight size={9} strokeWidth={2.2} className="text-muted" />}
+            {i > 0 && <ArrowRight size={12} strokeWidth={2.2} className="text-muted" />}
             <CandleStepChip step={step} />
           </span>
         ))}
@@ -476,7 +477,7 @@ function GatedRuleRow({
       <div className="flex flex-wrap items-center gap-1 font-mono text-xs">
         <span className="text-muted">if</span>
         <ConditionInline condition={rule.gate} />
-        <ArrowRight size={10} strokeWidth={2.2} className="text-muted" />
+        <ArrowRight size={13} strokeWidth={2.2} className="text-muted" />
         <ConditionInline condition={rule.condition} />
       </div>
     </RuleRowShell>
@@ -489,7 +490,7 @@ function ConditionInline({ condition }: { condition: StrategyRule | PatternRule 
       <span className="inline-flex flex-wrap items-center gap-1">
         {condition.steps.map((step, i) => (
           <span key={i} className="flex items-center gap-1">
-            {i > 0 && <ArrowRight size={8} strokeWidth={2.2} className="text-muted" />}
+            {i > 0 && <ArrowRight size={11} strokeWidth={2.2} className="text-muted" />}
             <CandleStepChip step={step} />
           </span>
         ))}
@@ -526,9 +527,9 @@ function RuleRow({
 
   return (
     <div className="relative pl-4 text-sm text-fg">
-      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <span className="absolute left-[6px] top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-1/2 w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-1/2 bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 font-mono transition-colors hover:bg-panel/60">
         <span className="flex flex-wrap items-center gap-0.5">
           <IndicatorFamilyPeriod indicator={rule.indicator} onChange={(indicator) => onUpdate({ ...rule, indicator })} />
@@ -576,7 +577,7 @@ function RuleRow({
               aria-label="Change value type"
               className="rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-accent group-hover:opacity-100"
             >
-              <ChevronDown size={10} strokeWidth={2.5} />
+              <ChevronDown size={13} strokeWidth={2.5} />
             </button>
             {valueTypeOpen && (
               <DropdownPanel
@@ -602,7 +603,7 @@ function RuleRow({
           aria-label="Remove rule"
           className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
         >
-          <X size={14} strokeWidth={2.2} />
+          <X size={16} strokeWidth={2.2} />
         </button>
       </div>
     </div>
@@ -630,9 +631,9 @@ function StatRow({
 }) {
   return (
     <div className="relative pl-4">
-      <span className="absolute left-[6px] top-[13px] h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
-      {!isFirst && <span className="absolute left-[6px] top-0 h-[13px] w-px -translate-x-1/2 bg-muted/60" />}
-      {!isLast && <span className="absolute left-[6px] top-[13px] bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
+      <span className="absolute left-[6px] top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-muted" />
+      {!isFirst && <span className="absolute left-[6px] top-0 h-1/2 w-px -translate-x-1/2 bg-muted/60" />}
+      {!isLast && <span className="absolute left-[6px] top-1/2 bottom-[-6px] w-px -translate-x-1/2 bg-muted/60" />}
       <div className="group flex items-center justify-between gap-2 rounded-md px-1 py-1 text-sm text-fg transition-colors hover:bg-panel/60">
         <span className="text-muted">{label}</span>
         <span className="flex items-center gap-1 font-mono">
@@ -644,7 +645,7 @@ function StatRow({
               aria-label={`Remove ${label}`}
               className="shrink-0 rounded p-0.5 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
             >
-              <X size={11} strokeWidth={2.2} />
+              <X size={14} strokeWidth={2.2} />
             </button>
           )}
         </span>
@@ -663,9 +664,9 @@ function AddStatRow({
   return (
     <div className="relative pl-4">
       <Plus
-        size={10}
+        size={13}
         strokeWidth={2.5}
-        className="absolute left-[6px] top-[13px] -translate-x-1/2 -translate-y-1/2 text-muted"
+        className="absolute left-[6px] top-1/2 -translate-x-1/2 -translate-y-1/2 text-muted"
       />
       <button
         type="button"
@@ -718,20 +719,69 @@ function RiskRow({
   );
 }
 
+function formatMMDDYYYY(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-");
+  return y && m && d ? `${m}/${d}/${y}` : isoDate;
+}
+
+function WindowRow({
+  label,
+  value,
+  onUpdate,
+  onRemove,
+  isFirst,
+  isLast,
+}: {
+  label: string;
+  value: string;
+  onUpdate: (v: string) => void;
+  onRemove: () => void;
+  isFirst?: boolean;
+  isLast?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <StatRow label={label} onRemove={onRemove} isFirst={isFirst} isLast={isLast}>
+      {editing ? (
+        <input
+          autoFocus
+          type="date"
+          defaultValue={value}
+          onBlur={(e) => {
+            if (e.target.value) onUpdate(e.target.value);
+            setEditing(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className={`${selectClass} w-32`}
+        />
+      ) : (
+        <span onClick={() => setEditing(true)} className={segmentClass}>
+          {formatMMDDYYYY(value)}
+        </span>
+      )}
+    </StatRow>
+  );
+}
+
 function SizingRow({
   sizing,
   onUpdate,
+  onReset,
 }: {
   sizing: BacktestSizing;
   onUpdate: (sizing: BacktestSizing) => void;
+  onReset: () => void;
 }) {
   const [editingValue, setEditingValue] = useState(false);
   const [modeOpen, setModeOpen] = useState(false);
   const modeRef = useRef<HTMLSpanElement>(null);
   useClickOutside(modeRef, () => setModeOpen(false), modeOpen);
   const mode = SIZING_MODES.find((m) => m.id === sizing.mode) ?? SIZING_MODES[0];
+  const isDefault =
+    sizing.mode === DEFAULT_BACKTEST_CONFIG.position_sizing.mode &&
+    sizing.value === DEFAULT_BACKTEST_CONFIG.position_sizing.value;
   return (
-    <StatRow label="Position sizing" isFirst isLast>
+    <StatRow label="Position sizing" onRemove={isDefault ? undefined : onReset} isFirst isLast>
       {editingValue ? (
         <input
           autoFocus
@@ -777,6 +827,7 @@ function CategoryCard({
   isEmpty,
   emptyHint,
   onClickEmpty,
+  className,
   children,
 }: {
   icon: typeof CATEGORY_ICONS.risk;
@@ -785,6 +836,7 @@ function CategoryCard({
   isEmpty: boolean;
   emptyHint: string;
   onClickEmpty?: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -794,14 +846,77 @@ function CategoryCard({
         isEmpty
           ? `border-dashed border-border/50 bg-panel/20 text-muted ${onClickEmpty ? "cursor-pointer hover:border-border hover:bg-panel/40" : ""}`
           : "border-border/60 bg-panel/50"
-      }`}
+      } ${className ?? ""}`}
     >
-      <div className={`mb-2 flex items-center gap-1 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
-        <Icon size={12} strokeWidth={2.2} />
+      <div className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
+        <Icon size={16} strokeWidth={2.2} />
         {label}
       </div>
       {isEmpty ? <div className="text-xs leading-snug text-muted">{emptyHint}</div> : <div className="space-y-1.5">{children}</div>}
     </div>
+  );
+}
+
+const CHAT_TIMEFRAMES: { id: string; label: string }[] = [
+  { id: "1Min", label: "1m" },
+  { id: "5Min", label: "5m" },
+  { id: "15Min", label: "15m" },
+  { id: "1Hour", label: "1H" },
+  { id: "1Day", label: "1D" },
+  { id: "1Week", label: "1W" },
+  { id: "1Month", label: "1M" },
+];
+
+function PreferencesRow({ config, onUpdateSymbol, onUpdateTimeframe, onReset }: {
+  config: BacktestConfig;
+  onUpdateSymbol: (symbol: string) => void;
+  onUpdateTimeframe: (timeframe: string) => void;
+  onReset: () => void;
+}) {
+  const [editingSymbol, setEditingSymbol] = useState(false);
+  const [tfOpen, setTfOpen] = useState(false);
+  const tfRef = useRef<HTMLSpanElement>(null);
+  useClickOutside(tfRef, () => setTfOpen(false), tfOpen);
+  const isDefault =
+    config.symbol === DEFAULT_BACKTEST_CONFIG.symbol && config.timeframe === DEFAULT_BACKTEST_CONFIG.timeframe;
+
+  return (
+    <StatRow label="Symbol / Timeframe" onRemove={isDefault ? undefined : onReset} isFirst isLast>
+      {editingSymbol ? (
+        <input
+          autoFocus
+          type="text"
+          defaultValue={config.symbol}
+          onBlur={(e) => {
+            const v = e.target.value.trim().toUpperCase();
+            if (v) onUpdateSymbol(v);
+            setEditingSymbol(false);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          className={numberInputClass}
+        />
+      ) : (
+        <span onClick={() => setEditingSymbol(true)} className={segmentClass}>
+          {config.symbol}
+        </span>
+      )}
+      <span ref={tfRef} className="relative">
+        <span onClick={() => setTfOpen((o) => !o)} className={segmentClass}>
+          {CHAT_TIMEFRAMES.find((t) => t.id === config.timeframe)?.label ?? config.timeframe}
+        </span>
+        {tfOpen && (
+          <DropdownPanel
+            align="right"
+            value={config.timeframe}
+            options={CHAT_TIMEFRAMES}
+            onSelect={(id) => {
+              onUpdateTimeframe(id);
+              setTfOpen(false);
+            }}
+          />
+        )}
+      </span>
+    </StatRow>
   );
 }
 
@@ -816,6 +931,14 @@ function ConfigSummaryCard({
   onUpdateStopLoss,
   onUpdateTakeProfit,
   onUpdateSizing,
+  onResetSizing,
+  onUpdateSymbol,
+  onUpdateTimeframe,
+  onResetPreferences,
+  windowStart,
+  windowEnd,
+  onUpdateWindowStart,
+  onUpdateWindowEnd,
   onAddRule,
 }: {
   config: BacktestConfig;
@@ -828,6 +951,14 @@ function ConfigSummaryCard({
   onUpdateStopLoss: (risk: BacktestRisk | null) => void;
   onUpdateTakeProfit: (risk: BacktestRisk | null) => void;
   onUpdateSizing: (sizing: BacktestSizing) => void;
+  onResetSizing: () => void;
+  onUpdateSymbol: (symbol: string) => void;
+  onUpdateTimeframe: (timeframe: string) => void;
+  onResetPreferences: () => void;
+  windowStart: string | null;
+  windowEnd: string | null;
+  onUpdateWindowStart: (v: string | null) => void;
+  onUpdateWindowEnd: (v: string | null) => void;
   onAddRule: (kind: "entry_rules" | "exit_rules") => void;
 }) {
   const EntryIcon = CATEGORY_ICONS.entry;
@@ -857,7 +988,7 @@ function ConfigSummaryCard({
             aria-label="Run backtest"
             className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
           >
-            {running ? <Loader2 size={11} strokeWidth={2.5} className="animate-spin" /> : <Play size={11} strokeWidth={2.5} />}
+            {running ? <Loader2 size={14} strokeWidth={2.5} className="animate-spin" /> : <Play size={14} strokeWidth={2.5} />}
             {running ? "Running…" : "Run"}
           </button>
         </div>
@@ -869,7 +1000,7 @@ function ConfigSummaryCard({
           label="Entry"
           accentClass="text-up"
           isEmpty={config.entry_rules.length === 0}
-          emptyHint="Click to add a rule"
+          emptyHint="Add an entry condition"
           onClickEmpty={() => onAddRule("entry_rules")}
         >
           {config.entry_rules.map((r, i) => {
@@ -896,7 +1027,7 @@ function ConfigSummaryCard({
           label="Exit"
           accentClass="text-down"
           isEmpty={config.exit_rules.length === 0}
-          emptyHint="Click to add a rule"
+          emptyHint="Add an exit condition"
           onClickEmpty={() => onAddRule("exit_rules")}
         >
           {config.exit_rules.map((r, i) => {
@@ -923,7 +1054,7 @@ function ConfigSummaryCard({
           label="Risk"
           accentClass="text-fg"
           isEmpty={!hasRisk}
-          emptyHint="No stop loss or take profit set"
+          emptyHint="Set a stop loss and take profit"
           onClickEmpty={() => onUpdateStopLoss({ value: 2 })}
         >
           {config.stop_loss ? (
@@ -953,7 +1084,36 @@ function ConfigSummaryCard({
         </CategoryCard>
 
         <CategoryCard icon={SizingIcon} label="Scale" accentClass="text-fg" isEmpty={false} emptyHint="">
-          <SizingRow sizing={config.position_sizing} onUpdate={onUpdateSizing} />
+          <SizingRow sizing={config.position_sizing} onUpdate={onUpdateSizing} onReset={onResetSizing} />
+        </CategoryCard>
+
+        <CategoryCard icon={Settings2} label="Preferences" accentClass="text-fg" isEmpty={false} emptyHint="">
+          <PreferencesRow
+            config={config}
+            onUpdateSymbol={onUpdateSymbol}
+            onUpdateTimeframe={onUpdateTimeframe}
+            onReset={onResetPreferences}
+          />
+        </CategoryCard>
+
+        <CategoryCard
+          icon={CalendarIcon}
+          label="Window"
+          accentClass="text-fg"
+          isEmpty={!windowStart && !windowEnd}
+          emptyHint="Set a start and end date for the backtest"
+          onClickEmpty={() => onUpdateWindowStart(new Date().toISOString().slice(0, 10))}
+        >
+          {windowStart ? (
+            <WindowRow label="From" value={windowStart} onUpdate={onUpdateWindowStart} onRemove={() => onUpdateWindowStart(null)} isFirst isLast={false} />
+          ) : (
+            <AddStatRow label="Add start date" onAdd={() => onUpdateWindowStart(new Date().toISOString().slice(0, 10))} />
+          )}
+          {windowEnd ? (
+            <WindowRow label="To" value={windowEnd} onUpdate={onUpdateWindowEnd} onRemove={() => onUpdateWindowEnd(null)} isFirst={false} isLast />
+          ) : (
+            <AddStatRow label="Add end date" onAdd={() => onUpdateWindowEnd(new Date().toISOString().slice(0, 10))} />
+          )}
         </CategoryCard>
       </div>
     </div>
@@ -963,14 +1123,60 @@ function ConfigSummaryCard({
 export type ChatItem =
   | { id: number; kind: "text"; role: "user" | "assistant"; text: string; done: boolean }
   | { id: number; kind: "config"; role: "assistant"; config: BacktestConfig }
-  | { id: number; kind: "action"; role: "assistant"; label: "Build" | "Edit" };
+  | { id: number; kind: "action"; role: "assistant"; label: string }
+  | { id: number; kind: "confirm"; role: "assistant"; message: string; resolved?: "confirmed" | "cancelled" };
 
-function ActionBadge({ label }: { label: "Build" | "Edit" }) {
-  const Icon = label === "Build" ? Hammer : Pencil;
+function RunConfirm({
+  message,
+  resolved,
+  onConfirm,
+  onCancel,
+}: {
+  message: string;
+  resolved?: "confirmed" | "cancelled";
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (resolved) {
+    return (
+      <div className="px-1 py-1 text-sm text-muted">
+        {message} {resolved === "confirmed" ? "Running…" : "Cancelled."}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg border border-border/60 bg-panel/50 px-3 py-2.5 text-sm text-fg">
+      <div className="mb-2">{message}</div>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onConfirm}
+          className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
+        >
+          Run anyway
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-md border border-border px-2.5 py-1 text-xs text-muted transition-colors hover:text-fg"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ActionBadge({ label }: { label: string }) {
+  const isBuild = label.startsWith("Build");
+  const Icon = isBuild ? Hammer : Pencil;
+  const verb = isBuild ? "Build" : "Edit";
+  const rest = label.slice(verb.length);
   return (
     <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
       <Icon size={12} strokeWidth={2.2} />
-      {label}
+      <span className="font-extrabold">{verb}</span>
+      {rest}
     </div>
   );
 }
@@ -981,12 +1187,33 @@ interface BacktestChatProps {
   onRunBacktest: () => void;
   running: boolean;
   canRun: boolean;
+  windowStart: string | null;
+  windowEnd: string | null;
+  onUpdateWindowStart: (v: string | null) => void;
+  onUpdateWindowEnd: (v: string | null) => void;
+  hasResult: boolean;
+  chartSymbol: string;
+  chartTimeframe: string;
 }
 
-export default function BacktestChat({ config, onConfigChange, onRunBacktest, running, canRun }: BacktestChatProps) {
+export default function BacktestChat({
+  config,
+  onConfigChange,
+  onRunBacktest,
+  running,
+  canRun,
+  windowStart,
+  windowEnd,
+  onUpdateWindowStart,
+  onUpdateWindowEnd,
+  hasResult,
+  chartSymbol,
+  chartTimeframe,
+}: BacktestChatProps) {
   const [messages, setMessages] = useState<ChatItem[]>(() => backtestDraft.messages);
   const [input, setInput] = useState(() => backtestDraft.input);
   const [streaming, setStreaming] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sendHover, setSendHover] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -1062,17 +1289,20 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     setRulesOpen(false);
   };
 
-  const loadStrategy = (ruleSet: StrategyRuleSet) => {
+  const loadStrategy = (ruleSet: StrategyRuleSet, note: StrategyNote) => {
     const toBacktestRules = (rules: StrategyRuleSet["entry_rules"]): (BacktestRule | PatternRule | GatedRule)[] =>
       rules.map((r) =>
         r.type === "comparison"
           ? { type: "comparison" as const, indicator: r.left, comparator: r.comparator, value: r.right }
           : r
       );
+    const symbol = note.preferred_symbols?.[0];
     applyHint((config) => ({
       ...config,
       entry_rules: toBacktestRules(ruleSet.entry_rules),
       exit_rules: toBacktestRules(ruleSet.exit_rules),
+      symbol: symbol ?? config.symbol,
+      timeframe: note.entry_timeframe ?? config.timeframe,
     }));
   };
 
@@ -1119,6 +1349,78 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
     upsertConfigCard(next);
   };
 
+  const resetSizing = () => {
+    const next = { ...configRef.current, position_sizing: DEFAULT_BACKTEST_CONFIG.position_sizing };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  // Stages into the plan only — the chart/backtest data doesn't switch symbol or
+  // timeframe until Run is clicked (backtesting/page.tsx's runBacktest fetches fresh
+  // candles for whatever's staged here).
+  const updateSymbol = (symbol: string) => {
+    const next = { ...configRef.current, symbol };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  const updateTimeframe = (timeframe: string) => {
+    const next = { ...configRef.current, timeframe };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
+  const runNow = () => {
+    const symbol = configRef.current.symbol;
+    const timeframe = configRef.current.timeframe;
+    const tfLabel = CHAT_TIMEFRAMES.find((t) => t.id === timeframe)?.label ?? timeframe;
+    const alreadySet = symbol === chartSymbol && timeframe === chartTimeframe;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId.current++,
+        kind: "text",
+        role: "assistant",
+        text: alreadySet
+          ? "Symbol and timeframe already set correctly — running."
+          : `Setting the timeframe to ${tfLabel} and running on ${symbol}.`,
+        done: true,
+      },
+    ]);
+    onRunBacktest();
+  };
+
+  const handleRun = () => {
+    if (!hasResult) {
+      runNow();
+      return;
+    }
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId.current++,
+        kind: "confirm",
+        role: "assistant",
+        message: "This will clear your current backtest result. Run anyway?",
+      },
+    ]);
+  };
+
+  const resolveRunConfirm = (id: number, confirmed: boolean) => {
+    setMessages((prev) => prev.map((m) => (m.id === id && m.kind === "confirm" ? { ...m, resolved: confirmed ? "confirmed" : "cancelled" } : m)));
+    if (confirmed) runNow();
+  };
+
+  const resetPreferences = () => {
+    const next = {
+      ...configRef.current,
+      symbol: DEFAULT_BACKTEST_CONFIG.symbol,
+      timeframe: DEFAULT_BACKTEST_CONFIG.timeframe,
+    };
+    onConfigChange(next);
+    upsertConfigCard(next);
+  };
+
   const send = async () => {
     const message = input.trim();
     if (!message || streaming) return;
@@ -1129,41 +1431,52 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
       { id: nextId.current++, kind: "text", role: "user", text: message, done: true },
     ]);
     setStreaming(true);
-    let textStarted = false;
+    setWaiting(true);
+    let assistantId: number | null = null;
 
-    const url = await api.backtestChatStreamUrl(configRef.current, message);
+    const url = await api.backtestChatStreamUrl(configRef.current, message, windowStart, windowEnd);
     const ws = new WebSocket(url);
     ws.onmessage = (ev) => {
       const msg: BacktestChatEvent = JSON.parse(ev.data);
+      setWaiting(false);
       if (msg.type === "action") {
         setMessages((prev) => [...prev, { id: nextId.current++, kind: "action", role: "assistant", label: msg.label }]);
       } else if (msg.type === "token") {
-        setMessages((prev) => {
-          if (!textStarted) {
-            textStarted = true;
-            return [...prev, { id: nextId.current++, kind: "text", role: "assistant", text: msg.text, done: false }];
-          }
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last.kind !== "text") return prev;
-          next[next.length - 1] = { ...last, text: last.text + msg.text };
-          return next;
-        });
+        if (assistantId == null) {
+          const id = nextId.current++;
+          assistantId = id;
+          setMessages((prev) => [...prev, { id, kind: "text", role: "assistant", text: msg.text, done: false }]);
+        } else {
+          const id = assistantId;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === id && m.kind === "text" ? { ...m, text: m.text + msg.text } : m)),
+          );
+        }
+      } else if (msg.type === "window") {
+        if (msg.start) onUpdateWindowStart(msg.start);
+        if (msg.end) onUpdateWindowEnd(msg.end);
       } else if (msg.type === "config") {
         onConfigChange(msg.config);
         upsertConfigCard(msg.config);
       } else if (msg.type === "done") {
         setStreaming(false);
-        setMessages((prev) =>
-          prev.map((m, i) => (i === prev.length - 1 && m.kind === "text" ? { ...m, done: true } : m)),
-        );
+        const id = assistantId;
+        if (id != null) {
+          setMessages((prev) => prev.map((m) => (m.id === id && m.kind === "text" ? { ...m, done: true } : m)));
+        }
       } else if (msg.type === "error") {
         setError(msg.detail);
         setStreaming(false);
       }
     };
-    ws.onerror = () => setError("Connection lost.");
-    ws.onclose = () => setStreaming(false);
+    ws.onerror = () => {
+      setError("Connection lost.");
+      setWaiting(false);
+    };
+    ws.onclose = () => {
+      setStreaming(false);
+      setWaiting(false);
+    };
   };
 
   const inputRow = (
@@ -1254,11 +1567,11 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
   return (
     <div className="relative flex h-full flex-col">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-panel to-transparent" />
-      <div ref={scrollRef} className="chat-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-6">
+      <div ref={scrollRef} className="chat-scroll flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 pb-32 pt-6">
         {error && (
           <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
         )}
-        {messages.map((m, i) =>
+        {messages.map((m) =>
           m.kind === "config" ? (
             <ConfigSummaryCard
               key={m.id}
@@ -1266,29 +1579,40 @@ export default function BacktestChat({ config, onConfigChange, onRunBacktest, ru
               onRemoveRule={removeRule}
               onUpdateRule={updateRule}
               onRename={renameStrategy}
-              onRun={onRunBacktest}
+              onRun={handleRun}
               running={running}
               canRun={canRun}
               onUpdateStopLoss={updateStopLoss}
               onUpdateTakeProfit={updateTakeProfit}
               onUpdateSizing={updateSizing}
+              onResetSizing={resetSizing}
+              onUpdateSymbol={updateSymbol}
+              onUpdateTimeframe={updateTimeframe}
+              onResetPreferences={resetPreferences}
+              windowStart={windowStart}
+              windowEnd={windowEnd}
+              onUpdateWindowStart={onUpdateWindowStart}
+              onUpdateWindowEnd={onUpdateWindowEnd}
               onAddRule={addRuleTemplate}
             />
           ) : m.kind === "action" ? (
             <ActionBadge key={m.id} label={m.label} />
+          ) : m.kind === "confirm" ? (
+            <RunConfirm key={m.id} message={m.message} resolved={m.resolved} onConfirm={() => resolveRunConfirm(m.id, true)} onCancel={() => resolveRunConfirm(m.id, false)} />
           ) : (
             <div
               key={m.id}
               className={
                 m.role === "user"
                   ? "ml-auto max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-accent/20 px-3 py-2 text-sm text-fg"
-                  : "whitespace-pre-wrap px-1 py-1 text-sm text-fg"
+                  : "whitespace-pre-wrap py-0.5 pl-[18px] text-sm text-fg"
               }
             >
-              {m.text || (i === messages.length - 1 && streaming ? <TypingIndicator /> : null)}
+              {m.text ? m.text : !m.done ? <TypingIndicator /> : null}
             </div>
           ),
         )}
+        {waiting && <TypingIndicator />}
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-panel to-transparent" />
       <div className="absolute inset-x-0 bottom-0 z-20">{inputRow}</div>

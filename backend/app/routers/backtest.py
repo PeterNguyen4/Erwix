@@ -141,6 +141,8 @@ async def backtest_chat(
     websocket: WebSocket,
     message: str = Query(...),
     config: str = Query(...),
+    window_start: str | None = Query(None),
+    window_end: str | None = Query(None),
     user_id: int = Depends(get_current_user_id),
 ) -> None:
     """Stream the config-chat agent's reply: token deltas, then a final config/done event."""
@@ -154,7 +156,7 @@ async def backtest_chat(
 
     try:
         current_config = BacktestConfig.model_validate_json(config)
-        async for event in astream_config_chat(current_config, message):
+        async for event in astream_config_chat(current_config, message, window_start, window_end):
             await websocket.send_json(event)
     except RuntimeError as exc:
         await websocket.send_json({"type": "error", "detail": str(exc)})

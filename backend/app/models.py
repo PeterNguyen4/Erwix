@@ -234,6 +234,10 @@ class StrategyNote(Base):
     summary_model: Mapped[str | None] = mapped_column(String(64))
     summarized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    preferred_symbols: Mapped[list | None] = mapped_column(JSON)
+    context_timeframe: Mapped[str | None] = mapped_column(String(16))
+    entry_timeframe: Mapped[str | None] = mapped_column(String(16))
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

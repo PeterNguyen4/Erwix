@@ -1,8 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Shield, TriangleAlert, Timer, Crosshair, LogIn } from "lucide-react";
+import { Pencil, Shield, TriangleAlert, Timer, Crosshair, LogIn, Tag, Clock } from "lucide-react";
 import { api, StrategyNote } from "@/lib/api";
+
+const TIMEFRAME_LABELS: Record<string, string> = {
+  "1Min": "1m", "5Min": "5m", "15Min": "15m", "1Hour": "1H", "1Day": "1D", "1Week": "1W", "1Month": "1M",
+};
 
 // Mirrors backend/app/services/strategy.py's SECTION_LABELS + StrategyPlaybook fields.
 const SECTIONS = [
@@ -57,12 +61,24 @@ function parseSummary(summary: string): Record<string, string[]> {
 interface Props {
   noteId: number;
   summary: string;
+  preferredSymbols?: string[] | null;
+  contextTimeframe?: string | null;
+  entryTimeframe?: string | null;
   onRegenerate?: () => void;
   regenerating?: boolean;
   onEdited?: (note: StrategyNote) => void;
 }
 
-export default function StrategyCard({ noteId, summary, onRegenerate, regenerating, onEdited }: Props) {
+export default function StrategyCard({
+  noteId,
+  summary,
+  preferredSymbols,
+  contextTimeframe,
+  entryTimeframe,
+  onRegenerate,
+  regenerating,
+  onEdited,
+}: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -93,8 +109,32 @@ export default function StrategyCard({ noteId, summary, onRegenerate, regenerati
     }
   }
 
+  const hasSymbols = (preferredSymbols?.length ?? 0) > 0;
+  const hasTimeframes = Boolean(contextTimeframe || entryTimeframe);
+
   return (
     <div className="animate-fade-in-up">
+      {!editing && (hasSymbols || hasTimeframes) && (
+        <div className="mx-2 mb-3 flex flex-wrap items-center gap-1.5">
+          {preferredSymbols?.map((sym) => (
+            <span
+              key={sym}
+              className="flex items-center gap-1 rounded-full border border-border/60 bg-field px-2 py-0.5 text-[11px] font-medium text-fg"
+            >
+              <Tag size={10} strokeWidth={2.2} />
+              {sym}
+            </span>
+          ))}
+          {hasTimeframes && (
+            <span className="flex items-center gap-1 rounded-full border border-border/60 bg-field px-2 py-0.5 text-[11px] font-medium text-fg">
+              <Clock size={10} strokeWidth={2.2} />
+              {contextTimeframe && entryTimeframe
+                ? `${TIMEFRAME_LABELS[contextTimeframe] ?? contextTimeframe} → ${TIMEFRAME_LABELS[entryTimeframe] ?? entryTimeframe}`
+                : TIMEFRAME_LABELS[(contextTimeframe ?? entryTimeframe)!] ?? (contextTimeframe ?? entryTimeframe)}
+            </span>
+          )}
+        </div>
+      )}
       <div className="mb-2 flex items-center justify-between">
         <h3 className="mx-2 text-sm font-semibold tracking-wide text-fg">Your Playbook</h3>
         <div className="flex items-center gap-2">

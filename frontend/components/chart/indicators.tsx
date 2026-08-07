@@ -207,28 +207,46 @@ function IconFVG() {
   );
 }
 
-export const INDICATORS: IndicatorDef[] = [
-  {
-    id: "sma20",
-    label: "SMA 20",
+function makeSMA(period: number): IndicatorDef {
+  const id = `sma_${period}`;
+  return {
+    id,
+    label: `SMA ${period}`,
     kind: "overlay",
     icon: IconSMA,
-    lines: [{ key: "sma20", color: "#f0ad4e", compute: (c) => sma(c, 20) }],
-  },
-  {
-    id: "ema20",
-    label: "EMA 20",
+    lines: [{ key: id, color: "#f0ad4e", compute: (c) => sma(c, period) }],
+  };
+}
+
+function makeEMA(period: number): IndicatorDef {
+  const id = `ema_${period}`;
+  return {
+    id,
+    label: `EMA ${period}`,
     kind: "overlay",
     icon: IconEMA,
-    lines: [{ key: "ema20", color: "#38bdf8", compute: (c) => ema(c, 20) }],
-  },
-  {
-    id: "rsi14",
-    label: "RSI 14",
+    lines: [{ key: id, color: "#38bdf8", compute: (c) => ema(c, period) }],
+  };
+}
+
+function makeRSI(period: number): IndicatorDef {
+  const id = `rsi_${period}`;
+  return {
+    id,
+    label: `RSI ${period}`,
     kind: "oscillator",
     icon: IconRSI,
-    lines: [{ key: "rsi14", color: "#a78bfa", compute: (c) => rsi(c, 14) }],
-  },
+    lines: [{ key: id, color: "#a78bfa", compute: (c) => rsi(c, period) }],
+  };
+}
+
+// Curated defaults shown in the toolbar dropdown (IndicatorsMenu). Ids follow the same
+// `family_period` scheme as strategy rule indicators (rule_engine.py's indicator_series)
+// so a plan referencing e.g. "sma_20" resolves straight to this entry.
+export const INDICATORS: IndicatorDef[] = [
+  makeSMA(20),
+  makeEMA(20),
+  makeRSI(14),
   {
     id: "macd",
     label: "MACD",
@@ -247,3 +265,21 @@ export const INDICATORS: IndicatorDef[] = [
     computeZones: (c) => fvgZones(c),
   },
 ];
+
+const PARAMETRIZED_ID = /^(sma|ema|rsi)_(\d+)$/;
+
+// Resolves any indicator id — including periods outside the curated toolbar list
+// (e.g. "sma_50", "ema_9") — so a strategy's rules can drive the chart even when
+// their exact period was never toggled on manually. Only SMA/EMA/RSI are
+// parametrized this way; other rule indicators (stochastics, trend strength,
+// Heikin Ashi variants, ...) have no chart-line implementation yet.
+export function resolveIndicator(id: string): IndicatorDef | null {
+  const known = INDICATORS.find((i) => i.id === id);
+  if (known) return known;
+  const match = PARAMETRIZED_ID.exec(id);
+  if (!match) return null;
+  const period = Number(match[2]);
+  if (match[1] === "sma") return makeSMA(period);
+  if (match[1] === "ema") return makeEMA(period);
+  return makeRSI(period);
+}

@@ -109,8 +109,9 @@ export interface BacktestRun {
 }
 
 export type BacktestChatEvent =
-  | { type: "action"; label: "Build" | "Edit" }
+  | { type: "action"; label: string }
   | { type: "token"; text: string }
+  | { type: "window"; start: string | null; end: string | null }
   | { type: "config"; config: BacktestConfig }
   | { type: "done" }
   | { type: "error"; detail: string };
@@ -378,6 +379,9 @@ export interface StrategyNote {
   answers: Record<string, string> | null;
   structured_summary: string | null;
   summarized_at: string | null;
+  preferred_symbols: string[] | null;
+  context_timeframe: string | null;
+  entry_timeframe: string | null;
 }
 
 export interface StrategyNoteSummary {
@@ -542,10 +546,12 @@ export const api = {
   resetPassword: (token: string, new_password: string) =>
     postJSON<{ success: boolean }>("/api/users/reset-password", { token, new_password }),
   me: () => getJSON<UserPrivate>("/api/users/me"),
-  candles: (symbol: string, timeframe = "1Day") =>
-    getJSON<Candle[]>(
-      `/api/market/candles?symbol=${encodeURIComponent(symbol)}&timeframe=${timeframe}`,
-    ),
+  candles: (symbol: string, timeframe = "1Day", start?: string | null, end?: string | null) => {
+    const q = new URLSearchParams({ symbol, timeframe });
+    if (start) q.set("start", start);
+    if (end) q.set("end", end);
+    return getJSON<Candle[]>(`/api/market/candles?${q.toString()}`);
+  },
   quote: (symbol: string) =>
     getJSON<Quote>(`/api/market/quote?symbol=${encodeURIComponent(symbol)}`),
   positions: () => getJSON<Position[]>("/api/trading/positions"),
@@ -644,10 +650,17 @@ export const api = {
     const q = new URLSearchParams({ start: params.start, end: params.end });
     return postJSON<BacktestRun>(`/api/backtest/configs/${configId}/run?${q.toString()}`, {});
   },
-  backtestChatStreamUrl: async (config: BacktestConfig, message: string) => {
+  backtestChatStreamUrl: async (
+    config: BacktestConfig,
+    message: string,
+    windowStart: string | null,
+    windowEnd: string | null,
+  ) => {
     const q = new URLSearchParams();
     q.set("message", message);
     q.set("config", JSON.stringify(config));
+    if (windowStart) q.set("window_start", windowStart);
+    if (windowEnd) q.set("window_end", windowEnd);
     return `${WS}/api/backtest/chat?${q.toString()}`;
   },
   streamUrl: async (symbol: string) => {
