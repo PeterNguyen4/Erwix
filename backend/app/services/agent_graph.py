@@ -465,59 +465,6 @@ async def exit_guidance(
     return text.strip().strip('"“”')
 
 
-FOLLOWUP_SYSTEM_PROMPT = (
-    "You are uWick, continuing a debrief conversation. The trade window and your original "
-    "report are in context below. Answer the trader's follow-up question directly and "
-    "specifically, grounded in the actual trades shown — don't restate the whole report. "
-    "You may call draw_annotations, spotlight_day, spotlight_trade, zoom_to_range, or "
-    "quote_note if referencing the chart/journal/a note helps answer the question."
-)
-
-
-async def arun_followup(
-    db: AsyncSession,
-    user_id: int,
-    window_start: datetime,
-    window_end: datetime,
-    report_narrative: str,
-    history: list[tuple[str, str]],
-    message: str,
-    symbol: str | None = None,
-    query: str | None = None,
-    attached_context: list[str] | None = None,
-) -> tuple[str, list[dict]]:
-    """Answer a follow-up question about an already-generated DebriefReport, grounded
-    in the same trade window/retrieval context used to generate it (re-fetched here
-    rather than trusting only the stored narrative, so questions about specific
-    trades can still be checked against real data). `history` is prior
-    (role, content) DebriefMessage pairs in order. `attached_context` holds resolved
-    text for any trade/journal-entry/day/symbol the user attached to this follow-up
-    (see reference_resolver.py), injected ahead of the question itself. Returns
-    (reply_text, tool_events)."""
-    state = _initial_state(user_id, window_start, window_end, symbol, query)
-    retrieved = await _retrieve(state, db)
-    context_messages = retrieved["messages"]
-
-    messages: list[AnyMessage] = [
-        SystemMessage(FOLLOWUP_SYSTEM_PROMPT),
-        *context_messages[1:],  # skip the retrieve step's own SystemMessage, keep the trade-window HumanMessage
-        AIMessage(report_narrative),
-    ]
-    for role, content in history:
-        messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
-    if attached_context:
-        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
-    messages.append(HumanMessage(message))
-
-    response = await _tool_model().ainvoke(messages)
-    reply = response.content
-    if isinstance(reply, list):
-        reply = "".join(b.get("text", "") for b in reply if isinstance(b, dict) and b.get("type") == "text")
-    events = _extract_tool_events(response)
-    annotation_events = [e for e in events if e["type"] == "annotations"]
-    return reply.strip(), annotation_events + [e for e in events if e["type"] != "annotations"]
-
-
 async def astream_review(
     db: AsyncSession,
     user_id: int,
@@ -602,7 +549,10 @@ ROUTER_SYSTEM_PROMPT = (
     "enough information, answer directly and specifically — don't pad with generic advice. "
     "You may also call draw_annotations/spotlight_day/spotlight_trade/zoom_to_range/quote_note "
     "if referencing the chart/journal/a note helps answer the question. Today's date and time "
-    "is {now} UTC."
+    "is {now} UTC. If this conversation started as a debrief of a specific trade window (context "
+    "below), prefer answering about that window when the question is ambiguous — but the trader "
+    "may ask about anything else in their history, so use your tools to look beyond it whenever "
+    "the question actually calls for that."
 )
 
 MAX_ROUTER_TOOL_TURNS = 6
@@ -635,7 +585,10 @@ def _make_router_tool_node(db: AsyncSession, user_id: int) -> ToolNode:
 
 def build_router_graph(db: AsyncSession, user_id: int):
     graph = StateGraph(RouterAgentState)
-    graph.add_node("plan", lambda state: _router_plan(state, db, user_id))
+    async def _plan_node(state: RouterAgentState) -> dict:
+        return await _router_plan(state, db, user_id)
+
+    graph.add_node("plan", _plan_node)
     graph.add_node("tools", _make_router_tool_node(db, user_id))
     graph.add_edge(START, "plan")
     graph.add_conditional_edges("plan", tools_condition, {"tools": "tools", END: END})

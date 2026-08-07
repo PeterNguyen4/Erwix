@@ -7,6 +7,7 @@ factory that closes over `db`/`user_id` into an LLM-bindable @tool, since
 LangChain tool args must be model-controllable and can't include an AsyncSession.
 """
 
+import asyncio
 import json
 from datetime import datetime
 
@@ -38,13 +39,14 @@ def _parse_iso(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def make_strategy_context_tool(db: AsyncSession, user_id: int) -> BaseTool:
+def make_strategy_context_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
     @tool
     async def strategy_context() -> str:
         """Look up the trader's stated strategy/playbook (their trading rules, archetype,
         preferred symbols) — call this to check whether trades align with or drift from
         what they said they'd do."""
-        ctx = await get_strategy_context(db, user_id)
+        async with lock:
+            ctx = await get_strategy_context(db, user_id)
         if not ctx:
             return "The trader has not stated a strategy."
         label, rendered = ctx
@@ -53,7 +55,7 @@ def make_strategy_context_tool(db: AsyncSession, user_id: int) -> BaseTool:
     return strategy_context
 
 
-def make_compare_trade_windows_tool(db: AsyncSession, user_id: int) -> BaseTool:
+def make_compare_trade_windows_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
     @tool
     async def compare_trade_windows(
         window_a_start: str, window_a_end: str, window_b_start: str, window_b_end: str
@@ -61,12 +63,13 @@ def make_compare_trade_windows_tool(db: AsyncSession, user_id: int) -> BaseTool:
         """Compare realized PnL/win-rate between two arbitrary date ranges (ISO 8601
         datetimes) — use this for any 'this week vs last week' / 'this month vs last
         month' / before-vs-after comparison question."""
-        a, b = await compute_pnl_summary_pair(
-            db,
-            user_id,
-            (_parse_iso(window_a_start), _parse_iso(window_a_end)),
-            (_parse_iso(window_b_start), _parse_iso(window_b_end)),
-        )
+        async with lock:
+            a, b = await compute_pnl_summary_pair(
+                db,
+                user_id,
+                (_parse_iso(window_a_start), _parse_iso(window_a_end)),
+                (_parse_iso(window_b_start), _parse_iso(window_b_end)),
+            )
 
         def _fmt(label: str, s) -> str:
             return (
@@ -86,13 +89,14 @@ def make_compare_trade_windows_tool(db: AsyncSession, user_id: int) -> BaseTool:
     return compare_trade_windows
 
 
-def make_fetch_trades_window_tool(db: AsyncSession, user_id: int) -> BaseTool:
+def make_fetch_trades_window_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
     @tool
     async def fetch_trades_window(start: str, end: str, symbol: str | None = None) -> str:
         """Fetch a trader's individual fills in a date range (ISO 8601 datetimes,
         optionally filtered to one symbol) with per-trade detail (side, price, notes)
         — use this to look at specific trades, not just aggregate stats."""
-        trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
+        async with lock:
+            trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
         if symbol:
             trades = [t for t in trades if t.symbol == symbol.upper()]
         if not trades:
@@ -102,13 +106,14 @@ def make_fetch_trades_window_tool(db: AsyncSession, user_id: int) -> BaseTool:
     return fetch_trades_window
 
 
-def make_search_trades_tool(db: AsyncSession, user_id: int) -> BaseTool:
+def make_search_trades_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
     @tool
     async def search_trades(query: str) -> str:
         """Semantic search over the trader's full trade history (not date-limited) for
         trades matching a description, e.g. 'trades where I panicked' or 'breakout
         trades that failed'."""
-        found = await semantic_search(db, user_id, query)
+        async with lock:
+            found = await semantic_search(db, user_id, query)
         if not found:
             return "No matching trades found."
         return "\n".join(f"- (trade_id={t.id}) {build_trade_text(t)}" for t in found)
@@ -116,13 +121,14 @@ def make_search_trades_tool(db: AsyncSession, user_id: int) -> BaseTool:
     return search_trades
 
 
-def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int) -> BaseTool:
+def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
     @tool
     async def fetch_symbol_news(start: str, end: str, symbol: str | None = None) -> str:
         """Fetch recent news headlines for the symbols the trader actually traded in a
         date range (ISO 8601 datetimes) — use this to check whether news/events explain
         a trade's outcome."""
-        trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
+        async with lock:
+            trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
         symbols = sorted({t.symbol for t in trades if not symbol or t.symbol == symbol.upper()})
         if not symbols:
             return "No trades (and so no symbols to look up news for) in this window."
@@ -142,10 +148,12 @@ def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int) -> BaseTool:
 
 
 def build_retrieval_tools(db: AsyncSession, user_id: int) -> list[BaseTool]:
+    """Factory for orchestrator agent's tools."""
+    lock = asyncio.Lock()
     return [
-        make_strategy_context_tool(db, user_id),
-        make_compare_trade_windows_tool(db, user_id),
-        make_fetch_trades_window_tool(db, user_id),
-        make_search_trades_tool(db, user_id),
-        make_fetch_symbol_news_tool(db, user_id),
+        make_strategy_context_tool(db, user_id, lock),
+        make_compare_trade_windows_tool(db, user_id, lock),
+        make_fetch_trades_window_tool(db, user_id, lock),
+        make_search_trades_tool(db, user_id, lock),
+        make_fetch_symbol_news_tool(db, user_id, lock),
     ]

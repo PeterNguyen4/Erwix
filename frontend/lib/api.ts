@@ -619,8 +619,9 @@ export const api = {
   getDebriefReport: (id: number) => getJSON<DebriefReport>(`/api/agent/debrief/${id}`),
   debriefMessages: (id: number) => getJSON<DebriefMessage[]>(`/api/agent/debrief/${id}/messages`),
   postDebriefMessage: (id: number, message: string, references: AttachedReference[] = []) =>
-    postJSON<DebriefMessage>(`/api/agent/debrief/${id}/messages`, {
+    postJSON<DebriefMessage>(`/api/agent/debrief/ask`, {
       message,
+      report_id: id,
       references: references.map(({ type, refId }) => ({ type, ref_id: refId })),
     }),
   getArchetypes: () => getJSON<Archetype[]>("/api/strategy/archetypes"),

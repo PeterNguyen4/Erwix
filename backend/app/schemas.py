@@ -317,11 +317,6 @@ class AttachedReferenceIn(BaseModel):
     ref_id: str
 
 
-class DebriefMessageIn(BaseModel):
-    message: str
-    references: list[AttachedReferenceIn] = []
-
-
 class DebriefAskIn(BaseModel):
     message: str
     references: list[AttachedReferenceIn] = []

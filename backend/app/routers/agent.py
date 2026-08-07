@@ -14,14 +14,13 @@ from app.schemas import (
     AgentReviewRequest,
     AgentReviewResponse,
     DebriefAskIn,
-    DebriefMessageIn,
     DebriefMessageOut,
     DebriefReportOut,
     DebriefStatus,
 )
 from app.config import get_settings
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
-from app.services.agent_graph import arun_ask, arun_followup, astream_review, exit_guidance, run_review
+from app.services.agent_graph import arun_ask, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
 from app.services.reference_resolver import resolve_references
@@ -410,70 +409,27 @@ async def list_debrief_messages(
     )
 
 
-@router.post(
-    "/debrief/{report_id}/messages",
-    response_model=DebriefMessageOut,
-    dependencies=[Depends(_llm_rate_limit)],
-)
-async def post_debrief_message(
-    report_id: int,
-    body: DebriefMessageIn,
-    db: AsyncSession = Depends(get_db),
-    user_id: int = Depends(get_current_user_id),
-) -> DebriefMessage:
-    """Ask a follow-up question about a completed DebriefReport. Grounded in the
-    same trade window/retrieval context used to generate the report (re-fetched,
-    not just the stored narrative) — see agent_graph.arun_followup."""
-    report = await db.get(DebriefReport, report_id)
-    if report is None or report.user_id != user_id:
-        raise HTTPException(status_code=404, detail="report not found")
-    if report.report_type == "ask":
-        raise HTTPException(status_code=400, detail="use POST /api/agent/debrief/ask for this conversation")
-    if report.status != "ready":
-        raise HTTPException(status_code=409, detail="report is not ready yet")
-
-    prior = list(
-        (
-            await db.scalars(
-                select(DebriefMessage)
-                .where(DebriefMessage.report_id == report_id)
-                .order_by(DebriefMessage.created_at.asc())
-            )
-        ).all()
-    )
-    history = [(m.role, m.content) for m in prior]
-    narrative = "\n\n".join(step.get("narrative", "") for step in report.steps)
-
-    user_message = DebriefMessage(report_id=report_id, role="user", content=body.message)
-    db.add(user_message)
-    await db.commit()
-
-    attached_context = await resolve_references(db, user_id, body.references)
-
-    try:
-        reply, _events = await arun_followup(
-            db, user_id, report.window_start, report.window_end, narrative, history, body.message,
-            symbol=report.symbol, query=report.query, attached_context=attached_context,
-        )
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    assistant_message = DebriefMessage(report_id=report_id, role="assistant", content=reply)
-    db.add(assistant_message)
-    await db.commit()
-    return assistant_message
-
-
 @router.post("/debrief/ask", response_model=DebriefMessageOut, dependencies=[Depends(_llm_rate_limit)])
 async def ask_debrief(
     body: DebriefAskIn,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> DebriefMessage:
+    """Entry point and resource gatherer."""
+    window_context: str | None = None
     if body.report_id is not None:
         report = await db.get(DebriefReport, body.report_id)
-        if report is None or report.user_id != user_id or report.report_type != "ask":
-            raise HTTPException(status_code=404, detail="ask conversation not found")
+        if report is None or report.user_id != user_id:
+            raise HTTPException(status_code=404, detail="conversation not found")
+        if report.report_type == "scheduled":
+            if report.status != "ready":
+                raise HTTPException(status_code=409, detail="report is not ready yet")
+            narrative = "\n\n".join(step.get("narrative", "") for step in report.steps)
+            window_context = (
+                f"This conversation started as a debrief of trades from {report.window_start:%Y-%m-%d} "
+                f"to {report.window_end:%Y-%m-%d}"
+                f"{f' (symbol {report.symbol})' if report.symbol else ''}:\n{narrative}"
+            )
     else:
         now = datetime.now(timezone.utc)
         report = DebriefReport(
@@ -503,6 +459,8 @@ async def ask_debrief(
     await db.commit()
 
     attached_context = await resolve_references(db, user_id, body.references)
+    if window_context:
+        attached_context = [window_context, *attached_context]
 
     try:
         reply, _annotations, provenance = await arun_ask(
