@@ -13,6 +13,7 @@ from app.models import DebriefMessage, DebriefReport, UserPreference
 from app.schemas import (
     AgentReviewRequest,
     AgentReviewResponse,
+    DebriefAskIn,
     DebriefMessageIn,
     DebriefMessageOut,
     DebriefReportOut,
@@ -20,7 +21,7 @@ from app.schemas import (
 )
 from app.config import get_settings
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
-from app.services.agent_graph import arun_followup, astream_review, exit_guidance, run_review
+from app.services.agent_graph import arun_ask, arun_followup, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
 from app.services.reference_resolver import resolve_references
@@ -44,6 +45,7 @@ def _report_out(report: DebriefReport) -> DebriefReportOut:
         eta = remaining * get_settings().debrief_step_estimate_seconds
     return DebriefReportOut(
         id=report.id,
+        report_type=report.report_type,
         status=report.status,
         window_start=report.window_start,
         window_end=report.window_end,
@@ -425,6 +427,8 @@ async def post_debrief_message(
     report = await db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id:
         raise HTTPException(status_code=404, detail="report not found")
+    if report.report_type == "ask":
+        raise HTTPException(status_code=400, detail="use POST /api/agent/debrief/ask for this conversation")
     if report.status != "ready":
         raise HTTPException(status_code=409, detail="report is not ready yet")
 
@@ -455,6 +459,61 @@ async def post_debrief_message(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     assistant_message = DebriefMessage(report_id=report_id, role="assistant", content=reply)
+    db.add(assistant_message)
+    await db.commit()
+    return assistant_message
+
+
+@router.post("/debrief/ask", response_model=DebriefMessageOut, dependencies=[Depends(_llm_rate_limit)])
+async def ask_debrief(
+    body: DebriefAskIn,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> DebriefMessage:
+    if body.report_id is not None:
+        report = await db.get(DebriefReport, body.report_id)
+        if report is None or report.user_id != user_id or report.report_type != "ask":
+            raise HTTPException(status_code=404, detail="ask conversation not found")
+    else:
+        now = datetime.now(timezone.utc)
+        report = DebriefReport(
+            user_id=user_id,
+            report_type="ask",
+            status="ready",
+            scheduled_for=now,
+            steps=[],
+        )
+        db.add(report)
+        await db.commit()
+        await db.refresh(report)
+
+    prior = list(
+        (
+            await db.scalars(
+                select(DebriefMessage)
+                .where(DebriefMessage.report_id == report.id)
+                .order_by(DebriefMessage.created_at.asc())
+            )
+        ).all()
+    )
+    history = [(m.role, m.content) for m in prior]
+
+    user_message = DebriefMessage(report_id=report.id, role="user", content=body.message)
+    db.add(user_message)
+    await db.commit()
+
+    attached_context = await resolve_references(db, user_id, body.references)
+
+    try:
+        reply, _annotations, provenance = await arun_ask(
+            db, user_id, body.message, history=history, attached_context=attached_context
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    assistant_message = DebriefMessage(
+        report_id=report.id, role="assistant", content=reply, tool_provenance=provenance
+    )
     db.add(assistant_message)
     await db.commit()
     return assistant_message

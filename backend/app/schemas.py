@@ -295,9 +295,10 @@ class DebriefStep(BaseModel):
 
 class DebriefReportOut(BaseModel):
     id: int
+    report_type: Literal["scheduled", "ask"] = "scheduled"
     status: Literal["pending", "running", "ready", "error"]
-    window_start: datetime
-    window_end: datetime
+    window_start: datetime | None
+    window_end: datetime | None
     symbol: str | None
     scheduled_for: datetime
     started_at: datetime | None
@@ -321,10 +322,18 @@ class DebriefMessageIn(BaseModel):
     references: list[AttachedReferenceIn] = []
 
 
+class DebriefAskIn(BaseModel):
+    message: str
+    references: list[AttachedReferenceIn] = []
+    report_id: int | None = None
+
+
 class DebriefMessageOut(BaseModel):
     id: int
+    report_id: int
     role: Literal["user", "assistant"]
     content: str
+    tool_provenance: list[dict] | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -151,18 +151,30 @@ async def compute_pnl_summary(
     return _summarize_closed(closed)
 
 
-async def compute_pnl_weekly_comparison(db: AsyncSession, user_id: int) -> tuple[PnLSummary, PnLSummary]:
-    """This-week vs previous-week PnL stats, matched in one pass over the
+async def compute_pnl_summary_pair(
+    db: AsyncSession,
+    user_id: int,
+    window_a: tuple[datetime, datetime],
+    window_b: tuple[datetime, datetime],
+) -> tuple[PnLSummary, PnLSummary]:
+    """PnL stats for two arbitrary windows, matched in one pass over the
     user's fill history (rather than two separate compute_pnl_summary calls,
     which would each independently re-fetch and re-FIFO-match everything)."""
     closed = await _fifo_match_all(db, user_id)
+    a_start, a_end = window_a
+    b_start, b_end = window_b
+
+    a = [c for c in closed if a_start <= c.closed_at <= a_end]
+    b = [c for c in closed if b_start <= c.closed_at <= b_end]
+    return _summarize_closed(a), _summarize_closed(b)
+
+
+async def compute_pnl_weekly_comparison(db: AsyncSession, user_id: int) -> tuple[PnLSummary, PnLSummary]:
+    """This-week vs previous-week PnL stats."""
     now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
     two_weeks_ago = now - timedelta(days=14)
-
-    current = [c for c in closed if week_ago <= c.closed_at <= now]
-    previous = [c for c in closed if two_weeks_ago <= c.closed_at < week_ago]
-    return _summarize_closed(current), _summarize_closed(previous)
+    return await compute_pnl_summary_pair(db, user_id, (week_ago, now), (two_weeks_ago, week_ago))
 
 
 async def count_trades_since(db: AsyncSession, user_id: int, since: datetime) -> int:
