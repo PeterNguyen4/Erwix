@@ -1,11 +1,58 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, X } from "lucide-react";
+import { ArrowUp, Wrench, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, AttachedReference, DebriefMessage } from "@/lib/api";
 import ReferencePicker, { REFERENCE_TYPE_STYLE, ReferencePickerHandle } from "@/components/journal/ReferencePicker";
 import { getDebriefChatDraft } from "@/lib/debriefChatDraft";
+
+const MARKDOWN_COMPONENTS = {
+  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="mb-2 last:mb-0" {...props} />,
+  ul: (props: React.HTMLAttributes<HTMLUListElement>) => (
+    <ul className="mb-2 list-disc space-y-0.5 pl-4 last:mb-0" {...props} />
+  ),
+  ol: (props: React.HTMLAttributes<HTMLOListElement>) => (
+    <ol className="mb-2 list-decimal space-y-0.5 pl-4 last:mb-0" {...props} />
+  ),
+  li: (props: React.HTMLAttributes<HTMLLIElement>) => <li {...props} />,
+  h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h3 className="mb-1.5 mt-3 text-base font-semibold first:mt-0" {...props} />
+  ),
+  h2: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h3 className="mb-1.5 mt-3 text-base font-semibold first:mt-0" {...props} />
+  ),
+  h3: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
+    <h4 className="mb-1 mt-2.5 text-[13px] font-semibold first:mt-0" {...props} />
+  ),
+  strong: (props: React.HTMLAttributes<HTMLElement>) => <strong className="font-semibold text-fg" {...props} />,
+  hr: () => <hr className="my-3 border-t border-muted/50" />,
+  code: (props: React.HTMLAttributes<HTMLElement>) => (
+    <code className="rounded bg-border/60 px-1 py-0.5 text-[0.85em]" {...props} />
+  ),
+  a: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a className="underline decoration-dotted underline-offset-2" target="_blank" rel="noreferrer" {...props} />
+  ),
+};
+
+function ToolCallRow({ provenance }: { provenance: { tool: string }[] }) {
+  if (!provenance.length) return null;
+  return (
+    <div className="mb-1.5 flex flex-wrap gap-1.5">
+      {provenance.map((call, i) => (
+        <span
+          key={`${call.tool}-${i}`}
+          className="flex items-center gap-1 rounded-full border border-border/70 bg-bg/40 px-2 py-0.5 text-[10px] text-muted"
+        >
+          <Wrench size={9} strokeWidth={2.2} />
+          {call.tool}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 
 export default function DebriefChat({ reportId }: { reportId: number }) {
@@ -107,7 +154,14 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
                 : "max-w-[85%] rounded-2xl rounded-tl-sm bg-border/60 px-3 py-2 text-sm text-fg"
             }
           >
-            {m.content}
+            {m.role === "assistant" && <ToolCallRow provenance={m.tool_provenance ?? []} />}
+            {m.role === "assistant" ? (
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                {m.content}
+              </ReactMarkdown>
+            ) : (
+              m.content
+            )}
           </div>
         ))}
       </div>

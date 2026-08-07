@@ -436,10 +436,16 @@ export interface StrategyRuleSetOut {
   compile_error: string | null;
 }
 
+export interface ToolProvenance {
+  tool: string;
+  args: Record<string, unknown>;
+}
+
 export interface DebriefMessage {
   id: number;
   role: "user" | "assistant";
   content: string;
+  tool_provenance?: ToolProvenance[] | null;
   created_at: string;
 }
 
