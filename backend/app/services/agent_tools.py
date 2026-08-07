@@ -124,9 +124,10 @@ def make_search_trades_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) 
 def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
     @tool
     async def fetch_symbol_news(start: str, end: str, symbol: str | None = None) -> str:
-        """Fetch recent news headlines for the symbols the trader actually traded in a
-        date range (ISO 8601 datetimes) — use this to check whether news/events explain
-        a trade's outcome."""
+        """Fetch raw recent news headlines for the symbols the trader actually traded in a
+        date range (ISO 8601 datetimes) — use this when you just need the headline list
+        itself (e.g. to quote one). For judging whether news explains a trade's outcome,
+        prefer market_insight instead — it reasons over these same headlines for you."""
         async with lock:
             trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
         symbols = sorted({t.symbol for t in trades if not symbol or t.symbol == symbol.upper()})
@@ -147,6 +148,33 @@ def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lo
     return fetch_symbol_news
 
 
+def make_market_insight_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+    @tool
+    async def market_insight(start: str, end: str, symbol: str | None = None) -> str:
+        """Delegate market insights to news agent."""
+        # Lazy import: news_agent imports get_strategy_context from this module at load
+        # time, so importing it back at module level here would be circular.
+        from app.services.news_agent import build_market_insight
+
+        async with lock:
+            trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
+        symbols = sorted({t.symbol for t in trades if not symbol or t.symbol == symbol.upper()})
+        if not symbols:
+            return "No trades (and so no symbols to look up news for) in this window."
+        articles = await fetch_news(symbols, limit_per_symbol=6)
+        if not articles:
+            return "No recent headlines found for these symbols."
+
+        async with lock:
+            insight = await build_market_insight(db, user_id, articles)
+        lines = [f"Sentiment: {insight.sentiment}", f"Advice: {insight.advice}"]
+        if insight.rationale:
+            lines.append("Rationale: " + "; ".join(insight.rationale))
+        return "\n".join(lines)
+
+    return market_insight
+
+
 def build_retrieval_tools(db: AsyncSession, user_id: int) -> list[BaseTool]:
     """Factory for orchestrator agent's tools."""
     lock = asyncio.Lock()
@@ -156,4 +184,5 @@ def build_retrieval_tools(db: AsyncSession, user_id: int) -> list[BaseTool]:
         make_fetch_trades_window_tool(db, user_id, lock),
         make_search_trades_tool(db, user_id, lock),
         make_fetch_symbol_news_tool(db, user_id, lock),
+        make_market_insight_tool(db, user_id, lock),
     ]
