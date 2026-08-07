@@ -109,8 +109,9 @@ export interface BacktestRun {
 }
 
 export type BacktestChatEvent =
-  | { type: "action"; label: "Build" | "Edit" }
+  | { type: "action"; label: string }
   | { type: "token"; text: string }
+  | { type: "window"; start: string | null; end: string | null }
   | { type: "config"; config: BacktestConfig }
   | { type: "done" }
   | { type: "error"; detail: string };
@@ -649,10 +650,17 @@ export const api = {
     const q = new URLSearchParams({ start: params.start, end: params.end });
     return postJSON<BacktestRun>(`/api/backtest/configs/${configId}/run?${q.toString()}`, {});
   },
-  backtestChatStreamUrl: async (config: BacktestConfig, message: string) => {
+  backtestChatStreamUrl: async (
+    config: BacktestConfig,
+    message: string,
+    windowStart: string | null,
+    windowEnd: string | null,
+  ) => {
     const q = new URLSearchParams();
     q.set("message", message);
     q.set("config", JSON.stringify(config));
+    if (windowStart) q.set("window_start", windowStart);
+    if (windowEnd) q.set("window_end", windowEnd);
     return `${WS}/api/backtest/chat?${q.toString()}`;
   },
   streamUrl: async (symbol: string) => {

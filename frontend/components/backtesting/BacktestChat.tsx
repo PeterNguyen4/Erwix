@@ -1123,7 +1123,7 @@ function ConfigSummaryCard({
 export type ChatItem =
   | { id: number; kind: "text"; role: "user" | "assistant"; text: string; done: boolean }
   | { id: number; kind: "config"; role: "assistant"; config: BacktestConfig }
-  | { id: number; kind: "action"; role: "assistant"; label: "Build" | "Edit" }
+  | { id: number; kind: "action"; role: "assistant"; label: string }
   | { id: number; kind: "confirm"; role: "assistant"; message: string; resolved?: "confirmed" | "cancelled" };
 
 function RunConfirm({
@@ -1167,12 +1167,16 @@ function RunConfirm({
   );
 }
 
-function ActionBadge({ label }: { label: "Build" | "Edit" }) {
-  const Icon = label === "Build" ? Hammer : Pencil;
+function ActionBadge({ label }: { label: string }) {
+  const isBuild = label.startsWith("Build");
+  const Icon = isBuild ? Hammer : Pencil;
+  const verb = isBuild ? "Build" : "Edit";
+  const rest = label.slice(verb.length);
   return (
     <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
       <Icon size={12} strokeWidth={2.2} />
-      {label}
+      <span className="font-extrabold">{verb}</span>
+      {rest}
     </div>
   );
 }
@@ -1209,6 +1213,7 @@ export default function BacktestChat({
   const [messages, setMessages] = useState<ChatItem[]>(() => backtestDraft.messages);
   const [input, setInput] = useState(() => backtestDraft.input);
   const [streaming, setStreaming] = useState(false);
+  const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sendHover, setSendHover] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
@@ -1426,41 +1431,52 @@ export default function BacktestChat({
       { id: nextId.current++, kind: "text", role: "user", text: message, done: true },
     ]);
     setStreaming(true);
-    let textStarted = false;
+    setWaiting(true);
+    let assistantId: number | null = null;
 
-    const url = await api.backtestChatStreamUrl(configRef.current, message);
+    const url = await api.backtestChatStreamUrl(configRef.current, message, windowStart, windowEnd);
     const ws = new WebSocket(url);
     ws.onmessage = (ev) => {
       const msg: BacktestChatEvent = JSON.parse(ev.data);
+      setWaiting(false);
       if (msg.type === "action") {
         setMessages((prev) => [...prev, { id: nextId.current++, kind: "action", role: "assistant", label: msg.label }]);
       } else if (msg.type === "token") {
-        setMessages((prev) => {
-          if (!textStarted) {
-            textStarted = true;
-            return [...prev, { id: nextId.current++, kind: "text", role: "assistant", text: msg.text, done: false }];
-          }
-          const next = [...prev];
-          const last = next[next.length - 1];
-          if (last.kind !== "text") return prev;
-          next[next.length - 1] = { ...last, text: last.text + msg.text };
-          return next;
-        });
+        if (assistantId == null) {
+          const id = nextId.current++;
+          assistantId = id;
+          setMessages((prev) => [...prev, { id, kind: "text", role: "assistant", text: msg.text, done: false }]);
+        } else {
+          const id = assistantId;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === id && m.kind === "text" ? { ...m, text: m.text + msg.text } : m)),
+          );
+        }
+      } else if (msg.type === "window") {
+        if (msg.start) onUpdateWindowStart(msg.start);
+        if (msg.end) onUpdateWindowEnd(msg.end);
       } else if (msg.type === "config") {
         onConfigChange(msg.config);
         upsertConfigCard(msg.config);
       } else if (msg.type === "done") {
         setStreaming(false);
-        setMessages((prev) =>
-          prev.map((m, i) => (i === prev.length - 1 && m.kind === "text" ? { ...m, done: true } : m)),
-        );
+        const id = assistantId;
+        if (id != null) {
+          setMessages((prev) => prev.map((m) => (m.id === id && m.kind === "text" ? { ...m, done: true } : m)));
+        }
       } else if (msg.type === "error") {
         setError(msg.detail);
         setStreaming(false);
       }
     };
-    ws.onerror = () => setError("Connection lost.");
-    ws.onclose = () => setStreaming(false);
+    ws.onerror = () => {
+      setError("Connection lost.");
+      setWaiting(false);
+    };
+    ws.onclose = () => {
+      setStreaming(false);
+      setWaiting(false);
+    };
   };
 
   const inputRow = (
@@ -1551,11 +1567,11 @@ export default function BacktestChat({
   return (
     <div className="relative flex h-full flex-col">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-panel to-transparent" />
-      <div ref={scrollRef} className="chat-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-6">
+      <div ref={scrollRef} className="chat-scroll flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 pb-32 pt-6">
         {error && (
           <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
         )}
-        {messages.map((m, i) =>
+        {messages.map((m) =>
           m.kind === "config" ? (
             <ConfigSummaryCard
               key={m.id}
@@ -1589,13 +1605,14 @@ export default function BacktestChat({
               className={
                 m.role === "user"
                   ? "ml-auto max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-accent/20 px-3 py-2 text-sm text-fg"
-                  : "whitespace-pre-wrap px-1 py-1 text-sm text-fg"
+                  : "whitespace-pre-wrap py-0.5 pl-[18px] text-sm text-fg"
               }
             >
-              {m.text || (i === messages.length - 1 && streaming ? <TypingIndicator /> : null)}
+              {m.text ? m.text : !m.done ? <TypingIndicator /> : null}
             </div>
           ),
         )}
+        {waiting && <TypingIndicator />}
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-panel to-transparent" />
       <div className="absolute inset-x-0 bottom-0 z-20">{inputRow}</div>
