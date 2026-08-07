@@ -8,7 +8,6 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 """
 
 import hashlib
-import json
 from datetime import datetime, timezone
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -18,8 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import MarketInsightCache
 from app.services.agent_graph import _base_model
+from app.services.agent_tools import get_strategy_context
 from app.services.news import NewsArticle
-from app.services.strategy import archetype_name, get_active_strategy, render_playbook
 
 MARKET_SYSTEM_PROMPT = (
     "You are a markets news analyst for a trading journal app. You are given a pool of recent "
@@ -51,13 +50,9 @@ def _headlines_block(articles: list[NewsArticle]) -> str:
 
 
 async def _strategy_block(db: AsyncSession, user_id: int) -> str:
-    strategy = await get_active_strategy(db, user_id)
-    if strategy and strategy.structured_summary:
-        try:
-            rendered = render_playbook(json.loads(strategy.structured_summary))
-        except (json.JSONDecodeError, TypeError, AttributeError):
-            rendered = strategy.structured_summary
-        label = archetype_name(strategy.archetype) or "Custom"
+    ctx = await get_strategy_context(db, user_id)
+    if ctx:
+        label, rendered = ctx
         return f"The trader's stated strategy ({label}):\n{rendered}"
     return "The trader has not stated a strategy — give balanced, generic guidance."
 
