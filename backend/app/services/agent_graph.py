@@ -9,13 +9,14 @@ langchain chat-model interface — nothing here assumes Anthropic beyond the
 node that constructs the chat model.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Annotated, AsyncIterator, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
@@ -643,3 +644,64 @@ async def arun_ask(
                 )
 
     return reply, annotation_events, all_provenance
+
+
+async def astream_ask(
+    db: AsyncSession,
+    user_id: int,
+    question: str,
+    history: list[tuple[str, str]] | None = None,
+    attached_context: list[str] | None = None,
+) -> AsyncIterator[dict]:
+    """Streamed converstaion with tool calls and loops.q"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    messages: list[AnyMessage] = [SystemMessage(ROUTER_SYSTEM_PROMPT.format(now=now))]
+    for role, content in history or []:
+        messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
+    if attached_context:
+        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
+    messages.append(HumanMessage(question))
+
+    tools = build_retrieval_tools(db, user_id) + CHART_TOOLS
+    tools_by_name = {t.name: t for t in tools}
+    tool_model = _base_model().bind_tools(tools)
+    plain_model = _base_model()
+
+    tool_turns = 0
+    while True:
+        forced_final = tool_turns >= MAX_ROUTER_TOOL_TURNS
+        model = plain_model if forced_final else tool_model
+        turn_messages = messages
+        if forced_final:
+            turn_messages = [*messages, HumanMessage("Answer now with what you have — no more tool calls.")]
+
+        accumulated = None
+        async for kind, payload in _stream_narrative(model, turn_messages):
+            if kind == "token":
+                yield {"type": "token", "text": payload}
+            else:
+                accumulated = payload
+
+        tool_calls = [] if forced_final or accumulated is None else (getattr(accumulated, "tool_calls", None) or [])
+        if not tool_calls:
+            break
+
+        for event in _extract_tool_events(accumulated):
+            yield event
+        for call in tool_calls:
+            yield {"type": "tool_call", "tool": call["name"], "args": call["args"]}
+
+        results = await asyncio.gather(
+            *(tools_by_name[call["name"]].ainvoke(call["args"]) for call in tool_calls)
+        )
+        messages = [
+            *messages,
+            accumulated,
+            *(
+                ToolMessage(content=str(result), tool_call_id=call["id"])
+                for call, result in zip(tool_calls, results)
+            ),
+        ]
+        tool_turns += 1
+
+    yield {"type": "done"}

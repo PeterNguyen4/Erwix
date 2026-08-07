@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -13,6 +14,7 @@ from app.models import DebriefMessage, DebriefReport, UserPreference
 from app.schemas import (
     AgentReviewRequest,
     AgentReviewResponse,
+    AttachedReferenceIn,
     DebriefAskIn,
     DebriefMessageOut,
     DebriefReportOut,
@@ -20,7 +22,7 @@ from app.schemas import (
 )
 from app.config import get_settings
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
-from app.services.agent_graph import arun_ask, astream_review, exit_guidance, run_review
+from app.services.agent_graph import arun_ask, astream_ask, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
 from app.services.reference_resolver import resolve_references
@@ -409,50 +411,58 @@ async def list_debrief_messages(
     )
 
 
+async def _resolve_ask_report(db: AsyncSession, user_id: int, report_id: int | None) -> tuple[DebriefReport, str | None]:
+    """Ground questions in debrief chat window."""
+    if report_id is not None:
+        report = await db.get(DebriefReport, report_id)
+        if report is None or report.user_id != user_id:
+            raise ValueError("conversation not found")
+        if report.report_type != "scheduled":
+            return report, None
+        if report.status != "ready":
+            raise ValueError("report is not ready yet")
+        narrative = "\n\n".join(step.get("narrative", "") for step in report.steps)
+        window_context = (
+            f"This conversation started as a debrief of trades from {report.window_start:%Y-%m-%d} "
+            f"to {report.window_end:%Y-%m-%d}"
+            f"{f' (symbol {report.symbol})' if report.symbol else ''}:\n{narrative}"
+        )
+        return report, window_context
+
+    now = datetime.now(timezone.utc)
+    report = DebriefReport(user_id=user_id, report_type="ask", status="ready", scheduled_for=now, steps=[])
+    db.add(report)
+    await db.commit()
+    await db.refresh(report)
+    return report, None
+
+
+async def _debrief_history(db: AsyncSession, report_id: int) -> list[tuple[str, str]]:
+    prior = list(
+        (
+            await db.scalars(
+                select(DebriefMessage)
+                .where(DebriefMessage.report_id == report_id)
+                .order_by(DebriefMessage.created_at.asc())
+            )
+        ).all()
+    )
+    return [(m.role, m.content) for m in prior]
+
+
 @router.post("/debrief/ask", response_model=DebriefMessageOut, dependencies=[Depends(_llm_rate_limit)])
 async def ask_debrief(
     body: DebriefAskIn,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> DebriefMessage:
-    """Entry point and resource gatherer."""
-    window_context: str | None = None
-    if body.report_id is not None:
-        report = await db.get(DebriefReport, body.report_id)
-        if report is None or report.user_id != user_id:
-            raise HTTPException(status_code=404, detail="conversation not found")
-        if report.report_type == "scheduled":
-            if report.status != "ready":
-                raise HTTPException(status_code=409, detail="report is not ready yet")
-            narrative = "\n\n".join(step.get("narrative", "") for step in report.steps)
-            window_context = (
-                f"This conversation started as a debrief of trades from {report.window_start:%Y-%m-%d} "
-                f"to {report.window_end:%Y-%m-%d}"
-                f"{f' (symbol {report.symbol})' if report.symbol else ''}:\n{narrative}"
-            )
-    else:
-        now = datetime.now(timezone.utc)
-        report = DebriefReport(
-            user_id=user_id,
-            report_type="ask",
-            status="ready",
-            scheduled_for=now,
-            steps=[],
-        )
-        db.add(report)
-        await db.commit()
-        await db.refresh(report)
+    try:
+        report, window_context = await _resolve_ask_report(db, user_id, body.report_id)
+    except ValueError as exc:
+        detail = str(exc)
+        raise HTTPException(status_code=409 if "not ready" in detail else 404, detail=detail) from exc
 
-    prior = list(
-        (
-            await db.scalars(
-                select(DebriefMessage)
-                .where(DebriefMessage.report_id == report.id)
-                .order_by(DebriefMessage.created_at.asc())
-            )
-        ).all()
-    )
-    history = [(m.role, m.content) for m in prior]
+    history = await _debrief_history(db, report.id)
 
     user_message = DebriefMessage(report_id=report.id, role="user", content=body.message)
     db.add(user_message)
@@ -475,3 +485,77 @@ async def ask_debrief(
     db.add(assistant_message)
     await db.commit()
     return assistant_message
+
+
+@router.websocket("/debrief/ask/stream")
+async def ask_debrief_stream(
+    websocket: WebSocket,
+    message: str = Query(...),
+    report_id: int | None = Query(None),
+    references: str = Query("[]"),
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Conversation with streaming."""
+    await websocket.accept()
+
+    rate_limit_error = await check_ws_rate_limit(user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False)
+    if rate_limit_error:
+        await websocket.send_json({"type": "error", "detail": rate_limit_error})
+        await websocket.close(code=1008)
+        return
+
+    try:
+        report, window_context = await _resolve_ask_report(db, user_id, report_id)
+    except ValueError as exc:
+        await websocket.send_json({"type": "error", "detail": str(exc)})
+        await websocket.close()
+        return
+
+    await websocket.send_json({"type": "report", "report_id": report.id})
+
+    history = await _debrief_history(db, report.id)
+
+    user_message = DebriefMessage(report_id=report.id, role="user", content=message)
+    db.add(user_message)
+    await db.commit()
+
+    try:
+        parsed_references = [AttachedReferenceIn.model_validate(r) for r in json.loads(references)]
+    except (json.JSONDecodeError, ValueError):
+        parsed_references = []
+    attached_context = await resolve_references(db, user_id, parsed_references)
+    if window_context:
+        attached_context = [window_context, *attached_context]
+
+    reply_parts: list[str] = []
+    provenance: list[dict] = []
+
+    try:
+        async for event in astream_ask(db, user_id, message, history=history, attached_context=attached_context):
+            if event["type"] == "token":
+                reply_parts.append(event["text"])
+            elif event["type"] == "tool_call":
+                provenance.append({"tool": event["tool"], "args": event["args"]})
+            await websocket.send_json(event)
+
+        assistant_message = DebriefMessage(
+            report_id=report.id, role="assistant", content="".join(reply_parts), tool_provenance=provenance
+        )
+        db.add(assistant_message)
+        await db.commit()
+    except RuntimeError as exc:
+        await websocket.send_json({"type": "error", "detail": str(exc)})
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001
+        logger.exception("debrief ask stream failed for user %s", user_id)
+        try:
+            await websocket.send_json({"type": "error", "detail": "ask failed"})
+        except Exception:  # noqa: BLE001
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:  # noqa: BLE001
+            pass

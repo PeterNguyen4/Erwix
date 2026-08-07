@@ -469,6 +469,17 @@ export type DebriefEvent =
   | { type: "done" }
   | { type: "error"; detail: string };
 
+export type DebriefAskEvent =
+  | { type: "report"; report_id: number }
+  | { type: "token"; text: string }
+  | { type: "tool_call"; tool: string; args: Record<string, unknown> }
+  | { type: "annotations"; annotations: ChartAnnotation[] }
+  | { type: "spotlight"; selector: string; message?: string | null }
+  | { type: "zoom"; from: number; to: number }
+  | { type: "note_quote"; trade_id: number; text: string }
+  | { type: "done" }
+  | { type: "error"; detail: string };
+
 let _refreshInFlight: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
@@ -624,12 +635,13 @@ export const api = {
   latestDebriefReport: () => getJSON<DebriefReport | null>("/api/agent/debrief/latest"),
   getDebriefReport: (id: number) => getJSON<DebriefReport>(`/api/agent/debrief/${id}`),
   debriefMessages: (id: number) => getJSON<DebriefMessage[]>(`/api/agent/debrief/${id}/messages`),
-  postDebriefMessage: (id: number, message: string, references: AttachedReference[] = []) =>
-    postJSON<DebriefMessage>(`/api/agent/debrief/ask`, {
-      message,
-      report_id: id,
-      references: references.map(({ type, refId }) => ({ type, ref_id: refId })),
-    }),
+  debriefAskStreamUrl: async (message: string, reportId: number | null, references: AttachedReference[] = []) => {
+    const q = new URLSearchParams();
+    q.set("message", message);
+    if (reportId != null) q.set("report_id", String(reportId));
+    q.set("references", JSON.stringify(references.map(({ type, refId }) => ({ type, ref_id: refId }))));
+    return `${WS}/api/agent/debrief/ask/stream?${q.toString()}`;
+  },
   getArchetypes: () => getJSON<Archetype[]>("/api/strategy/archetypes"),
   listStrategies: () => getJSON<StrategyNoteSummary[]>("/api/strategy"),
   createStrategy: (body: { name: string; archetype: string | null }) =>

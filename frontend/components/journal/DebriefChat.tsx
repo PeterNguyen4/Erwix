@@ -1,13 +1,32 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Wrench, X } from "lucide-react";
+import { ArrowUp, Search, Wrench, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
-import { api, AttachedReference, DebriefMessage } from "@/lib/api";
+import { api, AttachedReference, DebriefAskEvent, DebriefMessage } from "@/lib/api";
 import ReferencePicker, { REFERENCE_TYPE_STYLE, ReferencePickerHandle } from "@/components/journal/ReferencePicker";
 import { getDebriefChatDraft } from "@/lib/debriefChatDraft";
+
+function toolLabel(tool: string): string {
+  return tool
+    .split("_")
+    .map((w) => w[0]?.toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+const CHART_TOOLS = new Set(["draw_annotations", "spotlight_day", "spotlight_trade", "zoom_to_range", "quote_note"]);
+
+function ToolCallBadge({ tool }: { tool: string }) {
+  const Icon = CHART_TOOLS.has(tool) ? Wrench : Search;
+  return (
+    <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
+      <Icon size={12} strokeWidth={2.2} />
+      <span className="font-extrabold">{toolLabel(tool)}</span>
+    </div>
+  );
+}
 
 const MARKDOWN_COMPONENTS = {
   p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="mb-2 last:mb-0" {...props} />,
@@ -37,30 +56,13 @@ const MARKDOWN_COMPONENTS = {
   ),
 };
 
-function ToolCallRow({ provenance }: { provenance: { tool: string }[] }) {
-  if (!provenance.length) return null;
-  return (
-    <div className="mb-1.5 flex flex-wrap gap-1.5">
-      {provenance.map((call, i) => (
-        <span
-          key={`${call.tool}-${i}`}
-          className="flex items-center gap-1 rounded-full border border-border/70 bg-bg/40 px-2 py-0.5 text-[10px] text-muted"
-        >
-          <Wrench size={9} strokeWidth={2.2} />
-          {call.tool}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-
 export default function DebriefChat({ reportId }: { reportId: number }) {
   const [messages, setMessages] = useState<DebriefMessage[]>(() => getDebriefChatDraft(reportId).messages);
   const [input, setInput] = useState(() => getDebriefChatDraft(reportId).input);
   const [attached, setAttached] = useState<AttachedReference[]>(() => getDebriefChatDraft(reportId).attached);
   const [sending, setSending] = useState(false);
   const [sendHover, setSendHover] = useState(false);
+  const nextTempId = useRef(-1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sendButtonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -109,18 +111,41 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
     setInput("");
     setAttached([]);
     setSending(true);
+    const userId = nextTempId.current--;
+    const assistantId = nextTempId.current--;
     setMessages((prev) => [
       ...prev,
-      { id: -1, role: "user", content: text, created_at: new Date().toISOString() },
+      { id: userId, role: "user", content: text, created_at: new Date().toISOString() },
+      { id: assistantId, role: "assistant", content: "", tool_provenance: [], created_at: new Date().toISOString() },
     ]);
+
+    const updateAssistant = (fn: (m: DebriefMessage) => DebriefMessage) =>
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? fn(m) : m)));
+
     try {
-      const reply = await api.postDebriefMessage(reportId, text, references);
-      setMessages((prev) => [...prev, reply]);
+      const url = await api.debriefAskStreamUrl(text, reportId, references);
+      await new Promise<void>((resolve, reject) => {
+        const ws = new WebSocket(url);
+        ws.onmessage = (ev) => {
+          const event: DebriefAskEvent = JSON.parse(ev.data);
+          if (event.type === "token") {
+            updateAssistant((m) => ({ ...m, content: m.content + event.text }));
+          } else if (event.type === "tool_call") {
+            updateAssistant((m) => ({
+              ...m,
+              tool_provenance: [...(m.tool_provenance ?? []), { tool: event.tool, args: event.args }],
+            }));
+          } else if (event.type === "done") {
+            resolve();
+          } else if (event.type === "error") {
+            reject(new Error(event.detail));
+          }
+        };
+        ws.onerror = () => reject(new Error("Connection lost."));
+        ws.onclose = () => resolve();
+      });
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        { id: -3, role: "assistant", content: "Sorry, that follow-up failed. Try again?", created_at: new Date().toISOString() },
-      ]);
+      updateAssistant((m) => ({ ...m, content: "Sorry, that follow-up failed. Try again?", tool_provenance: [] }));
     } finally {
       setSending(false);
     }
@@ -154,7 +179,8 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
                 : "max-w-[85%] rounded-2xl rounded-tl-sm bg-border/60 px-3 py-2 text-sm text-fg"
             }
           >
-            {m.role === "assistant" && <ToolCallRow provenance={m.tool_provenance ?? []} />}
+            {m.role === "assistant" &&
+              (m.tool_provenance ?? []).map((call, i) => <ToolCallBadge key={`${call.tool}-${i}`} tool={call.tool} />)}
             {m.role === "assistant" ? (
               <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
                 {m.content}
