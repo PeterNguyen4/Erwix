@@ -142,6 +142,7 @@ export interface JournalEntry {
   entry_date: string; // YYYY-MM-DD
   symbol: string | null;
   side: "buy" | "sell" | null;
+  timeframe: string | null;
   entry_time: string | null;
   entry_price: number | null;
   exit_time: string | null;
@@ -154,6 +155,7 @@ export interface JournalEntryInput {
   entry_date: string;
   symbol?: string | null;
   side?: "buy" | "sell" | null;
+  timeframe?: string | null;
   entry_time?: string | null;
   entry_price?: number | null;
   exit_time?: string | null;

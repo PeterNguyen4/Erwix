@@ -131,6 +131,7 @@ const emptyForm = (dateKey: string): JournalEntryInput => ({
   entry_date: dateKey,
   symbol: "",
   side: "buy",
+  timeframe: null,
   entry_time: null,
   entry_price: null,
   exit_time: null,
@@ -138,6 +139,16 @@ const emptyForm = (dateKey: string): JournalEntryInput => ({
   order_amount: null,
   notes: "",
 });
+
+const ENTRY_TIMEFRAMES: { id: string; label: string }[] = [
+  { id: "1Min", label: "1m" },
+  { id: "5Min", label: "5m" },
+  { id: "15Min", label: "15m" },
+  { id: "1Hour", label: "1H" },
+  { id: "1Day", label: "1D" },
+  { id: "1Week", label: "1W" },
+  { id: "1Month", label: "1M" },
+];
 
 function monthCells(year: number, month: number): (Date | null)[] {
   const first = new Date(year, month, 1);
@@ -555,6 +566,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
       entry_date: entry.entry_date,
       symbol: entry.symbol ?? "",
       side: entry.side ?? "buy",
+      timeframe: entry.timeframe,
       entry_time: entry.entry_time,
       entry_price: entry.entry_price,
       exit_time: entry.exit_time,
@@ -837,9 +849,22 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
           value={form.symbol ?? ""}
           onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))}
           placeholder="Symbol (e.g. AAPL)"
-          className="w-full border-b border-border bg-transparent pb-1.5 text-lg font-medium text-fg outline-none placeholder:text-muted focus:border-accent"
+          className="min-w-0 flex-1 border-b border-border bg-transparent pb-1.5 text-lg font-medium text-fg outline-none placeholder:text-muted focus:border-accent"
         />
-        <button onClick={closePanel} className="mt-0.5 shrink-0 rounded p-1 text-muted hover:bg-border/60 hover:text-fg">
+        <select
+          value={form.timeframe ?? ""}
+          onChange={(e) => setForm((f) => ({ ...f, timeframe: e.target.value || null }))}
+          title="Chart timeframe this trade was taken on"
+          className="mt-1.5 shrink-0 rounded-md border border-border bg-field px-1.5 py-1 text-xs text-fg outline-none focus:border-accent"
+        >
+          <option value="">Timeframe</option>
+          {ENTRY_TIMEFRAMES.map((tf) => (
+            <option key={tf.id} value={tf.id}>
+              {tf.label}
+            </option>
+          ))}
+        </select>
+        <button onClick={closePanel} className="mt-1 shrink-0 rounded p-1 text-muted hover:bg-border/60 hover:text-fg">
           <X size={16} strokeWidth={2} />
         </button>
       </div>
