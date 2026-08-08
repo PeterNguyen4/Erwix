@@ -1,16 +1,27 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Plus, StickyNote, Trash2, TrendingDown, TrendingUp, X } from "lucide-react";
 import { api, DebriefRequest, JournalEntry, JournalEntryInput, PortfolioPoint, Trade } from "@/lib/api";
 import { useClickOutside } from "@/lib/useClickOutside";
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const toDateInput = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const toDatetimeInput = (iso: string | null) => (iso ? new Date(iso).toISOString().slice(0, 16) : "");
-const timeLabel = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
+const timeLabel = (iso: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleTimeString("en-US", d.getMinutes() === 0 ? { hour: "numeric" } : { hour: "numeric", minute: "2-digit" });
+};
+const hhmmLocal = (iso: string | null) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+const minutesFromHHMM = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + (m || 0);
+};
 
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const addMonths = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth() + n, 1);
@@ -46,8 +57,8 @@ const DEFAULT_DURATION_MIN = 60;
 const TRADE_DURATION_MIN = 30;
 const SNAP_MIN = 15;
 const MIN_DURATION_MIN = 15;
-const PANEL_WIDTH = 320;
-const PANEL_MAX_HEIGHT = 440;
+const PANEL_WIDTH = 480;
+const PANEL_MAX_HEIGHT = 460;
 
 function hourLabel(h: number): string {
   return new Date(2000, 0, 1, h).toLocaleTimeString("en-US", { hour: "numeric" });
@@ -356,6 +367,27 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
   const [error, setError] = useState<string | null>(null);
   const [panelAnchor, setPanelAnchor] = useState<{ x: number; y: number; side: "left" | "right" } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
+  const startTimeInputRef = useRef<HTMLInputElement>(null);
+  const endTimeInputRef = useRef<HTMLInputElement>(null);
+  const [activeTimeField, setActiveTimeField] = useState<"date" | "start" | "end">("date");
+  const timeFieldRefs = { date: dateInputRef, start: startTimeInputRef, end: endTimeInputRef };
+
+  // Browsers give no API to close a native date/time picker programmatically (no
+  // "hidePicker"), so a second click can only re-open it, not toggle it shut.
+  const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof (el as { showPicker?: () => void }).showPicker === "function") {
+      try {
+        (el as { showPicker: () => void }).showPicker();
+        return;
+      } catch {
+        // unsupported or blocked — fall back to a plain focus below
+      }
+    }
+    el.focus();
+  };
 
   const [dragging, setDragging] = useState<DragTarget | null>(null);
   const [draftTimes, setDraftTimes] = useState<Record<number, { start?: number; end?: number }>>({});
@@ -488,6 +520,21 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
     const rect = e.currentTarget.getBoundingClientRect();
     const side: "left" | "right" = day.getDay() >= 4 ? "left" : "right";
     return { x: side === "right" ? rect.right : rect.left, y: rect.top, side };
+  };
+
+  const setFormDate = (dateStr: string) => {
+    setForm((f) => {
+      const rebase = (iso: string | null | undefined) => (iso ? isoAtMinutes(dateStr, minutesOfIso(iso)) : iso ?? null);
+      return { ...f, entry_date: dateStr, entry_time: rebase(f.entry_time), exit_time: rebase(f.exit_time) };
+    });
+  };
+
+  const setFormStartTime = (hhmm: string) => {
+    setForm((f) => ({ ...f, entry_time: hhmm ? isoAtMinutes(f.entry_date, minutesFromHHMM(hhmm)) : null }));
+  };
+
+  const setFormEndTime = (hhmm: string) => {
+    setForm((f) => ({ ...f, exit_time: hhmm ? isoAtMinutes(f.entry_date, minutesFromHHMM(hhmm)) : null }));
   };
 
   const openCreate = (date: Date, minutes: number | undefined, e: React.MouseEvent, override?: PanelAnchor) => {
@@ -641,7 +688,6 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
 
   const inputClass =
     "w-full rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg placeholder:text-muted outline-none focus:border-accent";
-  const labelClass = "mb-1 block text-[10px] font-medium tracking-wide text-muted";
 
   const renderDayCell = (cell: Date, maxVisible: number) => {
     const k = dayKey(cell);
@@ -779,47 +825,40 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
 
   const timeGridDays = viewMode === "week" ? Array.from({ length: 7 }, (_, i) => addDays(range.start, i)) : [anchor];
 
+  const rowClass = "flex items-center gap-3 py-2";
+  const fieldClass =
+    "rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg placeholder:text-muted outline-none focus:border-accent";
+
   const formPanelContent = formOpen && (
     <>
-      <div className="mb-5 flex items-center justify-between">
-        <div className="text-xs font-medium tracking-wide text-muted">
-          {formOpen.mode === "edit" ? "Edit Entry" : "New Entry"} — {formOpen.dateKey}
-        </div>
-        <button onClick={closePanel} className="text-xs text-muted hover:text-fg">
-          ✕
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <input
+          autoFocus
+          value={form.symbol ?? ""}
+          onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))}
+          placeholder="Symbol (e.g. AAPL)"
+          className="w-full border-b border-border bg-transparent pb-1.5 text-lg font-medium text-fg outline-none placeholder:text-muted focus:border-accent"
+        />
+        <button onClick={closePanel} className="mt-0.5 shrink-0 rounded p-1 text-muted hover:bg-border/60 hover:text-fg">
+          <X size={16} strokeWidth={2} />
         </button>
       </div>
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelClass}>Date</label>
-            <input
-              type="date"
-              value={form.entry_date}
-              onChange={(e) => setForm((f) => ({ ...f, entry_date: e.target.value }))}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Symbol</label>
-            <input
-              value={form.symbol ?? ""}
-              onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))}
-              placeholder="AAPL"
-              className={inputClass}
-            />
-          </div>
-        </div>
-        <div>
-          <label className={labelClass}>Side</label>
-          <div className="flex gap-1">
+
+      <div className="mt-3">
+        <div className={rowClass}>
+          {form.side === "sell" ? (
+            <TrendingDown size={15} strokeWidth={2} className="shrink-0 text-down" />
+          ) : (
+            <TrendingUp size={15} strokeWidth={2} className="shrink-0 text-up" />
+          )}
+          <div className="flex gap-1.5">
             {(["buy", "sell"] as const).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, side: s }))}
-                className={`flex-1 rounded px-2 py-1 text-xs font-medium uppercase transition-colors ${
-                  form.side === s ? "bg-accent/20 text-accent" : "bg-field text-muted hover:text-fg"
+                className={`rounded-md px-3 py-1 text-xs font-semibold uppercase transition-colors ${
+                  form.side === s ? "bg-accent text-on-accent" : "bg-field text-muted hover:text-fg"
                 }`}
               >
                 {s}
@@ -827,69 +866,89 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
             ))}
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelClass}>Entry Time</label>
+
+        <div className={rowClass}>
+          <button
+            type="button"
+            onClick={() => openPicker(timeFieldRefs[activeTimeField])}
+            className="flex h-[15px] w-[15px] shrink-0 items-center justify-center text-muted hover:text-fg"
+            aria-label="Open date/time picker"
+          >
+            <Clock size={15} strokeWidth={2} />
+          </button>
+          <div className="flex flex-1 flex-nowrap items-center gap-1.5">
             <input
-              type="datetime-local"
-              value={toDatetimeInput(form.entry_time ?? null)}
-              onChange={(e) => setForm((f) => ({ ...f, entry_time: e.target.value ? new Date(e.target.value).toISOString() : null }))}
-              className={inputClass}
+              ref={dateInputRef}
+              type="date"
+              value={form.entry_date}
+              onFocus={() => setActiveTimeField("date")}
+              onChange={(e) => setFormDate(e.target.value)}
+              className={`${fieldClass} w-[7.5rem]`}
+            />
+            <input
+              ref={startTimeInputRef}
+              type="time"
+              lang="en-US"
+              value={hhmmLocal(form.entry_time ?? null)}
+              onFocus={() => setActiveTimeField("start")}
+              onChange={(e) => setFormStartTime(e.target.value)}
+              className={`${fieldClass} w-[7rem]`}
+            />
+            <span className="shrink-0 text-xs text-muted">–</span>
+            <input
+              ref={endTimeInputRef}
+              type="time"
+              lang="en-US"
+              value={hhmmLocal(form.exit_time ?? null)}
+              onFocus={() => setActiveTimeField("end")}
+              onChange={(e) => setFormEndTime(e.target.value)}
+              className={`${fieldClass} w-[7rem]`}
             />
           </div>
-          <div>
-            <label className={labelClass}>Entry Price</label>
+        </div>
+
+        <div className={rowClass}>
+          <DollarSign size={15} strokeWidth={2} className="shrink-0 text-muted" />
+          <div className="grid flex-1 grid-cols-3 gap-1.5">
             <input
               type="number"
               step="0.01"
+              placeholder="Entry"
               value={form.entry_price ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, entry_price: e.target.value ? Number(e.target.value) : null }))}
               className={inputClass}
             />
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelClass}>Exit Time</label>
-            <input
-              type="datetime-local"
-              value={toDatetimeInput(form.exit_time ?? null)}
-              onChange={(e) => setForm((f) => ({ ...f, exit_time: e.target.value ? new Date(e.target.value).toISOString() : null }))}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Exit Price</label>
             <input
               type="number"
               step="0.01"
+              placeholder="Exit"
               value={form.exit_price ?? ""}
               onChange={(e) => setForm((f) => ({ ...f, exit_price: e.target.value ? Number(e.target.value) : null }))}
               className={inputClass}
             />
+            <input
+              type="number"
+              step="0.01"
+              placeholder="Quantity"
+              value={form.order_amount ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, order_amount: e.target.value ? Number(e.target.value) : null }))}
+              className={inputClass}
+            />
           </div>
         </div>
-        <div>
-          <label className={labelClass}>Order Amount ($)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={form.order_amount ?? ""}
-            onChange={(e) => setForm((f) => ({ ...f, order_amount: e.target.value ? Number(e.target.value) : null }))}
-            className={inputClass}
-          />
-        </div>
-        <div>
-          <label className={labelClass}>Notes</label>
+
+        <div className={rowClass}>
+          <StickyNote size={15} strokeWidth={2} className="mt-1 shrink-0 self-start text-muted" />
           <textarea
             value={form.notes ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
             placeholder="What was your plan? How did it play out?"
-            className={`${inputClass} h-20 resize-y`}
+            className={`${inputClass} h-16 flex-1 resize-y`}
           />
         </div>
       </div>
-      <div className="mt-6 flex items-center justify-between">
+
+      <div className="mt-4 flex items-center justify-between">
         {formOpen.mode === "edit" ? (
           <button onClick={deleteEntry} className="flex items-center gap-1 text-xs font-medium text-down hover:text-down/80">
             <Trash2 size={12} strokeWidth={2} />
@@ -899,12 +958,12 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
           <span />
         )}
         <div className="flex gap-2">
-          <button onClick={closePanel} className="rounded-md px-3 py-1 text-xs font-medium text-muted hover:text-fg">
+          <button onClick={closePanel} className="rounded-md px-3 py-1.5 text-xs font-medium text-muted hover:text-fg">
             Cancel
           </button>
           <button
             onClick={saveForm}
-            className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
+            className="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
           >
             Save
           </button>
@@ -915,36 +974,44 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
 
   const tradePanelContent = tradeDetail && (
     <>
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs font-medium tracking-wide text-muted">
-          {tradeDetail.symbol} — {new Date(tradeDetail.filled_at!).toLocaleString()}
-        </div>
-        <button onClick={closePanel} className="text-xs text-muted hover:text-fg">
-          ✕
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <div className="pb-1.5 text-lg font-medium text-fg">{tradeDetail.symbol}</div>
+        <button onClick={closePanel} className="mt-0.5 shrink-0 rounded p-1 text-muted hover:bg-border/60 hover:text-fg">
+          <X size={16} strokeWidth={2} />
         </button>
       </div>
-      <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
-        <div>
-          <div className="text-muted">Side</div>
-          <div className="uppercase text-fg">{tradeDetail.side}</div>
+
+      <div>
+        <div className={rowClass}>
+          <Clock size={15} strokeWidth={2} className="shrink-0 text-muted" />
+          <span className="text-sm text-fg">{new Date(tradeDetail.filled_at!).toLocaleString()}</span>
         </div>
-        <div>
-          <div className="text-muted">Qty</div>
-          <div className="text-fg tabular-nums">{tradeDetail.qty}</div>
+        <div className={rowClass}>
+          {tradeDetail.side === "sell" ? (
+            <TrendingDown size={15} strokeWidth={2} className="shrink-0 text-down" />
+          ) : (
+            <TrendingUp size={15} strokeWidth={2} className="shrink-0 text-up" />
+          )}
+          <span className="text-sm uppercase text-fg">{tradeDetail.side}</span>
+          <span className="text-xs text-muted">•</span>
+          <span className="text-sm tabular-nums text-fg">{tradeDetail.qty} qty</span>
         </div>
-        <div>
-          <div className="text-muted">Fill</div>
-          <div className="text-fg tabular-nums">${tradeDetail.fill_price?.toFixed(2)}</div>
+        <div className={rowClass}>
+          <DollarSign size={15} strokeWidth={2} className="shrink-0 text-muted" />
+          <span className="text-sm tabular-nums text-fg">${tradeDetail.fill_price?.toFixed(2)} fill</span>
+        </div>
+        <div className={rowClass}>
+          <StickyNote size={15} strokeWidth={2} className="mt-1 shrink-0 self-start text-muted" />
+          <textarea
+            value={tradeNoteDraft}
+            onChange={(e) => setTradeNoteDraft(e.target.value)}
+            placeholder="What was your plan? Which confluences lined up?"
+            className={`${inputClass} h-20 flex-1 resize-y`}
+          />
         </div>
       </div>
-      <label className={labelClass}>Notes</label>
-      <textarea
-        value={tradeNoteDraft}
-        onChange={(e) => setTradeNoteDraft(e.target.value)}
-        placeholder="What was your plan? Which confluences lined up?"
-        className={`${inputClass} h-24 resize-y`}
-      />
-      <div className="mt-3 flex items-center justify-between">
+
+      <div className="mt-4 flex items-center justify-between">
         <button
           onClick={() => {
             const t = tradeDetail;
@@ -957,13 +1024,13 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
             });
             closePanel();
           }}
-          className="rounded-md bg-accent/20 px-3 py-1 text-xs font-semibold text-accent hover:bg-accent/30"
+          className="rounded-md bg-accent/20 px-3 py-1.5 text-xs font-semibold text-accent hover:bg-accent/30"
         >
           Debrief this trade
         </button>
         <button
           onClick={saveTradeNote}
-          className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
+          className="rounded-md bg-accent px-4 py-1.5 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
         >
           Save
         </button>
@@ -1271,7 +1338,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
             <div
               ref={panelRef}
               style={{ position: "fixed", left, top, width: PANEL_WIDTH, maxHeight: PANEL_MAX_HEIGHT }}
-              className="z-50 overflow-y-auto rounded-md border border-border bg-panel p-4 shadow-xl"
+              className="z-50 overflow-y-auto rounded-xl border border-border bg-panel p-4 shadow-2xl"
             >
               {formPanelContent}
               {tradePanelContent}
