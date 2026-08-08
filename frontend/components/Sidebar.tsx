@@ -10,12 +10,14 @@ import {
   Newspaper,
   Compass,
   FlaskConical,
+  CalendarDays,
   Settings,
 } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Chart",     href: "/chart",     Icon: LineChart },
   { label: "Portfolio", href: "/portfolio", Icon: Wallet },
+  { label: "Journal",   href: "/journal",   Icon: CalendarDays },
   { label: "News",      href: "/news",      Icon: Newspaper },
   { label: "Strategy",  href: "/strategy",  Icon: Compass },
   { label: "Backtesting", href: "/backtesting", Icon: FlaskConical },

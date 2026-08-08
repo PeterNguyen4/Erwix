@@ -154,6 +154,7 @@ class JournalEntry(Base):
 
     symbol: Mapped[str | None] = mapped_column(String(16))
     side: Mapped[str | None] = mapped_column(String(8))  # buy | sell
+    timeframe: Mapped[str | None] = mapped_column(String(16))  # chart timeframe, e.g. "15Min", "1Day"
     entry_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     entry_price: Mapped[float | None] = mapped_column(Float)
     exit_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

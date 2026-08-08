@@ -168,6 +168,7 @@ class JournalEntryOut(BaseModel):
     entry_date: date
     symbol: str | None
     side: str | None
+    timeframe: str | None
     entry_time: datetime | None
     entry_price: float | None
     exit_time: datetime | None
@@ -182,6 +183,7 @@ class JournalEntryCreate(BaseModel):
     entry_date: date
     symbol: str | None = None
     side: Literal["buy", "sell"] | None = None
+    timeframe: str | None = None
     entry_time: datetime | None = None
     entry_price: float | None = None
     exit_time: datetime | None = None
@@ -194,6 +196,7 @@ class JournalEntryUpdate(BaseModel):
     entry_date: date | None = None
     symbol: str | None = None
     side: Literal["buy", "sell"] | None = None
+    timeframe: str | None = None
     entry_time: datetime | None = None
     entry_price: float | None = None
     exit_time: datetime | None = None
