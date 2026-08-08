@@ -2,11 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, X } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { api, Quote, SymbolResult, WatchlistItem } from "@/lib/api";
 
 const fmtUsd = (v: number) =>
   v.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query) return <>{text}</>;
+  const idx = text.toUpperCase().indexOf(query.toUpperCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="font-bold text-violet-400">{text.slice(idx, idx + query.length)}</span>
+      {text.slice(idx + query.length)}
+    </>
+  );
+}
 
 interface Row extends WatchlistItem {
   quote: Quote | null;
@@ -118,27 +131,35 @@ export default function Watchlist() {
 
       {adding && (
         <div className="relative mb-3">
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value.toUpperCase())}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && query.trim()) addSymbol(query.trim());
-              if (e.key === "Escape") setAdding(false);
-            }}
-            placeholder="Search symbol..."
-            className="w-full rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg placeholder:text-muted outline-none focus:border-accent"
-          />
+          <div className="flex items-center gap-2 rounded border border-border bg-field px-3 py-2 focus-within:border-violet-400">
+            <span className="text-muted">
+              <Search size={14} strokeWidth={2} className="shrink-0" />
+            </span>
+            <input
+              ref={inputRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value.toUpperCase())}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && query.trim()) addSymbol(query.trim());
+                if (e.key === "Escape") setAdding(false);
+              }}
+              placeholder="Search symbol/name"
+              className="flex-1 bg-transparent text-sm outline-none text-fg placeholder:text-muted"
+            />
+          </div>
           {results.length > 0 && (
-            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-48 overflow-auto rounded-md border border-border bg-panel py-1 shadow-lg">
+            <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded border border-border bg-panel shadow-lg">
               {results.map((r) => (
                 <button
                   key={r.symbol}
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={() => addSymbol(r.symbol)}
-                  className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-accent/10"
+                  className="flex w-full items-baseline gap-2 px-3 py-2 text-left text-sm hover:bg-violet-500/15"
                 >
-                  <span className="font-semibold text-fg">{r.symbol}</span>
-                  <span className="truncate text-muted">{r.name}</span>
+                  <span className="font-mono text-fg min-w-[3.5rem]">
+                    <HighlightMatch text={r.symbol} query={query} />
+                  </span>
+                  <span className="text-xs text-muted truncate">{r.name}</span>
                 </button>
               ))}
             </div>
