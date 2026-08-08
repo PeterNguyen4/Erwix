@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Search, Wrench, X } from "lucide-react";
+import { ArrowUp, Search, SlashSquare, Wrench, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import { api, AttachedReference, DebriefAskEvent, DebriefMessage } from "@/lib/api";
 import ReferencePicker, { REFERENCE_TYPE_STYLE, ReferencePickerHandle } from "@/components/journal/ReferencePicker";
 import { getDebriefChatDraft } from "@/lib/debriefChatDraft";
+import { useClickOutside } from "@/lib/useClickOutside";
 
 function toolLabel(tool: string): string {
   return tool
@@ -27,6 +28,10 @@ function ToolCallBadge({ tool }: { tool: string }) {
     </div>
   );
 }
+
+const SLASH_COMMANDS: { cmd: string; description: string }[] = [
+  { cmd: "/clear", description: "Clear this conversation's history" },
+];
 
 const MARKDOWN_COMPONENTS = {
   p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="mb-2 last:mb-0" {...props} />,
@@ -62,11 +67,14 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
   const [attached, setAttached] = useState<AttachedReference[]>(() => getDebriefChatDraft(reportId).attached);
   const [sending, setSending] = useState(false);
   const [sendHover, setSendHover] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const nextTempId = useRef(-1);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sendButtonRef = useRef<HTMLButtonElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const pickerRef = useRef<ReferencePickerHandle>(null);
+  const commandsRef = useRef<HTMLDivElement>(null);
+  useClickOutside(commandsRef, () => setCommandsOpen(false), commandsOpen);
 
   useEffect(() => {
     const draft = getDebriefChatDraft(reportId);
@@ -104,9 +112,31 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
     el.style.height = `${el.scrollHeight}px`;
   }, [input]);
 
+  const clear = async () => {
+    if (sending) return;
+    setInput("");
+    setSending(true);
+    try {
+      await api.clearDebriefMessages(reportId);
+      setMessages([]);
+      getDebriefChatDraft(reportId).messages = [];
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const runCommand = async (cmd: string) => {
+    setCommandsOpen(false);
+    if (cmd === "/clear") await clear();
+  };
+
   const send = async () => {
     const text = input.trim();
     if (!text || sending) return;
+    if (SLASH_COMMANDS.some((c) => c.cmd === text)) {
+      await runCommand(text);
+      return;
+    }
     const references = attached;
     setInput("");
     setAttached([]);
@@ -165,7 +195,12 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
     const beforeCursor = value.slice(0, cursor);
     const match = beforeCursor.match(/(?:^|\s)@(\S*)$/);
     if (match) pickerRef.current?.openWithQuery(match[1]);
+    setCommandsOpen(value.startsWith("/") && !value.includes(" "));
   };
+
+  const matchingCommands = input.startsWith("/")
+    ? SLASH_COMMANDS.filter((c) => c.cmd.startsWith(input))
+    : SLASH_COMMANDS;
 
   return (
     <div className="flex h-full flex-col">
@@ -192,7 +227,7 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
         ))}
       </div>
       <div className="w-full shrink-0 px-4 py-3">
-        <div className="flex w-full flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
+        <div className="relative flex w-full flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
           {attached.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-[18px] pt-3">
               {attached.map((ref) => {
@@ -235,7 +270,34 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
             />
           </div>
           <div className="flex items-center justify-between px-3 pb-3">
-            <ReferencePicker ref={pickerRef} onAttach={attach} />
+            <div className="flex items-center gap-1">
+              <ReferencePicker ref={pickerRef} onAttach={attach} />
+              <div ref={commandsRef}>
+                <button
+                  type="button"
+                  onClick={() => setCommandsOpen((v) => !v)}
+                  aria-label="Chat commands"
+                  className="flex shrink-0 items-center justify-center rounded-full bg-field p-1.5 text-muted transition-colors hover:bg-fg/10 hover:text-fg"
+                >
+                  <SlashSquare size={15} strokeWidth={2} />
+                </button>
+                {commandsOpen && matchingCommands.length > 0 && (
+                  <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-md border border-border bg-panel py-1 shadow-lg">
+                    {matchingCommands.map((c) => (
+                      <button
+                        key={c.cmd}
+                        type="button"
+                        onClick={() => runCommand(c.cmd)}
+                        className="flex w-full flex-col items-start px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10"
+                      >
+                        <span className="font-mono text-xs text-fg">{c.cmd}</span>
+                        <span className="truncate text-[10px] text-muted">{c.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <div
               className="relative flex items-center"
               onMouseEnter={() => setSendHover(true)}

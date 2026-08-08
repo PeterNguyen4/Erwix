@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import alpaca_client
@@ -409,6 +409,23 @@ async def list_debrief_messages(
             )
         ).all()
     )
+
+
+@router.delete("/debrief/{report_id}/messages", status_code=204)
+async def clear_debrief_messages(
+    report_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> None:
+    """The `/clear` chat command: wipes a conversation's follow-up messages so the
+    next question starts with no prior history. Leaves the DebriefReport itself
+    (and, for a scheduled report, its generated steps/narrative) intact — only
+    the chat thread on top of it is cleared."""
+    report = await db.get(DebriefReport, report_id)
+    if report is None or report.user_id != user_id:
+        raise HTTPException(status_code=404, detail="report not found")
+    await db.execute(delete(DebriefMessage).where(DebriefMessage.report_id == report_id))
+    await db.commit()
 
 
 async def _resolve_ask_report(db: AsyncSession, user_id: int, report_id: int | None) -> tuple[DebriefReport, str | None]:

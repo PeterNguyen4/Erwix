@@ -635,6 +635,8 @@ export const api = {
   latestDebriefReport: () => getJSON<DebriefReport | null>("/api/agent/debrief/latest"),
   getDebriefReport: (id: number) => getJSON<DebriefReport>(`/api/agent/debrief/${id}`),
   debriefMessages: (id: number) => getJSON<DebriefMessage[]>(`/api/agent/debrief/${id}/messages`),
+  clearDebriefMessages: (id: number) =>
+    fetch(`${API}/api/agent/debrief/${id}/messages`, { method: "DELETE", credentials: "include" }),
   debriefAskStreamUrl: async (message: string, reportId: number | null, references: AttachedReference[] = []) => {
     const q = new URLSearchParams();
     q.set("message", message);

@@ -135,7 +135,7 @@ const ReferencePicker = forwardRef<ReferencePickerHandle, { onAttach: (ref: Atta
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref}>
       <button
         type="button"
         onClick={toggle}
