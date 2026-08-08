@@ -620,7 +620,6 @@ export default function TradeCalendar({ points, onDebriefTrade }: TradeCalendarP
         </div>
       )}
 
-      {/* Auto-logged trade detail: read-only fields + editable notes + debrief action */}
       {tradeDetail && (
         <div className="absolute inset-0 z-40 flex items-center justify-center rounded-lg bg-bg/70 p-4">
           <div className="w-full max-w-sm rounded-md border border-border bg-panel p-3 shadow-lg">
