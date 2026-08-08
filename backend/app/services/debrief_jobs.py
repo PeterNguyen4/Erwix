@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import DebriefReport, UserPreference
-from app.services.agent_graph import agenerate_steps
+from app.services.agent_graph import agenerate_steps, summarize_report
 from app.services.trade_retrieval import count_trades_since, get_trades_window, primary_symbol
 
 logger = logging.getLogger("entro.debrief_jobs")
@@ -49,6 +49,11 @@ async def run_debrief_job(db: AsyncSession, report: DebriefReport) -> None:
             report.steps = [*report.steps, step]
             report.current_step += 1
             await db.commit()
+
+        try:
+            report.summary = await summarize_report([s["narrative"] for s in report.steps])
+        except Exception:  # noqa: BLE001
+            logger.exception("debrief summary generation failed for report %s", report.id)
 
         report.status = "ready"
         report.completed_at = datetime.now(timezone.utc)

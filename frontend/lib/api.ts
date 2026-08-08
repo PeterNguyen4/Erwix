@@ -367,6 +367,8 @@ export interface DebriefReport {
   current_step: number;
   eta_seconds: number | null;
   steps: DebriefStep[];
+  summary: string | null;
+  viewed_at: string | null;
   error_detail: string | null;
 }
 
@@ -658,6 +660,7 @@ export const api = {
   generateDebriefNow: () => postJSON<DebriefReport>("/api/agent/debrief/generate", {}),
   latestDebriefReport: () => getJSON<DebriefReport | null>("/api/agent/debrief/latest"),
   getDebriefReport: (id: number) => getJSON<DebriefReport>(`/api/agent/debrief/${id}`),
+  markDebriefViewed: (id: number) => postJSON<DebriefReport>(`/api/agent/debrief/${id}/viewed`, {}),
   debriefMessages: (id: number) => getJSON<DebriefMessage[]>(`/api/agent/debrief/${id}/messages`),
   clearDebriefMessages: (id: number) =>
     fetch(`${API}/api/agent/debrief/${id}/messages`, { method: "DELETE", credentials: "include" }),

@@ -160,7 +160,7 @@ export default function DebriefReportView({ report, onClose, onSpotlight, varian
               {stepNav}
             </div>
             <div className="shrink-0 px-4 py-3">{narrative}</div>
-            <div className="min-h-[280px] flex-1">{chartPane}</div>
+            <div className="min-h-[280px] flex-1 border-t border-border">{chartPane}</div>
           </div>
         </div>
       </div>

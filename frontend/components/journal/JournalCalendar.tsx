@@ -354,11 +354,12 @@ interface JournalCalendarProps {
   onDebriefTrade?: (request: DebriefRequest) => void;
   points?: PortfolioPoint[];
   leftPanelExtra?: ReactNode;
+  leftPanelBelow?: ReactNode;
 }
 
 type DragTarget = { id: number; edge: "start" | "end" } | { id: "draft"; edge: "start" | "end" };
 
-export default function JournalCalendar({ onDebriefTrade, points = [], leftPanelExtra }: JournalCalendarProps) {
+export default function JournalCalendar({ onDebriefTrade, points = [], leftPanelExtra, leftPanelBelow }: JournalCalendarProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(new Date()));
@@ -1192,6 +1193,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
               setPickerMonth(startOfMonth(d));
             }}
           />
+          {leftPanelBelow}
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col">

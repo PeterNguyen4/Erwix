@@ -324,6 +324,8 @@ class DebriefReportOut(BaseModel):
     current_step: int
     eta_seconds: int | None = None
     steps: list[DebriefStep] = []
+    summary: str | None = None
+    viewed_at: datetime | None = None
     error_detail: str | None = None
 
     model_config = {"from_attributes": True}

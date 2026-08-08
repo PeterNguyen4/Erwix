@@ -277,10 +277,10 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
           </div>
         ))}
       </div>
-      <div className="w-full shrink-0 px-4 py-3">
-        <div className="relative flex w-full flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
+      <div className="w-full shrink-0 px-4 py-2">
+        <div className="relative mx-auto flex w-full max-w-2xl flex-col rounded-2xl border border-border bg-field focus-within:border-violet-400">
           {attached.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-[18px] pt-3">
+            <div className="flex flex-wrap gap-1.5 px-[18px] pt-2">
               {attached.map((ref) => {
                 const style = REFERENCE_TYPE_STYLE[ref.type];
                 const Icon = style.icon;
@@ -304,7 +304,7 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
               })}
             </div>
           )}
-          <div className="pl-[18px] pr-3 pt-3">
+          <div className="pl-[18px] pr-3 pt-2">
             <textarea
               ref={textareaRef}
               value={input}
@@ -317,10 +317,10 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
               }}
               placeholder="Ask a follow-up…"
               rows={1}
-              className="chat-scroll max-h-40 min-h-[1.75rem] w-full resize-none overflow-y-auto bg-transparent pr-2 text-sm text-fg outline-none placeholder:text-muted"
+              className="chat-scroll max-h-24 min-h-[1.5rem] w-full resize-none overflow-y-auto bg-transparent pr-2 text-sm text-fg outline-none placeholder:text-muted"
             />
           </div>
-          <div className="flex items-center justify-between px-3 pb-3">
+          <div className="flex items-center justify-between px-3 pb-2">
             <div className="flex items-center gap-1">
               <ReferencePicker ref={pickerRef} onAttach={attach} />
               <div ref={commandsRef}>
