@@ -547,17 +547,27 @@ async def ask_debrief_stream(
 
     reply_parts: list[str] = []
     provenance: list[dict] = []
+    ordered_parts: list[dict] = []
 
     try:
         async for event in astream_ask(db, user_id, message, history=history, attached_context=attached_context):
             if event["type"] == "token":
                 reply_parts.append(event["text"])
+                if ordered_parts and ordered_parts[-1]["type"] == "text":
+                    ordered_parts[-1]["text"] += event["text"]
+                else:
+                    ordered_parts.append({"type": "text", "text": event["text"]})
             elif event["type"] == "tool_call":
                 provenance.append({"tool": event["tool"], "args": event["args"]})
+                ordered_parts.append({"type": "tool_call", "tool": event["tool"], "args": event["args"]})
             await websocket.send_json(event)
 
         assistant_message = DebriefMessage(
-            report_id=report.id, role="assistant", content="".join(reply_parts), tool_provenance=provenance
+            report_id=report.id,
+            role="assistant",
+            content="".join(reply_parts),
+            tool_provenance=provenance,
+            parts=ordered_parts,
         )
         db.add(assistant_message)
         await db.commit()

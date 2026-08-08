@@ -441,11 +441,16 @@ export interface ToolProvenance {
   args: Record<string, unknown>;
 }
 
+export type DebriefMessagePart =
+  | { type: "text"; text: string }
+  | { type: "tool_call"; tool: string; args: Record<string, unknown> };
+
 export interface DebriefMessage {
   id: number;
   role: "user" | "assistant";
   content: string;
   tool_provenance?: ToolProvenance[] | null;
+  parts?: DebriefMessagePart[] | null;
   created_at: string;
 }
 

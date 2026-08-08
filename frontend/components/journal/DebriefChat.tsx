@@ -10,21 +10,21 @@ import ReferencePicker, { REFERENCE_TYPE_STYLE, ReferencePickerHandle } from "@/
 import { getDebriefChatDraft } from "@/lib/debriefChatDraft";
 import { useClickOutside } from "@/lib/useClickOutside";
 
-function toolLabel(tool: string): string {
-  return tool
-    .split("_")
-    .map((w) => w[0]?.toUpperCase() + w.slice(1))
-    .join(" ");
+function toolLabelParts(tool: string): { verb: string; rest: string } {
+  const words = tool.split("_").map((w) => w[0]?.toUpperCase() + w.slice(1));
+  return { verb: words[0] ?? "", rest: words.slice(1).join(" ") };
 }
 
 const CHART_TOOLS = new Set(["draw_annotations", "spotlight_day", "spotlight_trade", "zoom_to_range", "quote_note"]);
 
 function ToolCallBadge({ tool }: { tool: string }) {
   const Icon = CHART_TOOLS.has(tool) ? Wrench : Search;
+  const { verb, rest } = toolLabelParts(tool);
   return (
-    <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted">
+    <div className="my-2 flex items-center gap-1.5 text-xs font-medium text-muted">
       <Icon size={12} strokeWidth={2.2} />
-      <span className="font-extrabold">{toolLabel(tool)}</span>
+      <span className="font-extrabold">{verb}</span>
+      {rest && <span>{rest}</span>}
     </div>
   );
 }
@@ -146,7 +146,7 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
     setMessages((prev) => [
       ...prev,
       { id: userId, role: "user", content: text, created_at: new Date().toISOString() },
-      { id: assistantId, role: "assistant", content: "", tool_provenance: [], created_at: new Date().toISOString() },
+      { id: assistantId, role: "assistant", content: "", parts: [], created_at: new Date().toISOString() },
     ]);
 
     const updateAssistant = (fn: (m: DebriefMessage) => DebriefMessage) =>
@@ -159,11 +159,19 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
         ws.onmessage = (ev) => {
           const event: DebriefAskEvent = JSON.parse(ev.data);
           if (event.type === "token") {
-            updateAssistant((m) => ({ ...m, content: m.content + event.text }));
+            updateAssistant((m) => {
+              const parts = m.parts ?? [];
+              const last = parts[parts.length - 1];
+              const nextParts =
+                last?.type === "text"
+                  ? [...parts.slice(0, -1), { type: "text" as const, text: last.text + event.text }]
+                  : [...parts, { type: "text" as const, text: event.text }];
+              return { ...m, content: m.content + event.text, parts: nextParts };
+            });
           } else if (event.type === "tool_call") {
             updateAssistant((m) => ({
               ...m,
-              tool_provenance: [...(m.tool_provenance ?? []), { tool: event.tool, args: event.args }],
+              parts: [...(m.parts ?? []), { type: "tool_call" as const, tool: event.tool, args: event.args }],
             }));
           } else if (event.type === "done") {
             resolve();
@@ -175,7 +183,11 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
         ws.onclose = () => resolve();
       });
     } catch {
-      updateAssistant((m) => ({ ...m, content: "Sorry, that follow-up failed. Try again?", tool_provenance: [] }));
+      updateAssistant((m) => ({
+        ...m,
+        content: "Sorry, that follow-up failed. Try again?",
+        parts: [{ type: "text", text: "Sorry, that follow-up failed. Try again?" }],
+      }));
     } finally {
       setSending(false);
     }
@@ -204,22 +216,37 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
 
   return (
     <div className="flex h-full flex-col">
-      <div ref={scrollRef} className="flex-1 space-y-2 overflow-auto py-2 pl-[22px] pr-4">
+      <div ref={scrollRef} className="flex-1 space-y-2 overflow-auto px-4 py-2">
         {messages.map((m) => (
           <div
             key={m.id}
             className={
               m.role === "user"
                 ? "ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/20 px-3 py-2 text-sm text-fg"
-                : "max-w-[85%] rounded-2xl rounded-tl-sm bg-border/60 px-3 py-2 text-sm text-fg"
+                : "text-sm text-fg"
             }
           >
-            {m.role === "assistant" &&
-              (m.tool_provenance ?? []).map((call, i) => <ToolCallBadge key={`${call.tool}-${i}`} tool={call.tool} />)}
             {m.role === "assistant" ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-                {m.content}
-              </ReactMarkdown>
+              m.parts ? (
+                m.parts.map((part, i) =>
+                  part.type === "tool_call" ? (
+                    <ToolCallBadge key={i} tool={part.tool} />
+                  ) : (
+                    <ReactMarkdown key={i} remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                      {part.text}
+                    </ReactMarkdown>
+                  ),
+                )
+              ) : (
+                <>
+                  {(m.tool_provenance ?? []).map((call, i) => (
+                    <ToolCallBadge key={`${call.tool}-${i}`} tool={call.tool} />
+                  ))}
+                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                    {m.content}
+                  </ReactMarkdown>
+                </>
+              )
             ) : (
               m.content
             )}

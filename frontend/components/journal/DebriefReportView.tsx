@@ -103,7 +103,7 @@ export default function DebriefReportView({ report, onClose, onSpotlight }: Debr
         )}
       </div>
 
-      <div className="flex-1 overflow-auto py-3 pl-[34px] pr-[28px]">
+      <div className="flex-1 overflow-auto px-4 py-3">
         <p className="whitespace-pre-wrap text-sm text-fg">{step?.narrative}</p>
         {step?.note_quote && (
           <div className="mt-3 rounded-xl border border-accent/30 bg-accent/5 px-3 py-2.5">

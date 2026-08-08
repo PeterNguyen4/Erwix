@@ -329,6 +329,7 @@ class DebriefMessageOut(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     tool_provenance: list[dict] | None = None
+    parts: list[dict] | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
