@@ -6,10 +6,13 @@ import { api, DebriefRequest, PortfolioPoint } from "@/lib/api";
 import JournalCalendar from "@/components/journal/JournalCalendar";
 import AnalystDebrief from "@/components/journal/AnalystDebrief";
 import DebriefReportView from "@/components/journal/DebriefReportView";
+import DebriefScheduleSettings from "@/components/journal/DebriefScheduleSettings";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import { useDebriefReport } from "@/lib/useDebriefReport";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function JournalPage() {
+  const { isAdmin } = useAuth();
   const [spotlight, setSpotlight] = useState<string | null>(null);
   const [debriefRequest, setDebriefRequest] = useState<DebriefRequest | null>(null);
   const [points, setPoints] = useState<PortfolioPoint[]>([]);
@@ -61,12 +64,22 @@ export default function JournalPage() {
     <main className="flex h-full flex-col overflow-hidden">
       <header className="flex min-h-[60px] shrink-0 items-center justify-between border-b border-auth-field/40 bg-panel px-4 py-3">
         <div className="text-xl font-normal text-fg">Journal</div>
+        {process.env.NODE_ENV !== "production" && isAdmin && (
+          <button
+            onClick={() => api.resetDebrief().then(() => api.generateDebriefNow())}
+            title="Dev: resets last_debrief_at and immediately starts generating a debrief report, bypassing the schedule"
+            className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:border-accent hover:text-fg"
+          >
+            Dev: Generate Debrief Now
+          </button>
+        )}
       </header>
 
       <div className="min-h-0 flex-1 p-4">
         <JournalCalendar
           onDebriefTrade={setDebriefRequest}
           points={points}
+          leftPanelTop={<DebriefScheduleSettings />}
           leftPanelExtra={
             report &&
             !(report.status === "ready" && report.viewed_at) && (

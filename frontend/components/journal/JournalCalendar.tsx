@@ -256,7 +256,7 @@ function ViewDropdown({ view, onChange }: { view: ViewMode; onChange: (v: ViewMo
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+        className={`flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
           open ? "border-accent text-fg" : "border-border text-fg hover:bg-panel"
         }`}
       >
@@ -355,11 +355,18 @@ interface JournalCalendarProps {
   points?: PortfolioPoint[];
   leftPanelExtra?: ReactNode;
   leftPanelBelow?: ReactNode;
+  leftPanelTop?: ReactNode;
 }
 
 type DragTarget = { id: number; edge: "start" | "end" } | { id: "draft"; edge: "start" | "end" };
 
-export default function JournalCalendar({ onDebriefTrade, points = [], leftPanelExtra, leftPanelBelow }: JournalCalendarProps) {
+export default function JournalCalendar({
+  onDebriefTrade,
+  points = [],
+  leftPanelExtra,
+  leftPanelBelow,
+  leftPanelTop,
+}: JournalCalendarProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(new Date()));
@@ -782,7 +789,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
       <div
         key={k}
         data-daykey={k}
-        className="relative flex-1 border-l border-border/40 first:border-l-0"
+        className="relative flex-1 border-l border-border first:border-l-0"
         onClick={(e) => {
           if (justDraggedRef.current) return;
           const rect = e.currentTarget.getBoundingClientRect();
@@ -795,7 +802,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
         }}
       >
         {HOURS.map((h) => (
-          <div key={h} className="absolute inset-x-0 border-t border-border/30" style={{ top: h * HOUR_HEIGHT }} />
+          <div key={h} className="absolute inset-x-0 border-t border-border" style={{ top: h * HOUR_HEIGHT }} />
         ))}
         {dayKey(day) === todayKey && (
           <div
@@ -1098,11 +1105,12 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
 
   return (
     <div className="relative flex h-full flex-col">
-      <div className="mb-3 flex shrink-0 items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+        <div className="flex w-52 shrink-0 items-center">{leftPanelTop}</div>
+        <div className="flex flex-1 items-center gap-2">
           <button
             onClick={() => setAnchor(new Date())}
-            className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-fg hover:bg-panel"
+            className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-fg hover:bg-panel"
           >
             Today
           </button>
@@ -1122,7 +1130,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
           )}
           <span className="text-lg font-normal text-fg">{label}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {viewMode === "table" && (
             <>
               <div className="relative flex items-center">
@@ -1219,7 +1227,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
                       <tr
                         key={r.key}
                         onClick={(e) => (r.trade ? openTrade(r.trade, e) : r.entry ? openEdit(r.entry, e) : undefined)}
-                        className="cursor-pointer border-t border-border/50 hover:bg-accent/10"
+                        className="cursor-pointer border-t border-border hover:bg-accent/10"
                       >
                         <td className="py-1.5 pl-3 whitespace-nowrap text-muted">
                           {r.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -1244,7 +1252,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
                   {timeGridDays.map((d) => {
                     const isToday = dayKey(d) === todayKey;
                     return (
-                      <div key={dayKey(d)} className="flex flex-1 flex-col items-center border-l border-border/40 py-2 first:border-l-0">
+                      <div key={dayKey(d)} className="flex flex-1 flex-col items-center border-l border-border py-2 first:border-l-0">
                         <span className="text-xs font-medium text-muted">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
                         <span
                           className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium tabular-nums ${
@@ -1256,6 +1264,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [], leftPanel
                       </div>
                     );
                   })}
+                  <div className="w-2 shrink-0" />
                 </div>
               )}
               <div ref={gridScrollRef} className="min-h-0 flex-1 overflow-auto">

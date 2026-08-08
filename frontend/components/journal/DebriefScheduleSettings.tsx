@@ -119,7 +119,7 @@ export default function DebriefScheduleSettings() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-72 animate-fade-in-up rounded-xl border border-border bg-panel/95 p-4 shadow-2xl backdrop-blur-sm">
+        <div className="absolute left-0 z-40 mt-2 w-72 animate-fade-in-up rounded-xl border border-border bg-panel/95 p-4 shadow-2xl backdrop-blur-sm">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <div className="text-sm font-semibold text-fg">Weekly debrief</div>

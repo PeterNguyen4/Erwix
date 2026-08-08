@@ -10,9 +10,7 @@ import RecentTransactions from "@/components/journal/RecentTransactions";
 import Watchlist from "@/components/journal/Watchlist";
 import Sparkline from "@/components/journal/Sparkline";
 import AnalystDebrief from "@/components/journal/AnalystDebrief";
-import DebriefScheduleSettings from "@/components/journal/DebriefScheduleSettings";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
-import { useAuth } from "@/components/AuthProvider";
 
 function WeekDelta({ value }: { value: number | null }) {
   if (value == null || Number.isNaN(value) || value === 0) return null;
@@ -60,7 +58,6 @@ function StatChip({ chip }: { chip: Chip }) {
 }
 
 export default function PortfolioPage() {
-  const { isAdmin } = useAuth();
   const [account, setAccount] = useState<Account | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [positionsLoading, setPositionsLoading] = useState(true);
@@ -177,16 +174,6 @@ export default function PortfolioPage() {
         <div className="text-xl font-normal text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted">Paper account</div>
-          {process.env.NODE_ENV !== "production" && isAdmin && (
-            <button
-              onClick={() => api.resetDebrief().then(() => api.generateDebriefNow())}
-              title="Dev: resets last_debrief_at and immediately starts generating a debrief report, bypassing the schedule"
-              className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:border-accent hover:text-fg"
-            >
-              Dev: Generate Debrief Now
-            </button>
-          )}
-          <DebriefScheduleSettings />
         </div>
       </header>
 

@@ -6,9 +6,9 @@ import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import NotificationBell from "@/components/NotificationBell";
 import {
   LineChart,
-  Wallet,
+  WalletMinimal,
   Newspaper,
-  Compass,
+  ClipboardList,
   FlaskConical,
   CalendarDays,
   Settings,
@@ -16,10 +16,10 @@ import {
 
 const NAV_ITEMS = [
   { label: "Chart",     href: "/chart",     Icon: LineChart },
-  { label: "Portfolio", href: "/portfolio", Icon: Wallet },
+  { label: "Portfolio", href: "/portfolio", Icon: WalletMinimal },
   { label: "Journal",   href: "/journal",   Icon: CalendarDays },
   { label: "News",      href: "/news",      Icon: Newspaper },
-  { label: "Strategy",  href: "/strategy",  Icon: Compass },
+  { label: "Strategy",  href: "/strategy",  Icon: ClipboardList },
   { label: "Backtesting", href: "/backtesting", Icon: FlaskConical },
 ];
 
