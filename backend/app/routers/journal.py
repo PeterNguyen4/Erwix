@@ -12,11 +12,17 @@ from app.schemas import (
     JournalEntryOut,
     JournalEntryUpdate,
     PnLSummaryOut,
+    PnLTrendOut,
     PnLWeeklyComparisonOut,
     TradeNoteUpdate,
     TradeOut,
 )
-from app.services.trade_retrieval import compute_pnl_summary, compute_pnl_weekly_comparison, embed_trade_best_effort
+from app.services.trade_retrieval import (
+    compute_pnl_daily_trend,
+    compute_pnl_summary,
+    compute_pnl_weekly_comparison,
+    embed_trade_best_effort,
+)
 
 router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(get_current_user_id)])
 
@@ -73,6 +79,17 @@ async def pnl_summary_weekly(
         current=PnLSummaryOut.model_validate(current),
         previous=PnLSummaryOut.model_validate(previous),
     )
+
+
+@router.get("/pnl-summary/trend", response_model=PnLTrendOut)
+async def pnl_summary_trend(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+    days: int = Query(14, ge=2, le=90),
+) -> PnLTrendOut:
+    """Cumulative daily snapshots for the portfolio chip sparklines."""
+    trend = await compute_pnl_daily_trend(db, user_id, days)
+    return PnLTrendOut.model_validate(trend)
 
 
 @router.get("/trades/{trade_id}", response_model=TradeOut)

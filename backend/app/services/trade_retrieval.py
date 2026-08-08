@@ -177,6 +177,50 @@ async def compute_pnl_weekly_comparison(db: AsyncSession, user_id: int) -> tuple
     return await compute_pnl_summary_pair(db, user_id, (week_ago, now), (two_weeks_ago, week_ago))
 
 
+async def compute_pnl_daily_trend(
+    db: AsyncSession, user_id: int, days: int = 14
+) -> dict[str, list]:
+    """Daily snapshot for trend lines."""
+    closed = await _fifo_match_all(db, user_id)
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=days - 1)
+    closed = sorted((c for c in closed if c.closed_at >= start), key=lambda c: c.closed_at)
+
+    win_rate: list[float | None] = []
+    risk_reward: list[float | None] = []
+    total_pnl: list[float] = []
+    win_loss_diff: list[int] = []
+
+    idx = 0
+    running_wins: list[float] = []
+    running_losses: list[float] = []
+    running_total = 0.0
+    for day_offset in range(days):
+        day_end = start + timedelta(days=day_offset + 1)
+        while idx < len(closed) and closed[idx].closed_at < day_end:
+            c = closed[idx]
+            running_total += c.pnl
+            if c.pnl > 0:
+                running_wins.append(c.pnl)
+            elif c.pnl < 0:
+                running_losses.append(c.pnl)
+            idx += 1
+        decided = len(running_wins) + len(running_losses)
+        win_rate.append((len(running_wins) / decided) if decided else None)
+        avg_win = (sum(running_wins) / len(running_wins)) if running_wins else None
+        avg_loss = (sum(running_losses) / len(running_losses)) if running_losses else None
+        risk_reward.append((avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None)
+        total_pnl.append(running_total)
+        win_loss_diff.append(len(running_wins) - len(running_losses))
+
+    return {
+        "win_rate": win_rate,
+        "risk_reward": risk_reward,
+        "total_pnl": total_pnl,
+        "win_loss_diff": win_loss_diff,
+    }
+
+
 async def count_trades_since(db: AsyncSession, user_id: int, since: datetime) -> int:
     """Number of a user's fills strictly after `since` — used both by the sidebar
     badge (GET /api/agent/status) and the scheduler's "anything new to debrief?"

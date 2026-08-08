@@ -20,6 +20,11 @@ export interface Quote {
   timestamp: string | null;
 }
 
+export interface WatchlistItem {
+  symbol: string;
+  created_at: string;
+}
+
 export interface Position {
   symbol: string;
   qty: number;
@@ -204,6 +209,13 @@ export interface PnLSummary {
   closed_trades: ClosedTrade[];
 }
 
+export interface PnLTrend {
+  win_rate: (number | null)[];
+  risk_reward: (number | null)[];
+  total_pnl: number[];
+  win_loss_diff: number[];
+}
+
 export interface PnLWeeklyComparison {
   current: PnLSummary;
   previous: PnLSummary;
@@ -355,6 +367,8 @@ export interface DebriefReport {
   current_step: number;
   eta_seconds: number | null;
   steps: DebriefStep[];
+  summary: string | null;
+  viewed_at: string | null;
   error_detail: string | null;
 }
 
@@ -578,6 +592,10 @@ export const api = {
   },
   quote: (symbol: string) =>
     getJSON<Quote>(`/api/market/quote?symbol=${encodeURIComponent(symbol)}`),
+  watchlist: () => getJSON<WatchlistItem[]>("/api/watchlist"),
+  addWatchlistItem: (symbol: string) =>
+    postJSON<WatchlistItem>(`/api/watchlist/${encodeURIComponent(symbol)}`, {}),
+  removeWatchlistItem: (symbol: string) => deleteRequest(`/api/watchlist/${encodeURIComponent(symbol)}`),
   positions: () => getJSON<Position[]>("/api/trading/positions"),
   account: () => getJSON<Account>("/api/trading/account"),
   portfolioHistory: (period = "1M") =>
@@ -617,6 +635,7 @@ export const api = {
     return getJSON<PnLSummary>(`/api/journal/pnl-summary?${q.toString()}`);
   },
   pnlWeeklyComparison: () => getJSON<PnLWeeklyComparison>("/api/journal/pnl-summary/weekly"),
+  pnlTrend: (days = 14) => getJSON<PnLTrend>(`/api/journal/pnl-summary/trend?days=${days}`),
   reviewTrades: (req: AgentReviewRequest) =>
     postJSON<AgentReviewResponse>("/api/agent/review", req),
   debriefStatus: () => getJSON<DebriefStatus>("/api/agent/status"),
@@ -641,6 +660,7 @@ export const api = {
   generateDebriefNow: () => postJSON<DebriefReport>("/api/agent/debrief/generate", {}),
   latestDebriefReport: () => getJSON<DebriefReport | null>("/api/agent/debrief/latest"),
   getDebriefReport: (id: number) => getJSON<DebriefReport>(`/api/agent/debrief/${id}`),
+  markDebriefViewed: (id: number) => postJSON<DebriefReport>(`/api/agent/debrief/${id}/viewed`, {}),
   debriefMessages: (id: number) => getJSON<DebriefMessage[]>(`/api/agent/debrief/${id}/messages`),
   clearDebriefMessages: (id: number) =>
     fetch(`${API}/api/agent/debrief/${id}/messages`, { method: "DELETE", credentials: "include" }),

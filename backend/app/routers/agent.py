@@ -58,6 +58,8 @@ def _report_out(report: DebriefReport) -> DebriefReportOut:
         current_step=report.current_step,
         eta_seconds=eta,
         steps=report.steps,
+        summary=report.summary,
+        viewed_at=report.viewed_at,
         error_detail=report.error_detail,
     )
 
@@ -388,6 +390,22 @@ async def get_debrief_report(
     report = await db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id:
         raise HTTPException(status_code=404, detail="report not found")
+    return _report_out(report)
+
+
+@router.post("/debrief/{report_id}/viewed", response_model=DebriefReportOut)
+async def mark_debrief_viewed(
+    report_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> DebriefReportOut:
+    """Marks debrief to show summary instead."""
+    report = await db.get(DebriefReport, report_id)
+    if report is None or report.user_id != user_id:
+        raise HTTPException(status_code=404, detail="report not found")
+    if report.viewed_at is None:
+        report.viewed_at = datetime.now(timezone.utc)
+        await db.commit()
     return _report_out(report)
 
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { ArrowLeft } from "lucide-react";
 import { api, ChartAnnotation, Candle, DebriefEvent, DebriefRequest, ZoomRange } from "@/lib/api";
 import SpotlightToast from "./SpotlightToast";
 
@@ -58,9 +59,10 @@ interface AnalystDebriefProps {
   onClose: () => void;
   onSpotlight: (selector: string | null) => void;
   onFinished?: () => void;
+  variant?: "popup" | "panel";
 }
 
-export default function AnalystDebrief({ request, onClose, onSpotlight, onFinished }: AnalystDebriefProps) {
+export default function AnalystDebrief({ request, onClose, onSpotlight, onFinished, variant = "popup" }: AnalystDebriefProps) {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [annotations, setAnnotations] = useState<ChartAnnotation[]>([]);
   const [candles, setCandles] = useState<Candle[]>([]);
@@ -115,24 +117,17 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
             { kind: "note", id: nextId.current++, tradeId: msg.trade_id, text: msg.text },
           ]);
         } else if (msg.type === "annotations") {
-          // One draw_annotations call per trade now (see agent_graph.py's
-          // per-trade loop) — accumulate rather than overwrite, or every
-          // trade after the first would erase the ones before it.
           setAnnotations((prev) => [...prev, ...msg.annotations]);
         } else if (msg.type === "spotlight") {
           onSpotlight(msg.selector);
           if (spotlightTimer.current) clearTimeout(spotlightTimer.current);
           if (msg.message) {
-            // Minimize to the pill and let the toast, anchored on the
-            // highlighted element, carry the message instead — the full
-            // narrative is still sitting in the chat log underneath for
-            // whenever the drawer is reopened.
             setMinimized(true);
             setToast({ selector: msg.selector, message: msg.message });
             spotlightTimer.current = setTimeout(() => {
               onSpotlight(null);
               setToast(null);
-              setMinimized(false); // hand control back to the full drawer once the highlight fades
+              setMinimized(false);
             }, SPOTLIGHT_DURATION_MS);
           }
         } else if (msg.type === "zoom") {
@@ -185,6 +180,69 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
     setMinimized(false);
     setToast(null);
   };
+
+  const chatMessages = (
+    <>
+      {error && (
+        <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-xs text-down">{error}</div>
+      )}
+      {messages.map((m, i) => (
+        <div key={m.id} className="flex items-start gap-2 animate-fade-in-up">
+          <AnalystAvatar />
+          {m.kind === "note" ? (
+            <NoteCard tradeId={m.tradeId} text={m.text} />
+          ) : (
+            <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-border/60 px-3 py-2 text-sm text-fg">
+              {m.text || (i === messages.length - 1 && (connecting || streaming) ? <TypingIndicator /> : null)}
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  );
+
+  if (variant === "panel") {
+    return (
+      <div className="flex h-full flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between border-b border-auth-field/40 bg-panel px-4 py-3">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              title="Back to journal"
+              className="rounded p-1 text-muted transition-colors hover:bg-border hover:text-fg"
+            >
+              <ArrowLeft size={16} strokeWidth={2} />
+            </button>
+            <AnalystAvatar />
+            <div>
+              <div className="text-sm font-semibold text-fg">{ANALYST_NAME}</div>
+              <div className="text-[10px] text-muted">
+                {connecting ? "connecting…" : streaming ? "reviewing your trades…" : "debrief complete"}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:overflow-hidden">
+          <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
+            <div ref={scrollRef} className="flex-1 space-y-3 overflow-auto px-4 py-3">
+              {chatMessages}
+            </div>
+          </div>
+
+          <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0">
+            {candles.length > 0 ? (
+              <Chart candles={candles} annotations={annotations} symbol={activeSymbol} visibleRange={visibleRange} />
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-muted">
+                Whiteboard — waiting for a chart to discuss…
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (minimized) {
     return (
@@ -262,21 +320,7 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
 
       {/* Chat */}
       <div ref={scrollRef} className="flex-1 space-y-3 overflow-auto px-4 py-3">
-        {error && (
-          <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-xs text-down">{error}</div>
-        )}
-        {messages.map((m, i) => (
-          <div key={m.id} className="flex items-start gap-2 animate-fade-in-up">
-            <AnalystAvatar />
-            {m.kind === "note" ? (
-              <NoteCard tradeId={m.tradeId} text={m.text} />
-            ) : (
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-border/60 px-3 py-2 text-sm text-fg">
-                {m.text || (i === messages.length - 1 && (connecting || streaming) ? <TypingIndicator /> : null)}
-              </div>
-            )}
-          </div>
-        ))}
+        {chatMessages}
       </div>
     </div>
   );

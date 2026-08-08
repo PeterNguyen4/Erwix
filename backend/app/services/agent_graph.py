@@ -426,6 +426,28 @@ async def agenerate_steps(
         yield _step_from_tool_events(trade, narrative, events)
 
 
+REPORT_SUMMARY_PROMPT = (
+    "You just wrote a step-by-step debrief covering the trades below. Now write a short "
+    "recap for a small summary card in the trader's journal — plain text, no markdown, no "
+    "quotation marks, at most 2 short sentences (roughly 160 characters total). Lead with "
+    "the headline takeaway (win/loss pattern, a recurring mistake, a standout trade), not "
+    "a generic 'reviewed N trades' restatement. Use language that's easy to follow."
+)
+
+
+async def summarize_report(narratives: list[str]) -> str:
+    """Summarize full debrief into a short report."""
+    if not narratives:
+        return ""
+    model = _base_model(num_predict=120)
+    joined = "\n".join(f"- {n}" for n in narratives)
+    response = await model.ainvoke([HumanMessage(f"{REPORT_SUMMARY_PROMPT}\n\n{joined}")])
+    summary = response.content
+    if isinstance(summary, list):
+        summary = "".join(b.get("text", "") for b in summary if isinstance(b, dict) and b.get("type") == "text")
+    return summary.strip().strip('"“”')
+
+
 EXIT_GUIDANCE_SYSTEM_PROMPT = (
     "You are uWick, a trading mentor watching a trader's open position live. Their "
     "stop-loss or take-profit level was just breached. Give exit guidance in 1-2 "

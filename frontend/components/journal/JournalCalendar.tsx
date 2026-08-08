@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Plus, StickyNote, Trash2, TrendingDown, TrendingUp, X } from "lucide-react";
 import { api, DebriefRequest, JournalEntry, JournalEntryInput, PortfolioPoint, Trade } from "@/lib/api";
 import { useClickOutside } from "@/lib/useClickOutside";
@@ -353,11 +353,13 @@ function MiniMonthPicker({
 interface JournalCalendarProps {
   onDebriefTrade?: (request: DebriefRequest) => void;
   points?: PortfolioPoint[];
+  leftPanelExtra?: ReactNode;
+  leftPanelBelow?: ReactNode;
 }
 
 type DragTarget = { id: number; edge: "start" | "end" } | { id: "draft"; edge: "start" | "end" };
 
-export default function JournalCalendar({ onDebriefTrade, points = [] }: JournalCalendarProps) {
+export default function JournalCalendar({ onDebriefTrade, points = [], leftPanelExtra, leftPanelBelow }: JournalCalendarProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [anchor, setAnchor] = useState(() => new Date());
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(new Date()));
@@ -1178,17 +1180,21 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
       {error && <p className="mb-2 shrink-0 text-xs text-down">{error}</p>}
 
       <div className="flex min-h-0 flex-1 gap-3">
-        <MiniMonthPicker
-          month={pickerMonth}
-          onMonthChange={setPickerMonth}
-          selectedKey={dayKey(anchor)}
-          todayKey={todayKey}
-          dailyPl={dailyPl}
-          onSelect={(d) => {
-            setAnchor(d);
-            setPickerMonth(startOfMonth(d));
-          }}
-        />
+        <div className="flex w-52 shrink-0 flex-col gap-3 overflow-y-auto">
+          {leftPanelExtra}
+          <MiniMonthPicker
+            month={pickerMonth}
+            onMonthChange={setPickerMonth}
+            selectedKey={dayKey(anchor)}
+            todayKey={todayKey}
+            dailyPl={dailyPl}
+            onSelect={(d) => {
+              setAnchor(d);
+              setPickerMonth(startOfMonth(d));
+            }}
+          />
+          {leftPanelBelow}
+        </div>
 
         <div className="flex min-h-0 flex-1 flex-col">
           {viewMode === "table" ? (

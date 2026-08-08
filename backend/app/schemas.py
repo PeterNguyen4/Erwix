@@ -68,6 +68,13 @@ class Quote(BaseModel):
     timestamp: datetime | None = None
 
 
+class WatchlistItemOut(BaseModel):
+    symbol: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 # ---- Trading ----
 class OrderRequest(BaseModel):
     symbol: str
@@ -239,6 +246,13 @@ class PnLWeeklyComparisonOut(BaseModel):
     previous: PnLSummaryOut
 
 
+class PnLTrendOut(BaseModel):
+    win_rate: list[float | None]
+    risk_reward: list[float | None]
+    total_pnl: list[float]
+    win_loss_diff: list[int]
+
+
 # ---- Analyst Agent ----
 class ChartAnnotation(BaseModel):
     type: Literal["arrow", "circle", "marker", "line"]
@@ -310,6 +324,8 @@ class DebriefReportOut(BaseModel):
     current_step: int
     eta_seconds: int | None = None
     steps: list[DebriefStep] = []
+    summary: str | None = None
+    viewed_at: datetime | None = None
     error_detail: str | None = None
 
     model_config = {"from_attributes": True}
