@@ -384,8 +384,6 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
   const [activeTimeField, setActiveTimeField] = useState<"date" | "start" | "end">("date");
   const timeFieldRefs = { date: dateInputRef, start: startTimeInputRef, end: endTimeInputRef };
 
-  // Browsers give no API to close a native date/time picker programmatically (no
-  // "hidePicker"), so a second click can only re-open it, not toggle it shut.
   const openPicker = (ref: React.RefObject<HTMLInputElement>) => {
     const el = ref.current;
     if (!el) return;
@@ -404,7 +402,29 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
   const [draftTimes, setDraftTimes] = useState<Record<number, { start?: number; end?: number }>>({});
   const draftTimesRef = useRef<Record<number, { start?: number; end?: number }>>({});
   const gridRef = useRef<HTMLDivElement>(null);
+  const gridScrollRef = useRef<HTMLDivElement>(null);
   const justDraggedRef = useRef(false);
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    }, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (viewMode !== "day" && viewMode !== "week") return;
+    const el = gridScrollRef.current;
+    if (!el) return;
+    const target = (nowMinutes / 60) * HOUR_HEIGHT - el.clientHeight / 4;
+    el.scrollTop = clamp(target, 0, HOURS.length * HOUR_HEIGHT - el.clientHeight);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode]);
 
   const startResize = (e: React.MouseEvent, id: number | "draft", edge: "start" | "end") => {
     e.preventDefault();
@@ -525,8 +545,6 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
   const anchorPanel = (e: React.MouseEvent, override?: PanelAnchor) =>
     setPanelAnchor(override ?? { x: e.clientX, y: e.clientY, side: "right" });
 
-  // In day/week views, the panel docks to whichever side of the clicked card has room:
-  // right for the first half of the week's columns, left for the back half.
   const cardAnchor = (e: React.MouseEvent, day: Date): PanelAnchor => {
     const rect = e.currentTarget.getBoundingClientRect();
     const side: "left" | "right" = day.getDay() >= 4 ? "left" : "right";
@@ -777,6 +795,15 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
         {HOURS.map((h) => (
           <div key={h} className="absolute inset-x-0 border-t border-border/30" style={{ top: h * HOUR_HEIGHT }} />
         ))}
+        {dayKey(day) === todayKey && (
+          <div
+            className="pointer-events-none absolute inset-x-0 z-30 flex items-center"
+            style={{ top: (nowMinutes / 60) * HOUR_HEIGHT }}
+          >
+            <span className="-ml-[3px] h-[7px] w-[7px] shrink-0 rounded-full bg-accent" />
+            <span className="h-px flex-1 bg-accent" />
+          </div>
+        )}
         {rows.map((r) => {
           const slot = layout.get(r.key) ?? { col: 0, cols: 1 };
           const drag = r.source === "manual" ? draftTimes[r.id] : undefined;
@@ -851,19 +878,6 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
           placeholder="Symbol (e.g. AAPL)"
           className="min-w-0 flex-1 border-b border-border bg-transparent pb-1.5 text-lg font-medium text-fg outline-none placeholder:text-muted focus:border-accent"
         />
-        <select
-          value={form.timeframe ?? ""}
-          onChange={(e) => setForm((f) => ({ ...f, timeframe: e.target.value || null }))}
-          title="Chart timeframe this trade was taken on"
-          className="mt-1.5 shrink-0 rounded-md border border-border bg-field px-1.5 py-1 text-xs text-fg outline-none focus:border-accent"
-        >
-          <option value="">Timeframe</option>
-          {ENTRY_TIMEFRAMES.map((tf) => (
-            <option key={tf.id} value={tf.id}>
-              {tf.label}
-            </option>
-          ))}
-        </select>
         <button onClick={closePanel} className="mt-1 shrink-0 rounded p-1 text-muted hover:bg-border/60 hover:text-fg">
           <X size={16} strokeWidth={2} />
         </button>
@@ -872,9 +886,9 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
       <div className="mt-3">
         <div className={rowClass}>
           {form.side === "sell" ? (
-            <TrendingDown size={15} strokeWidth={2} className="shrink-0 text-down" />
+            <TrendingDown size={16} strokeWidth={2} className="shrink-0 text-down" />
           ) : (
-            <TrendingUp size={15} strokeWidth={2} className="shrink-0 text-up" />
+            <TrendingUp size={16} strokeWidth={2} className="shrink-0 text-up" />
           )}
           <div className="flex gap-1.5">
             {(["buy", "sell"] as const).map((s) => (
@@ -892,48 +906,63 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
           </div>
         </div>
 
-        <div className={rowClass}>
+        <div className="flex items-start gap-3 py-2">
           <button
             type="button"
             onClick={() => openPicker(timeFieldRefs[activeTimeField])}
-            className="flex h-[15px] w-[15px] shrink-0 items-center justify-center text-muted hover:text-fg"
+            className="mt-2.5 flex h-[16px] w-[16px] shrink-0 items-center justify-center text-muted hover:text-fg"
             aria-label="Open date/time picker"
           >
             <Clock size={15} strokeWidth={2} />
           </button>
-          <div className="flex flex-1 flex-nowrap items-center gap-1.5">
-            <input
-              ref={dateInputRef}
-              type="date"
-              value={form.entry_date}
-              onFocus={() => setActiveTimeField("date")}
-              onChange={(e) => setFormDate(e.target.value)}
-              className={`${fieldClass} w-[7.5rem]`}
-            />
-            <input
-              ref={startTimeInputRef}
-              type="time"
-              lang="en-US"
-              value={hhmmLocal(form.entry_time ?? null)}
-              onFocus={() => setActiveTimeField("start")}
-              onChange={(e) => setFormStartTime(e.target.value)}
-              className={`${fieldClass} w-[7rem]`}
-            />
-            <span className="shrink-0 text-xs text-muted">–</span>
-            <input
-              ref={endTimeInputRef}
-              type="time"
-              lang="en-US"
-              value={hhmmLocal(form.exit_time ?? null)}
-              onFocus={() => setActiveTimeField("end")}
-              onChange={(e) => setFormEndTime(e.target.value)}
-              className={`${fieldClass} w-[7rem]`}
-            />
+          <div className="flex flex-1 flex-col gap-4">
+            <div className="flex flex-1 flex-nowrap items-center gap-1.5">
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={form.entry_date}
+                onFocus={() => setActiveTimeField("date")}
+                onChange={(e) => setFormDate(e.target.value)}
+                className={`${fieldClass} w-[7.5rem]`}
+              />
+              <input
+                ref={startTimeInputRef}
+                type="time"
+                lang="en-US"
+                value={hhmmLocal(form.entry_time ?? null)}
+                onFocus={() => setActiveTimeField("start")}
+                onChange={(e) => setFormStartTime(e.target.value)}
+                className={`${fieldClass} w-[7rem]`}
+              />
+              <span className="shrink-0 text-xs text-muted">–</span>
+              <input
+                ref={endTimeInputRef}
+                type="time"
+                lang="en-US"
+                value={hhmmLocal(form.exit_time ?? null)}
+                onFocus={() => setActiveTimeField("end")}
+                onChange={(e) => setFormEndTime(e.target.value)}
+                className={`${fieldClass} w-[7rem]`}
+              />
+            </div>
+            <select
+              value={form.timeframe ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, timeframe: e.target.value || null }))}
+              title="Chart timeframe this trade was taken on"
+              className={`${fieldClass} w-fit`}
+            >
+              <option value="">No timeframe</option>
+              {ENTRY_TIMEFRAMES.map((tf) => (
+                <option key={tf.id} value={tf.id}>
+                  {tf.label} chart
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
         <div className={rowClass}>
-          <DollarSign size={15} strokeWidth={2} className="shrink-0 text-muted" />
+          <DollarSign size={16} strokeWidth={2} className="shrink-0 text-muted" />
           <div className="grid flex-1 grid-cols-3 gap-1.5">
             <input
               type="number"
@@ -963,7 +992,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
         </div>
 
         <div className={rowClass}>
-          <StickyNote size={15} strokeWidth={2} className="mt-1 shrink-0 self-start text-muted" />
+          <StickyNote size={16} strokeWidth={2} className="mt-1 shrink-0 self-start text-muted" />
           <textarea
             value={form.notes ?? ""}
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
@@ -1223,7 +1252,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
                   })}
                 </div>
               )}
-              <div className="min-h-0 flex-1 overflow-auto">
+              <div ref={gridScrollRef} className="min-h-0 flex-1 overflow-auto">
                 <div ref={gridRef} className="relative flex" style={{ height: HOURS.length * HOUR_HEIGHT }}>
                   <div className="sticky left-0 z-10 w-14 shrink-0 bg-panel">
                     {HOURS.map((h) => (
