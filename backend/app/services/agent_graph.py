@@ -9,26 +9,27 @@ langchain chat-model interface — nothing here assumes Anthropic beyond the
 node that constructs the chat model.
 """
 
-import json
+import asyncio
 import logging
 from datetime import datetime
 from typing import Annotated, AsyncIterator, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode, tools_condition
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import Trade
+from app.services.agent_tools import build_retrieval_tools, get_strategy_context
 from app.services.embeddings import build_trade_text
-from app.services.strategy import archetype_name, get_active_strategy, render_playbook
 from app.services.trade_retrieval import get_trades_window, primary_symbol, semantic_search
 
 logger = logging.getLogger("entro.agent_graph")
@@ -230,13 +231,9 @@ async def _system_prompt(db: AsyncSession, user_id: int) -> str:
     """Base analyst system prompt, plus the trader's own stated strategy
     (Strategy tab) when one exists, so the review can reference whether the
     trader is following their own rules."""
-    strategy = await get_active_strategy(db, user_id)
-    if strategy and strategy.structured_summary:
-        try:
-            rendered = render_playbook(json.loads(strategy.structured_summary))
-        except (json.JSONDecodeError, TypeError, AttributeError):
-            rendered = strategy.structured_summary  # legacy plain-text summary, pre-JSON playbooks
-        label = archetype_name(strategy.archetype) or "Custom"
+    ctx = await get_strategy_context(db, user_id)
+    if ctx:
+        label, rendered = ctx
         return (
             f"{SYSTEM_PROMPT}\n\nThe trader's stated strategy ({label}):\n"
             f"{rendered}\n\nWhen relevant, note whether the trades in this "
@@ -448,10 +445,10 @@ async def exit_guidance(
     take_profit_price: float | None,
 ) -> str:
     """Narrates stop-loss/take-profit just-breached for the live rule-watch loop."""
-    strategy = await get_active_strategy(db, user_id)
+    ctx = await get_strategy_context(db, user_id)
     strategy_line = ""
-    if strategy and strategy.structured_summary:
-        label = archetype_name(strategy.archetype) or "Custom"
+    if ctx:
+        label, _ = ctx
         strategy_line = f"\nTrader's stated strategy ({label}) — weigh this if it's relevant to the call."
 
     kind_label = "take-profit target" if level_hit == "take_profit" else "stop-loss"
@@ -467,59 +464,6 @@ async def exit_guidance(
     if isinstance(text, list):
         text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
     return text.strip().strip('"“”')
-
-
-FOLLOWUP_SYSTEM_PROMPT = (
-    "You are uWick, continuing a debrief conversation. The trade window and your original "
-    "report are in context below. Answer the trader's follow-up question directly and "
-    "specifically, grounded in the actual trades shown — don't restate the whole report. "
-    "You may call draw_annotations, spotlight_day, spotlight_trade, zoom_to_range, or "
-    "quote_note if referencing the chart/journal/a note helps answer the question."
-)
-
-
-async def arun_followup(
-    db: AsyncSession,
-    user_id: int,
-    window_start: datetime,
-    window_end: datetime,
-    report_narrative: str,
-    history: list[tuple[str, str]],
-    message: str,
-    symbol: str | None = None,
-    query: str | None = None,
-    attached_context: list[str] | None = None,
-) -> tuple[str, list[dict]]:
-    """Answer a follow-up question about an already-generated DebriefReport, grounded
-    in the same trade window/retrieval context used to generate it (re-fetched here
-    rather than trusting only the stored narrative, so questions about specific
-    trades can still be checked against real data). `history` is prior
-    (role, content) DebriefMessage pairs in order. `attached_context` holds resolved
-    text for any trade/journal-entry/day/symbol the user attached to this follow-up
-    (see reference_resolver.py), injected ahead of the question itself. Returns
-    (reply_text, tool_events)."""
-    state = _initial_state(user_id, window_start, window_end, symbol, query)
-    retrieved = await _retrieve(state, db)
-    context_messages = retrieved["messages"]
-
-    messages: list[AnyMessage] = [
-        SystemMessage(FOLLOWUP_SYSTEM_PROMPT),
-        *context_messages[1:],  # skip the retrieve step's own SystemMessage, keep the trade-window HumanMessage
-        AIMessage(report_narrative),
-    ]
-    for role, content in history:
-        messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
-    if attached_context:
-        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
-    messages.append(HumanMessage(message))
-
-    response = await _tool_model().ainvoke(messages)
-    reply = response.content
-    if isinstance(reply, list):
-        reply = "".join(b.get("text", "") for b in reply if isinstance(b, dict) and b.get("type") == "text")
-    events = _extract_tool_events(response)
-    annotation_events = [e for e in events if e["type"] == "annotations"]
-    return reply.strip(), annotation_events + [e for e in events if e["type"] != "annotations"]
 
 
 async def astream_review(
@@ -590,5 +534,174 @@ async def astream_review(
         tool_response = await tool_model.ainvoke([*conversation, HumanMessage(tool_prompt)])
         for event in _extract_tool_events(tool_response):
             yield event
+
+    yield {"type": "done"}
+
+
+ROUTER_SYSTEM_PROMPT = (
+    "You are uWick, a trading journal analyst answering an open-ended question about the "
+    "trader's history — not a single fixed window. You have tools to look up their stated "
+    "strategy, fetch trades in a date range, compare PnL/win-rate between two date ranges, "
+    "semantically search their full trade history, fetch raw news headlines for symbols they "
+    "traded, and market_insight — a news specialist that judges sentiment and gives "
+    "strategy-conditioned advice from those same headlines, so prefer it over fetch_symbol_news "
+    "whenever the question needs a read on the news, not just the headline list. Call whichever "
+    "combination of tools actually answers the question — e.g. 'what went wrong this week' "
+    "likely needs this week's trades, a comparison to last week, and market_insight for the "
+    "symbols involved; a question about one trade may need none of the comparison/news tools at "
+    "all. You may call several tools in one turn. Once you have enough information, answer "
+    "directly and specifically — don't pad with generic advice. "
+    "You may also call draw_annotations/spotlight_day/spotlight_trade/zoom_to_range/quote_note "
+    "if referencing the chart/journal/a note helps answer the question. Today's date and time "
+    "is {now} UTC. If this conversation started as a debrief of a specific trade window (context "
+    "below), prefer answering about that window when the question is ambiguous — but the trader "
+    "may ask about anything else in their history, so use your tools to look beyond it whenever "
+    "the question actually calls for that."
+)
+
+MAX_ROUTER_TOOL_TURNS = 6
+
+CHART_TOOLS = [draw_annotations, spotlight_day, spotlight_trade, zoom_to_range, quote_note]
+
+
+class RouterAgentState(TypedDict):
+    messages: Annotated[list[AnyMessage], add_messages]
+    user_id: int
+    tool_turns: int
+
+
+async def _router_plan(state: RouterAgentState, db: AsyncSession, user_id: int) -> dict:
+    tools = build_retrieval_tools(db, user_id) + CHART_TOOLS
+    tool_turns = state["tool_turns"]
+    if tool_turns >= MAX_ROUTER_TOOL_TURNS:
+        model = _base_model()
+        messages = [*state["messages"], HumanMessage("Answer now with what you have — no more tool calls.")]
+    else:
+        model = _base_model().bind_tools(tools)
+        messages = state["messages"]
+    response = await model.ainvoke(messages)
+    return {"messages": [response], "tool_turns": tool_turns + 1}
+
+
+def _make_router_tool_node(db: AsyncSession, user_id: int) -> ToolNode:
+    return ToolNode(build_retrieval_tools(db, user_id) + CHART_TOOLS)
+
+
+def build_router_graph(db: AsyncSession, user_id: int):
+    graph = StateGraph(RouterAgentState)
+    async def _plan_node(state: RouterAgentState) -> dict:
+        return await _router_plan(state, db, user_id)
+
+    graph.add_node("plan", _plan_node)
+    graph.add_node("tools", _make_router_tool_node(db, user_id))
+    graph.add_edge(START, "plan")
+    graph.add_conditional_edges("plan", tools_condition, {"tools": "tools", END: END})
+    graph.add_edge("tools", "plan")
+    return graph.compile()
+
+
+def _message_text(message: AnyMessage) -> str:
+    content = message.content
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+    return ""
+
+
+async def arun_ask(
+    db: AsyncSession,
+    user_id: int,
+    question: str,
+    history: list[tuple[str, str]] | None = None,
+    attached_context: list[str] | None = None,
+) -> tuple[str, list[dict], list[dict]]:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    messages: list[AnyMessage] = [SystemMessage(ROUTER_SYSTEM_PROMPT.format(now=now))]
+    for role, content in history or []:
+        messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
+    if attached_context:
+        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
+    messages.append(HumanMessage(question))
+
+    graph = build_router_graph(db, user_id)
+    result = await graph.ainvoke(
+        {"messages": messages, "user_id": user_id, "tool_turns": 0},
+        config={"recursion_limit": MAX_ROUTER_TOOL_TURNS * 2 + 4},
+    )
+
+    result_messages: list[AnyMessage] = result["messages"]
+    reply = _message_text(result_messages[-1]).strip()
+
+    annotation_events: list[dict] = []
+    all_provenance: list[dict] = []
+    for message in result_messages:
+        for call in getattr(message, "tool_calls", None) or []:
+            all_provenance.append({"tool": call["name"], "args": call["args"]})
+            if call["name"] == "draw_annotations":
+                annotation_events.append(
+                    {"type": "annotations", "annotations": call["args"].get("annotations", [])}
+                )
+
+    return reply, annotation_events, all_provenance
+
+
+async def astream_ask(
+    db: AsyncSession,
+    user_id: int,
+    question: str,
+    history: list[tuple[str, str]] | None = None,
+    attached_context: list[str] | None = None,
+) -> AsyncIterator[dict]:
+    """Streamed converstaion with tool calls and loops.q"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    messages: list[AnyMessage] = [SystemMessage(ROUTER_SYSTEM_PROMPT.format(now=now))]
+    for role, content in history or []:
+        messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
+    if attached_context:
+        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
+    messages.append(HumanMessage(question))
+
+    tools = build_retrieval_tools(db, user_id) + CHART_TOOLS
+    tools_by_name = {t.name: t for t in tools}
+    tool_model = _base_model().bind_tools(tools)
+    plain_model = _base_model()
+
+    tool_turns = 0
+    while True:
+        forced_final = tool_turns >= MAX_ROUTER_TOOL_TURNS
+        model = plain_model if forced_final else tool_model
+        turn_messages = messages
+        if forced_final:
+            turn_messages = [*messages, HumanMessage("Answer now with what you have — no more tool calls.")]
+
+        accumulated = None
+        async for kind, payload in _stream_narrative(model, turn_messages):
+            if kind == "token":
+                yield {"type": "token", "text": payload}
+            else:
+                accumulated = payload
+
+        tool_calls = [] if forced_final or accumulated is None else (getattr(accumulated, "tool_calls", None) or [])
+        if not tool_calls:
+            break
+
+        for event in _extract_tool_events(accumulated):
+            yield event
+        for call in tool_calls:
+            yield {"type": "tool_call", "tool": call["name"], "args": call["args"]}
+
+        results = await asyncio.gather(
+            *(tools_by_name[call["name"]].ainvoke(call["args"]) for call in tool_calls)
+        )
+        messages = [
+            *messages,
+            accumulated,
+            *(
+                ToolMessage(content=str(result), tool_call_id=call["id"])
+                for call, result in zip(tool_calls, results)
+            ),
+        ]
+        tool_turns += 1
 
     yield {"type": "done"}

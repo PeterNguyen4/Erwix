@@ -1,9 +1,10 @@
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import alpaca_client
@@ -13,14 +14,15 @@ from app.models import DebriefMessage, DebriefReport, UserPreference
 from app.schemas import (
     AgentReviewRequest,
     AgentReviewResponse,
-    DebriefMessageIn,
+    AttachedReferenceIn,
+    DebriefAskIn,
     DebriefMessageOut,
     DebriefReportOut,
     DebriefStatus,
 )
 from app.config import get_settings
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
-from app.services.agent_graph import arun_followup, astream_review, exit_guidance, run_review
+from app.services.agent_graph import arun_ask, astream_ask, astream_review, exit_guidance, run_review
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
 from app.services.reference_resolver import resolve_references
@@ -44,6 +46,7 @@ def _report_out(report: DebriefReport) -> DebriefReportOut:
         eta = remaining * get_settings().debrief_step_estimate_seconds
     return DebriefReportOut(
         id=report.id,
+        report_type=report.report_type,
         status=report.status,
         window_start=report.window_start,
         window_end=report.window_end,
@@ -408,26 +411,50 @@ async def list_debrief_messages(
     )
 
 
-@router.post(
-    "/debrief/{report_id}/messages",
-    response_model=DebriefMessageOut,
-    dependencies=[Depends(_llm_rate_limit)],
-)
-async def post_debrief_message(
+@router.delete("/debrief/{report_id}/messages", status_code=204)
+async def clear_debrief_messages(
     report_id: int,
-    body: DebriefMessageIn,
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
-) -> DebriefMessage:
-    """Ask a follow-up question about a completed DebriefReport. Grounded in the
-    same trade window/retrieval context used to generate the report (re-fetched,
-    not just the stored narrative) — see agent_graph.arun_followup."""
+) -> None:
+    """The `/clear` chat command: wipes a conversation's follow-up messages so the
+    next question starts with no prior history. Leaves the DebriefReport itself
+    (and, for a scheduled report, its generated steps/narrative) intact — only
+    the chat thread on top of it is cleared."""
     report = await db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id:
         raise HTTPException(status_code=404, detail="report not found")
-    if report.status != "ready":
-        raise HTTPException(status_code=409, detail="report is not ready yet")
+    await db.execute(delete(DebriefMessage).where(DebriefMessage.report_id == report_id))
+    await db.commit()
 
+
+async def _resolve_ask_report(db: AsyncSession, user_id: int, report_id: int | None) -> tuple[DebriefReport, str | None]:
+    """Ground questions in debrief chat window."""
+    if report_id is not None:
+        report = await db.get(DebriefReport, report_id)
+        if report is None or report.user_id != user_id:
+            raise ValueError("conversation not found")
+        if report.report_type != "scheduled":
+            return report, None
+        if report.status != "ready":
+            raise ValueError("report is not ready yet")
+        narrative = "\n\n".join(step.get("narrative", "") for step in report.steps)
+        window_context = (
+            f"This conversation started as a debrief of trades from {report.window_start:%Y-%m-%d} "
+            f"to {report.window_end:%Y-%m-%d}"
+            f"{f' (symbol {report.symbol})' if report.symbol else ''}:\n{narrative}"
+        )
+        return report, window_context
+
+    now = datetime.now(timezone.utc)
+    report = DebriefReport(user_id=user_id, report_type="ask", status="ready", scheduled_for=now, steps=[])
+    db.add(report)
+    await db.commit()
+    await db.refresh(report)
+    return report, None
+
+
+async def _debrief_history(db: AsyncSession, report_id: int) -> list[tuple[str, str]]:
     prior = list(
         (
             await db.scalars(
@@ -437,24 +464,125 @@ async def post_debrief_message(
             )
         ).all()
     )
-    history = [(m.role, m.content) for m in prior]
-    narrative = "\n\n".join(step.get("narrative", "") for step in report.steps)
+    return [(m.role, m.content) for m in prior]
 
-    user_message = DebriefMessage(report_id=report_id, role="user", content=body.message)
+
+@router.post("/debrief/ask", response_model=DebriefMessageOut, dependencies=[Depends(_llm_rate_limit)])
+async def ask_debrief(
+    body: DebriefAskIn,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> DebriefMessage:
+    try:
+        report, window_context = await _resolve_ask_report(db, user_id, body.report_id)
+    except ValueError as exc:
+        detail = str(exc)
+        raise HTTPException(status_code=409 if "not ready" in detail else 404, detail=detail) from exc
+
+    history = await _debrief_history(db, report.id)
+
+    user_message = DebriefMessage(report_id=report.id, role="user", content=body.message)
     db.add(user_message)
     await db.commit()
 
     attached_context = await resolve_references(db, user_id, body.references)
+    if window_context:
+        attached_context = [window_context, *attached_context]
 
     try:
-        reply, _events = await arun_followup(
-            db, user_id, report.window_start, report.window_end, narrative, history, body.message,
-            symbol=report.symbol, query=report.query, attached_context=attached_context,
+        reply, _annotations, provenance = await arun_ask(
+            db, user_id, body.message, history=history, attached_context=attached_context
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    assistant_message = DebriefMessage(report_id=report_id, role="assistant", content=reply)
+    assistant_message = DebriefMessage(
+        report_id=report.id, role="assistant", content=reply, tool_provenance=provenance
+    )
     db.add(assistant_message)
     await db.commit()
     return assistant_message
+
+
+@router.websocket("/debrief/ask/stream")
+async def ask_debrief_stream(
+    websocket: WebSocket,
+    message: str = Query(...),
+    report_id: int | None = Query(None),
+    references: str = Query("[]"),
+    user_id: int = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Conversation with streaming."""
+    await websocket.accept()
+
+    rate_limit_error = await check_ws_rate_limit(user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False)
+    if rate_limit_error:
+        await websocket.send_json({"type": "error", "detail": rate_limit_error})
+        await websocket.close(code=1008)
+        return
+
+    try:
+        report, window_context = await _resolve_ask_report(db, user_id, report_id)
+    except ValueError as exc:
+        await websocket.send_json({"type": "error", "detail": str(exc)})
+        await websocket.close()
+        return
+
+    await websocket.send_json({"type": "report", "report_id": report.id})
+
+    history = await _debrief_history(db, report.id)
+
+    user_message = DebriefMessage(report_id=report.id, role="user", content=message)
+    db.add(user_message)
+    await db.commit()
+
+    try:
+        parsed_references = [AttachedReferenceIn.model_validate(r) for r in json.loads(references)]
+    except (json.JSONDecodeError, ValueError):
+        parsed_references = []
+    attached_context = await resolve_references(db, user_id, parsed_references)
+    if window_context:
+        attached_context = [window_context, *attached_context]
+
+    reply_parts: list[str] = []
+    provenance: list[dict] = []
+    ordered_parts: list[dict] = []
+
+    try:
+        async for event in astream_ask(db, user_id, message, history=history, attached_context=attached_context):
+            if event["type"] == "token":
+                reply_parts.append(event["text"])
+                if ordered_parts and ordered_parts[-1]["type"] == "text":
+                    ordered_parts[-1]["text"] += event["text"]
+                else:
+                    ordered_parts.append({"type": "text", "text": event["text"]})
+            elif event["type"] == "tool_call":
+                provenance.append({"tool": event["tool"], "args": event["args"]})
+                ordered_parts.append({"type": "tool_call", "tool": event["tool"], "args": event["args"]})
+            await websocket.send_json(event)
+
+        assistant_message = DebriefMessage(
+            report_id=report.id,
+            role="assistant",
+            content="".join(reply_parts),
+            tool_provenance=provenance,
+            parts=ordered_parts,
+        )
+        db.add(assistant_message)
+        await db.commit()
+    except RuntimeError as exc:
+        await websocket.send_json({"type": "error", "detail": str(exc)})
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001
+        logger.exception("debrief ask stream failed for user %s", user_id)
+        try:
+            await websocket.send_json({"type": "error", "detail": "ask failed"})
+        except Exception:  # noqa: BLE001
+            pass
+    finally:
+        try:
+            await websocket.close()
+        except Exception:  # noqa: BLE001
+            pass
