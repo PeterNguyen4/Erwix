@@ -51,12 +51,12 @@ function StatChip({ chip }: { chip: Chip }) {
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-panel px-4 py-4">
       <div>
         <div className="text-xs font-medium tracking-wide text-muted">{chip.label}</div>
-        <div className={`mt-1.5 text-2xl font-normal tabular-nums ${chip.colorClass}`}>{chip.value}</div>
-        <div className="mt-1">
+        <div className={`mt-1 text-xl font-normal tabular-nums ${chip.colorClass}`}>{chip.value}</div>
+        <div className="mt-0.5">
           <WeekDelta value={chip.delta} />
         </div>
       </div>
-      {chip.series && <Sparkline values={chip.series} up={up} width={64} height={32} />}
+      {chip.series && <Sparkline values={chip.series} up={up} width={56} height={28} />}
     </div>
   );
 }
@@ -240,26 +240,24 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        {/* Left (2/3, matches the value chart above): stat chips + transactions.
-            Right (1/3, matches Total Assets above): allocation | watchlist. */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="space-y-4 lg:col-span-2">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+          <RecentTransactions onDebriefTrade={setDebriefRequest} />
+
+          <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {pnlLoading || !chips
                 ? Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="rounded-lg border border-border bg-panel px-4 py-4">
                       <div className="h-3 w-20 animate-pulse rounded bg-border/40" />
-                      <div className="mt-3 h-7 w-20 animate-pulse rounded bg-border/40" />
+                      <div className="mt-2 h-6 w-16 animate-pulse rounded bg-border/40" />
                     </div>
                   ))
                 : chips.map((c) => <StatChip key={c.key} chip={c} />)}
             </div>
-            <RecentTransactions onDebriefTrade={setDebriefRequest} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 lg:col-span-1">
-            <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
-            <Watchlist />
+            <div className="grid grid-cols-2 items-start gap-4">
+              <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
+              <Watchlist />
+            </div>
           </div>
         </div>
       </div>

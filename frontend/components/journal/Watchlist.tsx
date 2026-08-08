@@ -101,7 +101,7 @@ export default function Watchlist() {
   }));
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-panel p-4">
+    <div className="rounded-lg border border-border bg-panel p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold tracking-wide text-muted">Watchlist</h2>
         <button

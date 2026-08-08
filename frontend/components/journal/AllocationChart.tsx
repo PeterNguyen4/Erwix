@@ -102,15 +102,17 @@ export default function AllocationChart({
           })}
           <circle cx={CX} cy={CY} r={R - STROKE / 2 - 2} fill={palette.panel} />
         </svg>
-        <div className="w-full space-y-1.5 overflow-hidden">
+        <div className="w-full divide-y divide-border overflow-hidden">
           {slices.slice(0, 6).map((s) => (
-            <div key={s.label} className="flex items-center gap-2 text-xs">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} />
-              <span className="font-medium text-fg">{s.label}</span>
-              <span className="ml-auto tabular-nums text-muted">
-                {((s.value / total) * 100).toFixed(1)}%
+            <div key={s.label} className="flex items-center justify-between gap-2 py-2.5 text-xs first:pt-0 last:pb-0">
+              <span className="flex items-center gap-2 font-medium text-fg">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: s.color }} />
+                {s.label}
               </span>
-              <span className="w-16 text-right tabular-nums text-muted">{fmtUsd(s.value)}</span>
+              <span className="flex flex-col items-end gap-0.5">
+                <span className="tabular-nums text-fg">{fmtUsd(s.value)}</span>
+                <span className="tabular-nums text-muted">{((s.value / total) * 100).toFixed(1)}%</span>
+              </span>
             </div>
           ))}
         </div>
