@@ -29,6 +29,20 @@ function ToolCallBadge({ tool }: { tool: string }) {
   );
 }
 
+function TypingIndicator() {
+  return (
+    <div className="flex items-center gap-1 py-1">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-1.5 w-1.5 rounded-full bg-muted animate-bounce-dot"
+          style={{ animationDelay: `${i * 150}ms` }}
+        />
+      ))}
+    </div>
+  );
+}
+
 const SLASH_COMMANDS: { cmd: string; description: string }[] = [
   { cmd: "/clear", description: "Clear this conversation's history" },
 ];
@@ -222,29 +236,39 @@ export default function DebriefChat({ reportId }: { reportId: number }) {
             key={m.id}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-accent/20 px-3 py-2 text-sm text-fg"
+                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-accent/20 px-3 py-2 text-sm text-fg"
                 : "text-sm text-fg"
             }
           >
             {m.role === "assistant" ? (
               m.parts ? (
-                m.parts.map((part, i) =>
-                  part.type === "tool_call" ? (
-                    <ToolCallBadge key={i} tool={part.tool} />
-                  ) : (
-                    <ReactMarkdown key={i} remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-                      {part.text}
-                    </ReactMarkdown>
-                  ),
+                m.parts.length === 0 ? (
+                  <div className="py-0.5 pl-[18px]">
+                    <TypingIndicator />
+                  </div>
+                ) : (
+                  m.parts.map((part, i) =>
+                    part.type === "tool_call" ? (
+                      <ToolCallBadge key={i} tool={part.tool} />
+                    ) : (
+                      <div key={i} className="whitespace-pre-wrap py-0.5 pl-[18px]">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                          {part.text}
+                        </ReactMarkdown>
+                      </div>
+                    ),
+                  )
                 )
               ) : (
                 <>
                   {(m.tool_provenance ?? []).map((call, i) => (
                     <ToolCallBadge key={`${call.tool}-${i}`} tool={call.tool} />
                   ))}
-                  <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
-                    {m.content}
-                  </ReactMarkdown>
+                  <div className="whitespace-pre-wrap py-0.5 pl-[18px]">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
+                      {m.content}
+                    </ReactMarkdown>
+                  </div>
                 </>
               )
             ) : (
