@@ -195,6 +195,18 @@ function layoutDay(rows: JournalRow[]): Map<string, { col: number; cols: number 
   return result;
 }
 
+function ResizeHandle({ edge, onStart }: { edge: "start" | "end"; onStart: (e: React.MouseEvent) => void }) {
+  return (
+    <div
+      onMouseDown={onStart}
+      className={`absolute inset-x-0 z-20 flex cursor-ns-resize items-center justify-center ${edge === "start" ? "-top-1.5" : "-bottom-1.5"}`}
+      style={{ height: 10 }}
+    >
+      <div className="h-0.5 w-6 rounded-full bg-fg/40 opacity-0 transition-opacity group-hover/card:opacity-100" />
+    </div>
+  );
+}
+
 function EventChip({ row, onClick }: { row: JournalRow; onClick: (e: React.MouseEvent) => void }) {
   return (
     <button
@@ -349,6 +361,14 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
   const [draftTimes, setDraftTimes] = useState<Record<number, { start?: number; end?: number }>>({});
   const draftTimesRef = useRef<Record<number, { start?: number; end?: number }>>({});
   const gridRef = useRef<HTMLDivElement>(null);
+  const justDraggedRef = useRef(false);
+
+  const startResize = (e: React.MouseEvent, id: number | "draft", edge: "start" | "end") => {
+    e.preventDefault();
+    e.stopPropagation();
+    justDraggedRef.current = true;
+    setDragging({ id, edge } as DragTarget);
+  };
 
   const range = useMemo(() => {
     if (viewMode === "day") {
@@ -606,6 +626,9 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
         setDraftTimes(next);
       }
       setDragging(null);
+      setTimeout(() => {
+        justDraggedRef.current = false;
+      }, 0);
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -683,6 +706,7 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
         data-daykey={k}
         className="relative flex-1 border-l border-border/40 first:border-l-0"
         onClick={(e) => {
+          if (justDraggedRef.current) return;
           const rect = e.currentTarget.getBoundingClientRect();
           const side: "left" | "right" = day.getDay() >= 4 ? "left" : "right";
           openCreate(day, ((e.clientY - rect.top) / HOUR_HEIGHT) * 60, e, {
@@ -711,42 +735,28 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
               key={r.key}
               onClick={(e) => {
                 e.stopPropagation();
+                if (justDraggedRef.current) return;
                 openRow(r, e, cardAnchor(e, day));
               }}
-              className={`group/card absolute z-10 flex cursor-pointer flex-col overflow-hidden rounded-md border border-violet-400/30 bg-violet-500/20 px-1.5 py-0.5 text-[11px] font-medium text-fg shadow-sm transition-colors hover:bg-violet-500/30 ${
+              className={`group/card absolute z-10 flex cursor-pointer flex-col overflow-visible rounded-md border border-violet-400/30 bg-violet-500/20 px-1.5 py-0.5 text-[11px] font-medium text-fg shadow-sm transition-colors hover:bg-violet-500/30 ${
                 isDragging ? "ring-1 ring-accent" : ""
               }`}
               style={{ top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)` }}
             >
-              {r.source === "manual" && (
-                <div
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setDragging({ id: r.id, edge: "start" });
-                  }}
-                  className="absolute inset-x-0 top-0 h-1.5 cursor-ns-resize opacity-0 group-hover/card:opacity-100 hover:bg-fg/20"
-                />
-              )}
-              <span className="truncate font-semibold">{r.symbol ?? "Note"}</span>
-              <span className="flex items-center gap-1 truncate text-fg/70">
+              {r.source === "manual" && <ResizeHandle edge="start" onStart={(e) => startResize(e, r.id, "start")} />}
+              <span className="truncate overflow-hidden font-semibold">{r.symbol ?? "Note"}</span>
+              <span className="flex items-center gap-1 overflow-hidden truncate text-fg/70">
                 {timeLabel(isoAtMinutes(day, startMin))}
                 {r.side && <span className="uppercase">{r.side}</span>}
               </span>
-              {r.source === "manual" && (
-                <div
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setDragging({ id: r.id, edge: "end" });
-                  }}
-                  className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize opacity-0 group-hover/card:opacity-100 hover:bg-fg/20"
-                />
-              )}
+              {r.source === "manual" && <ResizeHandle edge="end" onStart={(e) => startResize(e, r.id, "end")} />}
             </div>
           );
         })}
         {isDraftDay && formOpen?.mode === "create" && form.entry_time && (
           <div
-            className="pointer-events-none absolute left-1 right-1 z-20 flex flex-col overflow-hidden rounded-md border border-violet-400/30 bg-violet-500/20 px-1.5 py-0.5 text-[11px] font-medium text-fg"
+            onClick={(e) => e.stopPropagation()}
+            className="absolute left-1 right-1 z-20 flex flex-col overflow-visible rounded-md border border-violet-400/30 bg-violet-500/20 px-1.5 py-0.5 text-[11px] font-medium text-fg"
             style={{
               top: (minutesOfIso(form.entry_time) / 60) * HOUR_HEIGHT,
               height: Math.max(
@@ -758,7 +768,9 @@ export default function JournalCalendar({ onDebriefTrade, points = [] }: Journal
               ),
             }}
           >
-            <span className="truncate">{form.symbol || "New entry"}</span>
+            <ResizeHandle edge="start" onStart={(e) => startResize(e, "draft", "start")} />
+            <span className="truncate overflow-hidden">{form.symbol || "New entry"}</span>
+            <ResizeHandle edge="end" onStart={(e) => startResize(e, "draft", "end")} />
           </div>
         )}
       </div>
