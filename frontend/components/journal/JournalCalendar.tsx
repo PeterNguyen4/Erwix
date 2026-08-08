@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
-import { api, DebriefRequest, JournalEntry, JournalEntryInput, Trade } from "@/lib/api";
+import { api, DebriefRequest, JournalEntry, JournalEntryInput, PortfolioPoint, Trade } from "@/lib/api";
 import { useClickOutside } from "@/lib/useClickOutside";
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
@@ -19,6 +19,7 @@ const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDat
 const startOfWeek = (d: Date) => addDays(startOfDay(d), -d.getDay());
 const startOfMonth = (d: Date) => new Date(d.getFullYear(), d.getMonth(), 1);
 const startOfYear = (d: Date) => new Date(d.getFullYear(), 0, 1);
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
 type ViewMode = "day" | "week" | "month" | "year" | "table";
 
@@ -38,6 +39,29 @@ const WINDOWS = [
 ];
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const HOUR_HEIGHT = 88;
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const DEFAULT_DURATION_MIN = 60;
+const TRADE_DURATION_MIN = 30;
+const SNAP_MIN = 15;
+const MIN_DURATION_MIN = 15;
+const PANEL_WIDTH = 320;
+const PANEL_MAX_HEIGHT = 440;
+
+function hourLabel(h: number): string {
+  return new Date(2000, 0, 1, h).toLocaleTimeString("en-US", { hour: "numeric" });
+}
+
+function minutesOfIso(iso: string): number {
+  const d = new Date(iso);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function isoAtMinutes(dateKeyOrDate: Date | string, minutes: number): string {
+  const day = typeof dateKeyOrDate === "string" ? new Date(`${dateKeyOrDate}T00:00:00`) : startOfDay(dateKeyOrDate);
+  return new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes).toISOString();
+}
 
 interface JournalRow {
   key: string;
@@ -95,7 +119,7 @@ function entryToRow(e: JournalEntry): JournalRow {
 const emptyForm = (dateKey: string): JournalEntryInput => ({
   entry_date: dateKey,
   symbol: "",
-  side: null,
+  side: "buy",
   entry_time: null,
   entry_price: null,
   exit_time: null,
@@ -115,26 +139,76 @@ function monthCells(year: number, month: number): (Date | null)[] {
   return cells;
 }
 
-function EventChip({ row, onClick }: { row: JournalRow; onClick: () => void }) {
-  const sideClass =
-    row.side === "buy"
-      ? "bg-up/15 text-up hover:bg-up/25"
-      : row.side === "sell"
-        ? "bg-down/15 text-down hover:bg-down/25"
-        : "bg-accent/15 text-accent hover:bg-accent/25";
+interface Interval {
+  row: JournalRow;
+  start: number;
+  end: number;
+}
+
+function layoutDay(rows: JournalRow[]): Map<string, { col: number; cols: number }> {
+  const intervals: Interval[] = rows
+    .map((r) => {
+      const start = r.entryTime ? minutesOfIso(r.entryTime) : 0;
+      const defaultDuration = r.source === "trade" ? TRADE_DURATION_MIN : DEFAULT_DURATION_MIN;
+      const end = r.exitTime ? minutesOfIso(r.exitTime) : start + defaultDuration;
+      return { row: r, start, end: Math.max(end, start + MIN_DURATION_MIN) };
+    })
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+
+  const result = new Map<string, { col: number; cols: number }>();
+  let cluster: Interval[] = [];
+  let clusterEnd = -Infinity;
+
+  const flushCluster = () => {
+    if (cluster.length === 0) return;
+    const colEnds: number[] = [];
+    const colOf = new Map<Interval, number>();
+    for (const iv of cluster) {
+      let placed = false;
+      for (let c = 0; c < colEnds.length; c++) {
+        if (colEnds[c] <= iv.start) {
+          colEnds[c] = iv.end;
+          colOf.set(iv, c);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        colEnds.push(iv.end);
+        colOf.set(iv, colEnds.length - 1);
+      }
+    }
+    const cols = colEnds.length;
+    for (const iv of cluster) result.set(iv.row.key, { col: colOf.get(iv)!, cols });
+    cluster = [];
+  };
+
+  for (const iv of intervals) {
+    if (cluster.length > 0 && iv.start >= clusterEnd) {
+      flushCluster();
+      clusterEnd = -Infinity;
+    }
+    cluster.push(iv);
+    clusterEnd = Math.max(clusterEnd, iv.end);
+  }
+  flushCluster();
+  return result;
+}
+
+function EventChip({ row, onClick }: { row: JournalRow; onClick: (e: React.MouseEvent) => void }) {
   return (
     <button
       type="button"
       onClick={(e) => {
         e.stopPropagation();
-        onClick();
+        onClick(e);
       }}
-      className={`flex w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium transition-colors ${sideClass}`}
+      className="flex w-full items-center gap-1 truncate rounded bg-violet-500/20 px-1.5 py-0.5 text-left text-[11px] font-medium text-fg transition-colors hover:bg-violet-500/30"
       title={`${row.symbol ?? "Note"} ${row.side ?? ""} ${timeLabel(row.entryTime)}`}
     >
-      {row.entryTime && <span className="shrink-0 tabular-nums opacity-70">{timeLabel(row.entryTime)}</span>}
+      {row.entryTime && <span className="shrink-0 tabular-nums text-fg/70">{timeLabel(row.entryTime)}</span>}
       <span className="truncate">{row.symbol ?? "Note"}</span>
-      {row.notes && <span className="shrink-0 opacity-60">•</span>}
+      {row.notes && <span className="shrink-0 text-fg/60">•</span>}
     </button>
   );
 }
@@ -178,13 +252,81 @@ function ViewDropdown({ view, onChange }: { view: ViewMode; onChange: (v: ViewMo
   );
 }
 
-interface JournalCalendarProps {
-  onDebriefTrade?: (request: DebriefRequest) => void;
+function MiniMonthPicker({
+  month,
+  onMonthChange,
+  selectedKey,
+  todayKey,
+  onSelect,
+  dailyPl,
+}: {
+  month: Date;
+  onMonthChange: (d: Date) => void;
+  selectedKey: string;
+  todayKey: string;
+  onSelect: (d: Date) => void;
+  dailyPl: Map<string, number>;
+}) {
+  const cells = monthCells(month.getFullYear(), month.getMonth());
+  return (
+    <div className="w-52 shrink-0 rounded-lg border border-border bg-panel p-2.5">
+      <div className="mb-2 flex items-center justify-between">
+        <button
+          onClick={() => onMonthChange(addMonths(month, -1))}
+          className="rounded p-1 text-muted hover:bg-border/60 hover:text-fg"
+        >
+          <ChevronLeft size={14} strokeWidth={2} />
+        </button>
+        <span className="text-xs font-semibold text-fg">{month.toLocaleString("en-US", { month: "long", year: "numeric" })}</span>
+        <button
+          onClick={() => onMonthChange(addMonths(month, 1))}
+          className="rounded p-1 text-muted hover:bg-border/60 hover:text-fg"
+        >
+          <ChevronRight size={14} strokeWidth={2} />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] text-muted">
+        {WEEKDAY_LABELS.map((d) => (
+          <div key={d}>{d[0]}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((cell, i) => {
+          if (!cell) return <div key={i} className="aspect-square" />;
+          const k = dayKey(cell);
+          const pl = dailyPl.get(k);
+          const hasData = pl != null && Math.abs(pl) > 0.005;
+          const up = (pl ?? 0) >= 0;
+          const isToday = k === todayKey;
+          const isSelected = k === selectedKey;
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(cell)}
+              className={`flex aspect-square items-center justify-center rounded-sm text-[10px] font-medium tabular-nums transition-colors ${
+                hasData ? (up ? "bg-up/25 text-up hover:bg-up/40" : "bg-down/25 text-down hover:bg-down/40") : "text-muted hover:bg-border/60"
+              } ${isToday ? "ring-1 ring-accent" : ""} ${isSelected ? "ring-1 ring-fg/50" : ""}`}
+            >
+              {cell.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
-export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps) {
+interface JournalCalendarProps {
+  onDebriefTrade?: (request: DebriefRequest) => void;
+  points?: PortfolioPoint[];
+}
+
+type DragTarget = { id: number; edge: "start" | "end" } | { id: "draft"; edge: "start" | "end" };
+
+export default function JournalCalendar({ onDebriefTrade, points = [] }: JournalCalendarProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [anchor, setAnchor] = useState(() => new Date());
+  const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(new Date()));
   const [rangeTrades, setRangeTrades] = useState<Trade[]>([]);
   const [rangeEntries, setRangeEntries] = useState<JournalEntry[]>([]);
 
@@ -200,6 +342,13 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
   const [tradeDetail, setTradeDetail] = useState<Trade | null>(null);
   const [tradeNoteDraft, setTradeNoteDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [panelAnchor, setPanelAnchor] = useState<{ x: number; y: number; side: "left" | "right" } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const [dragging, setDragging] = useState<DragTarget | null>(null);
+  const [draftTimes, setDraftTimes] = useState<Record<number, { start?: number; end?: number }>>({});
+  const draftTimesRef = useRef<Record<number, { start?: number; end?: number }>>({});
+  const gridRef = useRef<HTMLDivElement>(null);
 
   const range = useMemo(() => {
     if (viewMode === "day") {
@@ -265,6 +414,20 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
     [tableTrades, tableEntries],
   );
 
+  const dailyPl = useMemo(() => {
+    const closes = new Map<string, { equity: number; time: number }>();
+    for (const p of points) {
+      const d = new Date(p.time * 1000);
+      const k = dayKey(d);
+      const prev = closes.get(k);
+      if (!prev || p.time >= prev.time) closes.set(k, { equity: p.equity, time: p.time });
+    }
+    const ordered = [...closes.entries()].sort((a, b) => a[1].time - b[1].time);
+    const pl = new Map<string, number>();
+    for (let i = 1; i < ordered.length; i++) pl.set(ordered[i][0], ordered[i][1].equity - ordered[i - 1][1].equity);
+    return pl;
+  }, [points]);
+
   const todayKey = dayKey(new Date());
 
   const periodStart = (d: Date, mode: ViewMode) =>
@@ -294,17 +457,37 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
     return "";
   }, [viewMode, anchor, range]);
 
-  const openCreate = (date: Date) => {
-    const k = toDateInput(date);
-    setForm(emptyForm(k));
-    setFormOpen({ mode: "create", entry: null, dateKey: k });
+  type PanelAnchor = { x: number; y: number; side: "left" | "right" };
+
+  const anchorPanel = (e: React.MouseEvent, override?: PanelAnchor) =>
+    setPanelAnchor(override ?? { x: e.clientX, y: e.clientY, side: "right" });
+
+  // In day/week views, the panel docks to whichever side of the clicked card has room:
+  // right for the first half of the week's columns, left for the back half.
+  const cardAnchor = (e: React.MouseEvent, day: Date): PanelAnchor => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const side: "left" | "right" = day.getDay() >= 4 ? "left" : "right";
+    return { x: side === "right" ? rect.right : rect.left, y: rect.top, side };
   };
 
-  const openEdit = (entry: JournalEntry) => {
+  const openCreate = (date: Date, minutes: number | undefined, e: React.MouseEvent, override?: PanelAnchor) => {
+    const k = toDateInput(date);
+    const start = minutes != null ? Math.round(minutes / SNAP_MIN) * SNAP_MIN : null;
+    const base = emptyForm(k);
+    if (start != null) {
+      base.entry_time = isoAtMinutes(date, clamp(start, 0, 1440 - DEFAULT_DURATION_MIN));
+      base.exit_time = isoAtMinutes(date, clamp(start + DEFAULT_DURATION_MIN, DEFAULT_DURATION_MIN, 1440));
+    }
+    setForm(base);
+    setFormOpen({ mode: "create", entry: null, dateKey: k });
+    anchorPanel(e, override);
+  };
+
+  const openEdit = (entry: JournalEntry, e: React.MouseEvent, override?: PanelAnchor) => {
     setForm({
       entry_date: entry.entry_date,
       symbol: entry.symbol ?? "",
-      side: entry.side,
+      side: entry.side ?? "buy",
       entry_time: entry.entry_time,
       entry_price: entry.entry_price,
       exit_time: entry.exit_time,
@@ -313,17 +496,27 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
       notes: entry.notes ?? "",
     });
     setFormOpen({ mode: "edit", entry, dateKey: entry.entry_date });
+    anchorPanel(e, override);
   };
 
-  const openTrade = (t: Trade) => {
+  const openTrade = (t: Trade, e: React.MouseEvent, override?: PanelAnchor) => {
     setTradeDetail(t);
     setTradeNoteDraft(t.notes ?? "");
+    anchorPanel(e, override);
   };
 
-  const openRow = (r: JournalRow) => {
-    if (r.trade) openTrade(r.trade);
-    else if (r.entry) openEdit(r.entry);
+  const openRow = (r: JournalRow, e: React.MouseEvent, override?: PanelAnchor) => {
+    if (r.trade) openTrade(r.trade, e, override);
+    else if (r.entry) openEdit(r.entry, e, override);
   };
+
+  const closePanel = () => {
+    setFormOpen(null);
+    setTradeDetail(null);
+    setPanelAnchor(null);
+  };
+
+  useClickOutside(panelRef, closePanel, formOpen != null || tradeDetail != null);
 
   const reloadAll = () => {
     reloadRange();
@@ -344,7 +537,7 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
       } else {
         await api.createJournalEntry(payload);
       }
-      setFormOpen(null);
+      closePanel();
       reloadAll();
     } catch (e) {
       setError((e as Error).message);
@@ -354,16 +547,74 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
   const deleteEntry = async () => {
     if (formOpen?.mode !== "edit" || !formOpen.entry) return;
     await api.deleteJournalEntry(formOpen.entry.id).catch((e) => setError((e as Error).message));
-    setFormOpen(null);
+    closePanel();
     reloadAll();
   };
 
   const saveTradeNote = async () => {
     if (!tradeDetail) return;
     await api.saveTradeNote(tradeDetail.id, tradeNoteDraft).catch((e) => setError((e as Error).message));
-    setTradeDetail(null);
+    closePanel();
     reloadAll();
   };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent) => {
+      const el = gridRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const rawMinutes = ((e.clientY - rect.top) / HOUR_HEIGHT) * 60;
+      const minutes = clamp(Math.round(rawMinutes / SNAP_MIN) * SNAP_MIN, 0, 1440);
+      if (dragging.id === "draft") {
+        setForm((f) => {
+          const day = f.entry_date;
+          if (dragging.edge === "start") {
+            const endMinutes = f.exit_time ? minutesOfIso(f.exit_time) : minutes + DEFAULT_DURATION_MIN;
+            const start = Math.min(minutes, endMinutes - MIN_DURATION_MIN);
+            return { ...f, entry_time: isoAtMinutes(day, start) };
+          }
+          const startMinutes = f.entry_time ? minutesOfIso(f.entry_time) : minutes - DEFAULT_DURATION_MIN;
+          const end = Math.max(minutes, startMinutes + MIN_DURATION_MIN);
+          return { ...f, exit_time: isoAtMinutes(day, end) };
+        });
+      } else {
+        const id = dragging.id;
+        draftTimesRef.current = { ...draftTimesRef.current, [id]: { ...draftTimesRef.current[id], [dragging.edge]: minutes } };
+        setDraftTimes(draftTimesRef.current);
+      }
+    };
+    const onUp = () => {
+      if (dragging.id !== "draft") {
+        const id = dragging.id;
+        const entry = rangeEntries.find((e) => e.id === id);
+        const times = draftTimesRef.current[id];
+        if (entry && times) {
+          const startMin = times.start ?? (entry.entry_time ? minutesOfIso(entry.entry_time) : 0);
+          const endMin = times.end ?? (entry.exit_time ? minutesOfIso(entry.exit_time) : startMin + DEFAULT_DURATION_MIN);
+          api
+            .updateJournalEntry(id, {
+              entry_time: isoAtMinutes(entry.entry_date, Math.min(startMin, endMin - MIN_DURATION_MIN)),
+              exit_time: isoAtMinutes(entry.entry_date, Math.max(endMin, startMin + MIN_DURATION_MIN)),
+            })
+            .then(reloadAll)
+            .catch((err) => setError((err as Error).message));
+        }
+        const next = { ...draftTimesRef.current };
+        delete next[id];
+        draftTimesRef.current = next;
+        setDraftTimes(next);
+      }
+      setDragging(null);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragging]);
 
   const inputClass =
     "w-full rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg placeholder:text-muted outline-none focus:border-accent";
@@ -375,26 +626,35 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
     const rows = rowsByDay.get(k) ?? [];
     const visible = rows.slice(0, maxVisible);
     const overflow = rows.length - visible.length;
+    const pl = dailyPl.get(k);
+    const hasData = pl != null && Math.abs(pl) > 0.005;
+    const up = (pl ?? 0) >= 0;
     return (
       <div
         key={k}
         data-daykey={k}
-        onClick={() => openCreate(cell)}
-        className="group flex min-h-0 cursor-pointer flex-col gap-0.5 bg-panel p-1 transition-colors hover:bg-panel/80"
+        onClick={(e) => openCreate(cell, undefined, e)}
+        className={`group relative flex min-h-0 cursor-pointer flex-col gap-0.5 p-1 transition-colors ${
+          hasData ? (up ? "bg-up/10 hover:bg-up/15" : "bg-down/10 hover:bg-down/15") : "bg-panel hover:bg-panel/80"
+        }`}
       >
-        <div className="flex items-center justify-between px-0.5">
+        <div className="flex items-center justify-center pt-0.5">
           <span
-            className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] tabular-nums ${
-              isToday ? "bg-accent font-semibold text-on-accent" : "text-muted"
+            className={`flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium tabular-nums ${
+              isToday ? "bg-accent font-semibold text-on-accent" : hasData ? (up ? "text-up" : "text-down") : "text-fg"
             }`}
           >
             {cell.getDate()}
           </span>
-          <Plus size={11} strokeWidth={2.5} className="text-muted opacity-0 transition-opacity group-hover:opacity-100" />
         </div>
+        <Plus
+          size={11}
+          strokeWidth={2.5}
+          className="absolute right-1.5 top-1.5 text-muted opacity-0 transition-opacity group-hover:opacity-100"
+        />
         <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
           {visible.map((r) => (
-            <EventChip key={r.key} row={r} onClick={() => openRow(r)} />
+            <EventChip key={r.key} row={r} onClick={(e) => openRow(r, e)} />
           ))}
           {overflow > 0 && (
             <button
@@ -412,6 +672,294 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
       </div>
     );
   };
+
+  const renderTimeColumn = (day: Date, isDraftDay: boolean) => {
+    const k = dayKey(day);
+    const rows = rowsByDay.get(k) ?? [];
+    const layout = layoutDay(rows);
+    return (
+      <div
+        key={k}
+        data-daykey={k}
+        className="relative flex-1 border-l border-border/40 first:border-l-0"
+        onClick={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const side: "left" | "right" = day.getDay() >= 4 ? "left" : "right";
+          openCreate(day, ((e.clientY - rect.top) / HOUR_HEIGHT) * 60, e, {
+            x: side === "right" ? rect.right : rect.left,
+            y: e.clientY,
+            side,
+          });
+        }}
+      >
+        {HOURS.map((h) => (
+          <div key={h} className="absolute inset-x-0 border-t border-border/30" style={{ top: h * HOUR_HEIGHT }} />
+        ))}
+        {rows.map((r) => {
+          const slot = layout.get(r.key) ?? { col: 0, cols: 1 };
+          const drag = r.source === "manual" ? draftTimes[r.id] : undefined;
+          const startMin = drag?.start ?? (r.entryTime ? minutesOfIso(r.entryTime) : 0);
+          const defaultDuration = r.source === "trade" ? TRADE_DURATION_MIN : DEFAULT_DURATION_MIN;
+          const endMin = drag?.end ?? (r.exitTime ? minutesOfIso(r.exitTime) : startMin + defaultDuration);
+          const top = (startMin / 60) * HOUR_HEIGHT;
+          const height = Math.max(((endMin - startMin) / 60) * HOUR_HEIGHT, 20);
+          const widthPct = 100 / slot.cols;
+          const leftPct = slot.col * widthPct;
+          const isDragging = r.source === "manual" && dragging && dragging.id === r.id;
+          return (
+            <div
+              key={r.key}
+              onClick={(e) => {
+                e.stopPropagation();
+                openRow(r, e, cardAnchor(e, day));
+              }}
+              className={`group/card absolute z-10 flex cursor-pointer flex-col overflow-hidden rounded-md border border-violet-400/30 bg-violet-500/20 px-1.5 py-0.5 text-[11px] font-medium text-fg shadow-sm transition-colors hover:bg-violet-500/30 ${
+                isDragging ? "ring-1 ring-accent" : ""
+              }`}
+              style={{ top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)` }}
+            >
+              {r.source === "manual" && (
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setDragging({ id: r.id, edge: "start" });
+                  }}
+                  className="absolute inset-x-0 top-0 h-1.5 cursor-ns-resize opacity-0 group-hover/card:opacity-100 hover:bg-fg/20"
+                />
+              )}
+              <span className="truncate font-semibold">{r.symbol ?? "Note"}</span>
+              <span className="flex items-center gap-1 truncate text-fg/70">
+                {timeLabel(isoAtMinutes(day, startMin))}
+                {r.side && <span className="uppercase">{r.side}</span>}
+              </span>
+              {r.source === "manual" && (
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setDragging({ id: r.id, edge: "end" });
+                  }}
+                  className="absolute inset-x-0 bottom-0 h-1.5 cursor-ns-resize opacity-0 group-hover/card:opacity-100 hover:bg-fg/20"
+                />
+              )}
+            </div>
+          );
+        })}
+        {isDraftDay && formOpen?.mode === "create" && form.entry_time && (
+          <div
+            className="pointer-events-none absolute left-1 right-1 z-20 flex flex-col overflow-hidden rounded-md border border-violet-400/30 bg-violet-500/20 px-1.5 py-0.5 text-[11px] font-medium text-fg"
+            style={{
+              top: (minutesOfIso(form.entry_time) / 60) * HOUR_HEIGHT,
+              height: Math.max(
+                (((form.exit_time ? minutesOfIso(form.exit_time) : minutesOfIso(form.entry_time) + DEFAULT_DURATION_MIN) -
+                  minutesOfIso(form.entry_time)) /
+                  60) *
+                  HOUR_HEIGHT,
+                20,
+              ),
+            }}
+          >
+            <span className="truncate">{form.symbol || "New entry"}</span>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const timeGridDays = viewMode === "week" ? Array.from({ length: 7 }, (_, i) => addDays(range.start, i)) : [anchor];
+
+  const formPanelContent = formOpen && (
+    <>
+      <div className="mb-5 flex items-center justify-between">
+        <div className="text-xs font-medium tracking-wide text-muted">
+          {formOpen.mode === "edit" ? "Edit Entry" : "New Entry"} — {formOpen.dateKey}
+        </div>
+        <button onClick={closePanel} className="text-xs text-muted hover:text-fg">
+          ✕
+        </button>
+      </div>
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelClass}>Date</label>
+            <input
+              type="date"
+              value={form.entry_date}
+              onChange={(e) => setForm((f) => ({ ...f, entry_date: e.target.value }))}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Symbol</label>
+            <input
+              value={form.symbol ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))}
+              placeholder="AAPL"
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div>
+          <label className={labelClass}>Side</label>
+          <div className="flex gap-1">
+            {(["buy", "sell"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, side: s }))}
+                className={`flex-1 rounded px-2 py-1 text-xs font-medium uppercase transition-colors ${
+                  form.side === s ? "bg-accent/20 text-accent" : "bg-field text-muted hover:text-fg"
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelClass}>Entry Time</label>
+            <input
+              type="datetime-local"
+              value={toDatetimeInput(form.entry_time ?? null)}
+              onChange={(e) => setForm((f) => ({ ...f, entry_time: e.target.value ? new Date(e.target.value).toISOString() : null }))}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Entry Price</label>
+            <input
+              type="number"
+              step="0.01"
+              value={form.entry_price ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, entry_price: e.target.value ? Number(e.target.value) : null }))}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelClass}>Exit Time</label>
+            <input
+              type="datetime-local"
+              value={toDatetimeInput(form.exit_time ?? null)}
+              onChange={(e) => setForm((f) => ({ ...f, exit_time: e.target.value ? new Date(e.target.value).toISOString() : null }))}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Exit Price</label>
+            <input
+              type="number"
+              step="0.01"
+              value={form.exit_price ?? ""}
+              onChange={(e) => setForm((f) => ({ ...f, exit_price: e.target.value ? Number(e.target.value) : null }))}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <div>
+          <label className={labelClass}>Order Amount ($)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={form.order_amount ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, order_amount: e.target.value ? Number(e.target.value) : null }))}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>Notes</label>
+          <textarea
+            value={form.notes ?? ""}
+            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            placeholder="What was your plan? How did it play out?"
+            className={`${inputClass} h-20 resize-y`}
+          />
+        </div>
+      </div>
+      <div className="mt-6 flex items-center justify-between">
+        {formOpen.mode === "edit" ? (
+          <button onClick={deleteEntry} className="flex items-center gap-1 text-xs font-medium text-down hover:text-down/80">
+            <Trash2 size={12} strokeWidth={2} />
+            Delete
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex gap-2">
+          <button onClick={closePanel} className="rounded-md px-3 py-1 text-xs font-medium text-muted hover:text-fg">
+            Cancel
+          </button>
+          <button
+            onClick={saveForm}
+            className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  const tradePanelContent = tradeDetail && (
+    <>
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-xs font-medium tracking-wide text-muted">
+          {tradeDetail.symbol} — {new Date(tradeDetail.filled_at!).toLocaleString()}
+        </div>
+        <button onClick={closePanel} className="text-xs text-muted hover:text-fg">
+          ✕
+        </button>
+      </div>
+      <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
+        <div>
+          <div className="text-muted">Side</div>
+          <div className="uppercase text-fg">{tradeDetail.side}</div>
+        </div>
+        <div>
+          <div className="text-muted">Qty</div>
+          <div className="text-fg tabular-nums">{tradeDetail.qty}</div>
+        </div>
+        <div>
+          <div className="text-muted">Fill</div>
+          <div className="text-fg tabular-nums">${tradeDetail.fill_price?.toFixed(2)}</div>
+        </div>
+      </div>
+      <label className={labelClass}>Notes</label>
+      <textarea
+        value={tradeNoteDraft}
+        onChange={(e) => setTradeNoteDraft(e.target.value)}
+        placeholder="What was your plan? Which confluences lined up?"
+        className={`${inputClass} h-24 resize-y`}
+      />
+      <div className="mt-3 flex items-center justify-between">
+        <button
+          onClick={() => {
+            const t = tradeDetail;
+            const filled = new Date(t.filled_at!);
+            onDebriefTrade?.({
+              from: new Date(filled.getTime() - 3 * 86400000).toISOString(),
+              to: new Date(filled.getTime() + 86400000).toISOString(),
+              symbol: t.symbol,
+              query: `Reflect specifically on my ${t.side} of ${t.symbol} filled at $${t.fill_price} on ${filled.toLocaleDateString()}.`,
+            });
+            closePanel();
+          }}
+          className="rounded-md bg-accent/20 px-3 py-1 text-xs font-semibold text-accent hover:bg-accent/30"
+        >
+          Debrief this trade
+        </button>
+        <button
+          onClick={saveTradeNote}
+          className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
+        >
+          Save
+        </button>
+      </div>
+    </>
+  );
+
+  const panelOpen = formOpen != null || tradeDetail != null;
 
   return (
     <div className="relative flex h-full flex-col">
@@ -485,7 +1033,7 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
           )}
           <ViewDropdown view={viewMode} onChange={setViewMode} />
           <button
-            onClick={() => openCreate(new Date())}
+            onClick={(e) => openCreate(viewMode === "day" ? anchor : new Date(), undefined, e)}
             className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-on-accent hover:bg-accent/80"
           >
             <Plus size={13} strokeWidth={2.5} />
@@ -496,156 +1044,168 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
 
       {error && <p className="mb-2 shrink-0 text-xs text-down">{error}</p>}
 
-      {viewMode === "table" ? (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-panel">
-          {tableRows.length === 0 ? (
-            <p className="py-8 text-center text-xs text-muted">No journal entries in this window.</p>
-          ) : (
-            <table className="w-full text-xs">
-              <thead className="sticky top-0 bg-panel text-muted">
-                <tr className="text-left">
-                  <th className="py-2 pl-3">Date</th>
-                  <th>Symbol</th>
-                  <th>Side</th>
-                  <th className="text-right">Entry</th>
-                  <th className="text-right">Exit</th>
-                  <th className="text-right">Amount</th>
-                  <th className="pr-3 text-center">Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.map((r) => (
-                  <tr
-                    key={r.key}
-                    onClick={() => (r.trade ? openTrade(r.trade) : r.entry ? openEdit(r.entry) : undefined)}
-                    className="cursor-pointer border-t border-border/50 hover:bg-accent/10"
-                  >
-                    <td className="py-1.5 pl-3 whitespace-nowrap text-muted">
-                      {r.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                    </td>
-                    <td className="font-medium text-fg">{r.symbol ?? "—"}</td>
-                    <td className={r.side === "buy" ? "text-up uppercase" : r.side === "sell" ? "text-down uppercase" : "text-muted"}>
-                      {r.side ?? "—"}
-                    </td>
-                    <td className="text-right tabular-nums">{r.entryPrice != null ? `$${r.entryPrice.toFixed(2)}` : "—"}</td>
-                    <td className="text-right tabular-nums">{r.exitPrice != null ? `$${r.exitPrice.toFixed(2)}` : "—"}</td>
-                    <td className="text-right tabular-nums">{r.amount != null ? `$${r.amount.toFixed(0)}` : "—"}</td>
-                    <td className="pr-3 text-center">{r.notes ? <span className="text-accent">•</span> : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-      ) : viewMode === "day" ? (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-panel p-3">
-          {(rowsByDay.get(dayKey(anchor)) ?? []).length === 0 ? (
-            <button
-              onClick={() => openCreate(anchor)}
-              className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-border py-6 text-xs font-medium text-muted hover:border-accent hover:text-accent"
-            >
-              <Plus size={12} strokeWidth={2.5} />
-              Add entry for this day
-            </button>
-          ) : (
-            <div className="space-y-1.5">
-              {(rowsByDay.get(dayKey(anchor)) ?? []).map((r) => (
-                <button
-                  key={r.key}
-                  onClick={() => openRow(r)}
-                  className="flex w-full items-center justify-between rounded-md border border-border/60 px-3 py-2 text-left text-sm hover:bg-accent/10"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="w-16 shrink-0 tabular-nums text-muted">{timeLabel(r.entryTime)}</span>
-                    <span className="font-medium text-fg">{r.symbol ?? "Note"}</span>
-                    {r.notes && <span className="truncate text-xs text-muted">{r.notes}</span>}
-                  </span>
-                  <span className={r.side === "buy" ? "text-up uppercase" : r.side === "sell" ? "text-down uppercase" : "text-muted"}>
-                    {r.side ?? (r.source === "trade" ? "" : "manual")}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : viewMode === "year" ? (
-        <div className="grid min-h-0 flex-1 grid-cols-3 gap-3 overflow-auto pb-1 sm:grid-cols-4">
-          {Array.from({ length: 12 }, (_, month) => {
-            const cells = monthCells(anchor.getFullYear(), month);
-            return (
-              <div key={month} className="rounded-lg border border-border bg-panel p-2">
-                <button
-                  onClick={() => {
-                    setAnchor(new Date(anchor.getFullYear(), month, 1));
-                    setViewMode("month");
-                  }}
-                  className="mb-1.5 w-full text-left text-xs font-semibold text-fg hover:text-accent"
-                >
-                  {new Date(anchor.getFullYear(), month, 1).toLocaleString("en-US", { month: "long" })}
-                </button>
-                <div className="grid grid-cols-7 gap-0.5 text-center text-[8px] text-muted">
-                  {WEEKDAY_LABELS.map((d) => (
-                    <div key={d}>{d[0]}</div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-7 gap-0.5">
-                  {cells.map((cell, i) => {
-                    if (!cell) return <div key={i} className="aspect-square" />;
-                    const k = dayKey(cell);
-                    const hasEntries = (rowsByDay.get(k) ?? []).length > 0;
-                    const isToday = k === todayKey;
-                    return (
-                      <button
-                        key={i}
-                        onClick={() => {
-                          setAnchor(cell);
-                          setViewMode("day");
-                        }}
-                        className={`flex aspect-square items-center justify-center rounded-sm text-[9px] tabular-nums transition-colors ${
-                          hasEntries ? "bg-accent/30 text-fg hover:bg-accent/50" : "text-muted hover:bg-border/60"
-                        } ${isToday ? "ring-1 ring-accent" : ""}`}
+      <div className="flex min-h-0 flex-1 gap-3">
+        <MiniMonthPicker
+          month={pickerMonth}
+          onMonthChange={setPickerMonth}
+          selectedKey={dayKey(anchor)}
+          todayKey={todayKey}
+          dailyPl={dailyPl}
+          onSelect={(d) => {
+            setAnchor(d);
+            setPickerMonth(startOfMonth(d));
+          }}
+        />
+
+        <div className="flex min-h-0 flex-1 flex-col">
+          {viewMode === "table" ? (
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border bg-panel">
+              {tableRows.length === 0 ? (
+                <p className="py-8 text-center text-xs text-muted">No journal entries in this window.</p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-panel text-muted">
+                    <tr className="text-left">
+                      <th className="py-2 pl-3">Date</th>
+                      <th>Symbol</th>
+                      <th>Side</th>
+                      <th className="text-right">Entry</th>
+                      <th className="text-right">Exit</th>
+                      <th className="text-right">Amount</th>
+                      <th className="pr-3 text-center">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tableRows.map((r) => (
+                      <tr
+                        key={r.key}
+                        onClick={(e) => (r.trade ? openTrade(r.trade, e) : r.entry ? openEdit(r.entry, e) : undefined)}
+                        className="cursor-pointer border-t border-border/50 hover:bg-accent/10"
                       >
-                        {cell.getDate()}
-                      </button>
+                        <td className="py-1.5 pl-3 whitespace-nowrap text-muted">
+                          {r.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                        </td>
+                        <td className="font-medium text-fg">{r.symbol ?? "—"}</td>
+                        <td className="uppercase text-muted">{r.side ?? "—"}</td>
+                        <td className="text-right tabular-nums">{r.entryPrice != null ? `$${r.entryPrice.toFixed(2)}` : "—"}</td>
+                        <td className="text-right tabular-nums">{r.exitPrice != null ? `$${r.exitPrice.toFixed(2)}` : "—"}</td>
+                        <td className="text-right tabular-nums">{r.amount != null ? `$${r.amount.toFixed(0)}` : "—"}</td>
+                        <td className="pr-3 text-center">{r.notes ? <span className="text-accent">•</span> : "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          ) : viewMode === "day" || viewMode === "week" ? (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-panel">
+              {viewMode === "week" && (
+                <div className="flex shrink-0 border-b border-border">
+                  <div className="w-14 shrink-0" />
+                  {timeGridDays.map((d) => {
+                    const isToday = dayKey(d) === todayKey;
+                    return (
+                      <div key={dayKey(d)} className="flex flex-1 flex-col items-center border-l border-border/40 py-2 first:border-l-0">
+                        <span className="text-xs font-medium text-muted">{d.toLocaleDateString("en-US", { weekday: "short" })}</span>
+                        <span
+                          className={`mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-medium tabular-nums ${
+                            isToday ? "bg-accent font-semibold text-on-accent" : "text-fg"
+                          }`}
+                        >
+                          {d.getDate()}
+                        </span>
+                      </div>
                     );
                   })}
                 </div>
+              )}
+              <div className="min-h-0 flex-1 overflow-auto">
+                <div ref={gridRef} className="relative flex" style={{ height: HOURS.length * HOUR_HEIGHT }}>
+                  <div className="sticky left-0 z-10 w-14 shrink-0 bg-panel">
+                    {HOURS.map((h) => (
+                      <div key={h} className="relative pr-2 text-right text-xs text-muted" style={{ height: HOUR_HEIGHT, top: -8 }}>
+                        {h > 0 && hourLabel(h)}
+                      </div>
+                    ))}
+                  </div>
+                  {timeGridDays.map((d) =>
+                    renderTimeColumn(d, formOpen?.mode === "create" && formOpen.dateKey === toDateInput(d)),
+                  )}
+                </div>
               </div>
-            );
-          })}
+            </div>
+          ) : viewMode === "year" ? (
+            <div className="grid min-h-0 flex-1 grid-cols-3 gap-3 overflow-auto pb-1 sm:grid-cols-4">
+              {Array.from({ length: 12 }, (_, month) => {
+                const cells = monthCells(anchor.getFullYear(), month);
+                return (
+                  <div key={month} className="rounded-lg border border-border bg-panel p-2">
+                    <button
+                      onClick={() => {
+                        setAnchor(new Date(anchor.getFullYear(), month, 1));
+                        setViewMode("month");
+                      }}
+                      className="mb-1.5 w-full text-left text-xs font-semibold text-fg hover:text-accent"
+                    >
+                      {new Date(anchor.getFullYear(), month, 1).toLocaleString("en-US", { month: "long" })}
+                    </button>
+                    <div className="grid grid-cols-7 gap-0.5 text-center text-[8px] text-muted">
+                      {WEEKDAY_LABELS.map((d) => (
+                        <div key={d}>{d[0]}</div>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-7 gap-0.5">
+                      {cells.map((cell, i) => {
+                        if (!cell) return <div key={i} className="aspect-square" />;
+                        const k = dayKey(cell);
+                        const pl = dailyPl.get(k);
+                        const hasData = pl != null && Math.abs(pl) > 0.005;
+                        const up = (pl ?? 0) >= 0;
+                        const isToday = k === todayKey;
+                        return (
+                          <button
+                            key={i}
+                            onClick={() => {
+                              setAnchor(cell);
+                              setViewMode("day");
+                            }}
+                            className={`flex aspect-square items-center justify-center rounded-sm text-[9px] tabular-nums transition-colors ${
+                              hasData ? (up ? "bg-up/30 text-up hover:bg-up/50" : "bg-down/30 text-down hover:bg-down/50") : "text-muted hover:bg-border/60"
+                            } ${isToday ? "ring-1 ring-accent" : ""}`}
+                          >
+                            {cell.getDate()}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              <div className="grid shrink-0 grid-cols-7 gap-px overflow-hidden rounded-t-lg border border-b-0 border-border bg-border">
+                {WEEKDAY_LABELS.map((d) => (
+                  <div key={d} className="bg-panel py-2 text-center text-sm font-semibold text-fg">
+                    {d}
+                  </div>
+                ))}
+              </div>
+              <div
+                className="grid flex-1 auto-rows-fr grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-border bg-border"
+                style={{ gridTemplateRows: `repeat(${monthCells(anchor.getFullYear(), anchor.getMonth()).length / 7}, minmax(0, 1fr))` }}
+              >
+                {monthCells(anchor.getFullYear(), anchor.getMonth()).map((cell, i) =>
+                  cell ? renderDayCell(cell, 3) : <div key={i} className="bg-panel/40" />,
+                )}
+              </div>
+            </>
+          )}
         </div>
-      ) : (
-        <>
-          <div className="grid shrink-0 grid-cols-7 gap-px overflow-hidden rounded-t-lg border border-b-0 border-border bg-border text-center text-[11px] font-medium text-muted">
-            {WEEKDAY_LABELS.map((d) => (
-              <div key={d} className="bg-panel py-1.5">
-                {d}
-              </div>
-            ))}
-          </div>
-          <div
-            className="grid flex-1 auto-rows-fr grid-cols-7 gap-px overflow-hidden rounded-b-lg border border-border bg-border"
-            style={
-              viewMode === "week"
-                ? undefined
-                : { gridTemplateRows: `repeat(${monthCells(anchor.getFullYear(), anchor.getMonth()).length / 7}, minmax(0, 1fr))` }
-            }
-          >
-            {(viewMode === "week"
-              ? Array.from({ length: 7 }, (_, i) => addDays(range.start, i))
-              : monthCells(anchor.getFullYear(), anchor.getMonth())
-            ).map((cell, i) =>
-              cell ? renderDayCell(cell, viewMode === "week" ? 8 : 3) : <div key={i} className="bg-panel/40" />,
-            )}
-          </div>
-        </>
-      )}
+      </div>
 
       {dayOverflow && (
-        <div
-          className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 p-4"
-          onClick={() => setDayOverflow(null)}
-        >
+        <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 p-4" onClick={() => setDayOverflow(null)}>
           <div className="w-full max-w-sm rounded-md border border-border bg-panel p-3 shadow-lg" onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 flex items-center justify-between">
               <div className="text-xs font-medium tracking-wide text-muted">
@@ -659,9 +1219,9 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
               {(rowsByDay.get(dayKey(dayOverflow)) ?? []).map((r) => (
                 <button
                   key={r.key}
-                  onClick={() => {
+                  onClick={(e) => {
                     setDayOverflow(null);
-                    openRow(r);
+                    openRow(r, e);
                   }}
                   className="flex w-full items-center justify-between rounded-md border border-border/60 px-2 py-1.5 text-left text-xs hover:bg-accent/10"
                 >
@@ -669,17 +1229,15 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
                     <span className="tabular-nums text-muted">{timeLabel(r.entryTime)}</span>
                     <span className="font-medium text-fg">{r.symbol ?? "Note"}</span>
                   </span>
-                  <span className={r.side === "buy" ? "text-up uppercase" : r.side === "sell" ? "text-down uppercase" : "text-muted"}>
-                    {r.side ?? (r.source === "trade" ? "" : "manual")}
-                  </span>
+                  <span className="uppercase text-muted">{r.side ?? (r.source === "trade" ? "" : "manual")}</span>
                 </button>
               ))}
             </div>
             <button
-              onClick={() => {
+              onClick={(e) => {
                 const d = dayOverflow;
                 setDayOverflow(null);
-                openCreate(d);
+                openCreate(d, undefined, e);
               }}
               className="mt-2 flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-border py-1.5 text-xs font-medium text-muted hover:border-accent hover:text-accent"
             >
@@ -690,205 +1248,24 @@ export default function JournalCalendar({ onDebriefTrade }: JournalCalendarProps
         </div>
       )}
 
-      {formOpen && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 p-4" onClick={() => setFormOpen(null)}>
-          <div className="w-full max-w-md rounded-md border border-border bg-panel p-6 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-5 flex items-center justify-between">
-              <div className="text-xs font-medium tracking-wide text-muted">
-                {formOpen.mode === "edit" ? "Edit Entry" : "New Entry"} — {formOpen.dateKey}
-              </div>
-              <button onClick={() => setFormOpen(null)} className="text-xs text-muted hover:text-fg">
-                ✕
-              </button>
+      {panelOpen &&
+        panelAnchor &&
+        typeof window !== "undefined" &&
+        (() => {
+          const rawLeft = panelAnchor.side === "left" ? panelAnchor.x - PANEL_WIDTH - 10 : panelAnchor.x + 10;
+          const left = clamp(rawLeft, 8, window.innerWidth - PANEL_WIDTH - 8);
+          const top = clamp(panelAnchor.y - 10, 8, window.innerHeight - PANEL_MAX_HEIGHT - 8);
+          return (
+            <div
+              ref={panelRef}
+              style={{ position: "fixed", left, top, width: PANEL_WIDTH, maxHeight: PANEL_MAX_HEIGHT }}
+              className="z-50 overflow-y-auto rounded-md border border-border bg-panel p-4 shadow-xl"
+            >
+              {formPanelContent}
+              {tradePanelContent}
             </div>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={labelClass}>Date</label>
-                  <input
-                    type="date"
-                    value={form.entry_date}
-                    onChange={(e) => setForm((f) => ({ ...f, entry_date: e.target.value }))}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Symbol</label>
-                  <input
-                    value={form.symbol ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, symbol: e.target.value.toUpperCase() }))}
-                    placeholder="AAPL"
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Side</label>
-                <div className="flex gap-1">
-                  {(["buy", "sell"] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, side: f.side === s ? null : s }))}
-                      className={`flex-1 rounded px-2 py-1 text-xs font-medium uppercase transition-colors ${
-                        form.side === s
-                          ? s === "buy"
-                            ? "bg-up/20 text-up"
-                            : "bg-down/20 text-down"
-                          : "bg-field text-muted hover:text-fg"
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={labelClass}>Entry Time</label>
-                  <input
-                    type="datetime-local"
-                    value={toDatetimeInput(form.entry_time ?? null)}
-                    onChange={(e) => setForm((f) => ({ ...f, entry_time: e.target.value ? new Date(e.target.value).toISOString() : null }))}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Entry Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.entry_price ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, entry_price: e.target.value ? Number(e.target.value) : null }))}
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className={labelClass}>Exit Time</label>
-                  <input
-                    type="datetime-local"
-                    value={toDatetimeInput(form.exit_time ?? null)}
-                    onChange={(e) => setForm((f) => ({ ...f, exit_time: e.target.value ? new Date(e.target.value).toISOString() : null }))}
-                    className={inputClass}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Exit Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={form.exit_price ?? ""}
-                    onChange={(e) => setForm((f) => ({ ...f, exit_price: e.target.value ? Number(e.target.value) : null }))}
-                    className={inputClass}
-                  />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Order Amount ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={form.order_amount ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, order_amount: e.target.value ? Number(e.target.value) : null }))}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Notes</label>
-                <textarea
-                  value={form.notes ?? ""}
-                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                  placeholder="What was your plan? How did it play out?"
-                  className={`${inputClass} h-20 resize-y`}
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center justify-between">
-              {formOpen.mode === "edit" ? (
-                <button onClick={deleteEntry} className="flex items-center gap-1 text-xs font-medium text-down hover:text-down/80">
-                  <Trash2 size={12} strokeWidth={2} />
-                  Delete
-                </button>
-              ) : (
-                <span />
-              )}
-              <div className="flex gap-2">
-                <button onClick={() => setFormOpen(null)} className="rounded-md px-3 py-1 text-xs font-medium text-muted hover:text-fg">
-                  Cancel
-                </button>
-                <button
-                  onClick={saveForm}
-                  className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {tradeDetail && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-bg/70 p-4" onClick={() => setTradeDetail(null)}>
-          <div className="w-full max-w-sm rounded-md border border-border bg-panel p-3 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 flex items-center justify-between">
-              <div className="text-xs font-medium tracking-wide text-muted">
-                {tradeDetail.symbol} — {new Date(tradeDetail.filled_at!).toLocaleString()}
-              </div>
-              <button onClick={() => setTradeDetail(null)} className="text-xs text-muted hover:text-fg">
-                ✕
-              </button>
-            </div>
-            <div className="mb-2 grid grid-cols-3 gap-2 text-xs">
-              <div>
-                <div className="text-muted">Side</div>
-                <div className={tradeDetail.side === "buy" ? "text-up uppercase" : "text-down uppercase"}>{tradeDetail.side}</div>
-              </div>
-              <div>
-                <div className="text-muted">Qty</div>
-                <div className="text-fg tabular-nums">{tradeDetail.qty}</div>
-              </div>
-              <div>
-                <div className="text-muted">Fill</div>
-                <div className="text-fg tabular-nums">${tradeDetail.fill_price?.toFixed(2)}</div>
-              </div>
-            </div>
-            <label className={labelClass}>Notes</label>
-            <textarea
-              value={tradeNoteDraft}
-              onChange={(e) => setTradeNoteDraft(e.target.value)}
-              placeholder="What was your plan? Which confluences lined up?"
-              className={`${inputClass} h-24 resize-y`}
-            />
-            <div className="mt-3 flex items-center justify-between">
-              <button
-                onClick={() => {
-                  const t = tradeDetail;
-                  const filled = new Date(t.filled_at!);
-                  onDebriefTrade?.({
-                    from: new Date(filled.getTime() - 3 * 86400000).toISOString(),
-                    to: new Date(filled.getTime() + 86400000).toISOString(),
-                    symbol: t.symbol,
-                    query: `Reflect specifically on my ${t.side} of ${t.symbol} filled at $${t.fill_price} on ${filled.toLocaleDateString()}.`,
-                  });
-                  setTradeDetail(null);
-                }}
-                className="rounded-md bg-accent/20 px-3 py-1 text-xs font-semibold text-accent hover:bg-accent/30"
-              >
-                Debrief this trade
-              </button>
-              <button
-                onClick={saveTradeNote}
-                className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
     </div>
   );
 }

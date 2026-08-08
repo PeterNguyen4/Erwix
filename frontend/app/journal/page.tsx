@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { DebriefRequest } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { api, DebriefRequest, PortfolioPoint } from "@/lib/api";
 import JournalCalendar from "@/components/journal/JournalCalendar";
 import AnalystDebrief from "@/components/journal/AnalystDebrief";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
@@ -9,6 +9,14 @@ import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 export default function JournalPage() {
   const [spotlight, setSpotlight] = useState<string | null>(null);
   const [debriefRequest, setDebriefRequest] = useState<DebriefRequest | null>(null);
+  const [points, setPoints] = useState<PortfolioPoint[]>([]);
+
+  useEffect(() => {
+    api
+      .portfolioHistory("all")
+      .then((h) => setPoints(h.points))
+      .catch(() => setPoints([]));
+  }, []);
 
   return (
     <main className="flex h-full flex-col overflow-hidden">
@@ -17,7 +25,7 @@ export default function JournalPage() {
       </header>
 
       <div className="min-h-0 flex-1 p-4">
-        <JournalCalendar onDebriefTrade={setDebriefRequest} />
+        <JournalCalendar onDebriefTrade={setDebriefRequest} points={points} />
       </div>
 
       <SpotlightOverlay targetSelector={spotlight} />
