@@ -115,24 +115,17 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
             { kind: "note", id: nextId.current++, tradeId: msg.trade_id, text: msg.text },
           ]);
         } else if (msg.type === "annotations") {
-          // One draw_annotations call per trade now (see agent_graph.py's
-          // per-trade loop) — accumulate rather than overwrite, or every
-          // trade after the first would erase the ones before it.
           setAnnotations((prev) => [...prev, ...msg.annotations]);
         } else if (msg.type === "spotlight") {
           onSpotlight(msg.selector);
           if (spotlightTimer.current) clearTimeout(spotlightTimer.current);
           if (msg.message) {
-            // Minimize to the pill and let the toast, anchored on the
-            // highlighted element, carry the message instead — the full
-            // narrative is still sitting in the chat log underneath for
-            // whenever the drawer is reopened.
             setMinimized(true);
             setToast({ selector: msg.selector, message: msg.message });
             spotlightTimer.current = setTimeout(() => {
               onSpotlight(null);
               setToast(null);
-              setMinimized(false); // hand control back to the full drawer once the highlight fades
+              setMinimized(false);
             }, SPOTLIGHT_DURATION_MS);
           }
         } else if (msg.type === "zoom") {

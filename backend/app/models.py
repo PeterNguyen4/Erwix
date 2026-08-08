@@ -75,6 +75,18 @@ class UserPreference(Base):
     debrief_time: Mapped[time | None] = mapped_column(Time)
 
 
+class WatchlistItem(Base):
+    __tablename__ = "watchlist_items"
+    __table_args__ = (UniqueConstraint("user_id", "symbol", name="uq_watchlist_item"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class NotificationDismissal(Base):
     __tablename__ = "notification_dismissals"
     __table_args__ = (UniqueConstraint("user_id", "notification_key", name="uq_notification_dismissal"),)

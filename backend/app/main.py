@@ -19,6 +19,7 @@ from app.routers import (
     strategy,
     trading,
     users,
+    watchlist,
 )
 from app.routers.market import cancel_stream_task
 from app.services.debrief_jobs import fail_orphaned_reports, start_scheduler, stop_scheduler
@@ -81,6 +82,7 @@ app.include_router(news.router)
 app.include_router(backtest.router)
 app.include_router(alpaca_oauth.router)
 app.include_router(notifications.router)
+app.include_router(watchlist.router)
 
 
 @app.get("/api/health")

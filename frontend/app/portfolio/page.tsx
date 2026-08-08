@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useState } from "react";
 import { Sparkles, Triangle } from "lucide-react";
-import { api, Account, DebriefRequest, PnLSummary, PortfolioHistory, Position } from "@/lib/api";
+import { api, Account, DebriefRequest, PnLSummary, PnLTrend, PortfolioHistory, Position } from "@/lib/api";
 import PortfolioChart, { Period } from "@/components/journal/PortfolioChart";
-import PositionsDetail from "@/components/journal/PositionsDetail";
 import AllocationChart from "@/components/journal/AllocationChart";
 import TotalAssets from "@/components/journal/TotalAssets";
-import TradeCalendar from "@/components/journal/TradeCalendar";
+import RecentTransactions from "@/components/journal/RecentTransactions";
+import Watchlist from "@/components/journal/Watchlist";
+import Sparkline from "@/components/journal/Sparkline";
 import AnalystDebrief from "@/components/journal/AnalystDebrief";
 import DebriefReportView from "@/components/journal/DebriefReportView";
 import DebriefScheduleSettings from "@/components/journal/DebriefScheduleSettings";
@@ -35,6 +36,31 @@ function pctDelta(current: number | null, prev: number | null): number | null {
   return ((current - prev) / Math.abs(prev)) * 100;
 }
 
+interface Chip {
+  key: string;
+  label: string;
+  value: ReactNode;
+  delta: number | null;
+  colorClass: string;
+  series: (number | null)[] | null;
+}
+
+function StatChip({ chip }: { chip: Chip }) {
+  const up = (chip.delta ?? 0) >= 0;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-panel px-4 py-4">
+      <div>
+        <div className="text-xs font-medium tracking-wide text-muted">{chip.label}</div>
+        <div className={`mt-1.5 text-2xl font-normal tabular-nums ${chip.colorClass}`}>{chip.value}</div>
+        <div className="mt-1">
+          <WeekDelta value={chip.delta} />
+        </div>
+      </div>
+      {chip.series && <Sparkline values={chip.series} up={up} width={64} height={32} />}
+    </div>
+  );
+}
+
 export default function PortfolioPage() {
   const { isAdmin } = useAuth();
   const [account, setAccount] = useState<Account | null>(null);
@@ -47,6 +73,7 @@ export default function PortfolioPage() {
   const [pnlLoading, setPnlLoading] = useState(true);
   const [weekPnl, setWeekPnl] = useState<PnLSummary | null>(null);
   const [prevWeekPnl, setPrevWeekPnl] = useState<PnLSummary | null>(null);
+  const [trend, setTrend] = useState<PnLTrend | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [spotlight, setSpotlight] = useState<string | null>(null);
   const [debriefRequest, setDebriefRequest] = useState<DebriefRequest | null>(null);
@@ -82,6 +109,8 @@ export default function PortfolioPage() {
         setPrevWeekPnl(cmp.previous);
       })
       .catch(() => {});
+
+    api.pnlTrend(14).then(setTrend).catch(() => setTrend(null));
   }, []);
 
   useEffect(() => {
@@ -92,6 +121,59 @@ export default function PortfolioPage() {
       .catch((e) => setError((e as Error).message))
       .finally(() => setHistoryLoading(false));
   }, [period]);
+
+  const chips: Chip[] | null = pnl
+    ? [
+        {
+          key: "win-rate",
+          label: "Win Rate",
+          value: pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—",
+          delta: pctDelta(weekPnl?.win_rate ?? null, prevWeekPnl?.win_rate ?? null),
+          colorClass: "text-fg",
+          series: trend?.win_rate ?? null,
+        },
+        {
+          key: "risk-reward",
+          label: "Risk : Reward",
+          value:
+            pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—",
+          delta: pctDelta(
+            weekPnl?.avg_win != null && weekPnl?.avg_loss ? weekPnl.avg_win / Math.abs(weekPnl.avg_loss) : null,
+            prevWeekPnl?.avg_win != null && prevWeekPnl?.avg_loss
+              ? prevWeekPnl.avg_win / Math.abs(prevWeekPnl.avg_loss)
+              : null
+          ),
+          colorClass: "text-fg",
+          series: trend?.risk_reward ?? null,
+        },
+        {
+          key: "realized-pnl",
+          label: "Realized PnL",
+          value: `${pnl.total_pnl >= 0 ? "+" : ""}${pnl.total_pnl.toLocaleString("en-US", {
+            style: "currency",
+            currency: "USD",
+          })}`,
+          delta: pctDelta(weekPnl?.total_pnl ?? null, prevWeekPnl?.total_pnl ?? null),
+          colorClass: pnl.total_pnl >= 0 ? "text-up" : "text-down",
+          series: trend?.total_pnl ?? null,
+        },
+        {
+          key: "win-loss",
+          label: "W / L",
+          value: (
+            <>
+              <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
+            </>
+          ),
+          delta: pctDelta(
+            weekPnl ? weekPnl.win_count - weekPnl.loss_count : null,
+            prevWeekPnl ? prevWeekPnl.win_count - prevWeekPnl.loss_count : null
+          ),
+          colorClass: "text-fg",
+          series: trend?.win_loss_diff ?? null,
+        },
+      ]
+    : null;
 
   return (
     <main className="flex h-full flex-col overflow-auto">
@@ -158,78 +240,28 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <TradeCalendar points={history?.points ?? []} onDebriefTrade={setDebriefRequest} />
-          <div className="space-y-4">
-            {pnlLoading ? (
-              <div className="flex flex-wrap gap-2">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="h-3 w-16 animate-pulse rounded bg-border/40" />
-                    <div className="mt-2 h-7 w-16 animate-pulse rounded bg-border/40" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              pnl && (
-                <div className="flex flex-wrap gap-2">
-                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-xs font-medium tracking-wide text-muted">Win Rate</div>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
-                      <span className="text-2xl font-normal tabular-nums text-fg">
-                        {pnl.win_rate != null ? `${(pnl.win_rate * 100).toFixed(0)}%` : "—"}
-                      </span>
-                      <WeekDelta value={pctDelta(weekPnl?.win_rate ?? null, prevWeekPnl?.win_rate ?? null)} />
+        {/* Left (2/3, matches the value chart above): stat chips + transactions.
+            Right (1/3, matches Total Assets above): allocation | watchlist. */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {pnlLoading || !chips
+                ? Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="rounded-lg border border-border bg-panel px-4 py-4">
+                      <div className="h-3 w-20 animate-pulse rounded bg-border/40" />
+                      <div className="mt-3 h-7 w-20 animate-pulse rounded bg-border/40" />
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-xs font-medium tracking-wide text-muted">Risk : Reward</div>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
-                      <span className="text-2xl font-normal tabular-nums text-fg">
-                        {pnl.avg_win != null && pnl.avg_loss ? `1 : ${(pnl.avg_win / Math.abs(pnl.avg_loss)).toFixed(2)}` : "—"}
-                      </span>
-                      <WeekDelta
-                        value={pctDelta(
-                          weekPnl?.avg_win != null && weekPnl?.avg_loss ? weekPnl.avg_win / Math.abs(weekPnl.avg_loss) : null,
-                          prevWeekPnl?.avg_win != null && prevWeekPnl?.avg_loss
-                            ? prevWeekPnl.avg_win / Math.abs(prevWeekPnl.avg_loss)
-                            : null
-                        )}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-xs font-medium tracking-wide text-muted">Realized PnL</div>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
-                      <span className={`text-2xl font-normal tabular-nums ${pnl.total_pnl >= 0 ? "text-up" : "text-down"}`}>
-                        {pnl.total_pnl >= 0 ? "+" : ""}
-                        {pnl.total_pnl.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-                      </span>
-                      <WeekDelta value={pctDelta(weekPnl?.total_pnl ?? null, prevWeekPnl?.total_pnl ?? null)} />
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-28 rounded-md border border-border bg-panel px-3 py-4">
-                    <div className="text-xs font-medium tracking-wide text-muted">W / L</div>
-                    <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">
-                      <span className="text-2xl font-normal tabular-nums text-fg">
-                        <span className="text-up">{pnl.win_count}</span> / <span className="text-down">{pnl.loss_count}</span>
-                      </span>
-                      <WeekDelta
-                        value={pctDelta(
-                          weekPnl ? weekPnl.win_count - weekPnl.loss_count : null,
-                          prevWeekPnl ? prevWeekPnl.win_count - prevWeekPnl.loss_count : null
-                        )}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )
-            )}
+                  ))
+                : chips.map((c) => <StatChip key={c.key} chip={c} />)}
+            </div>
+            <RecentTransactions onDebriefTrade={setDebriefRequest} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:col-span-1">
             <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
-            <PositionsDetail positions={positions} loading={positionsLoading} />
+            <Watchlist />
           </div>
         </div>
-
       </div>
 
       <SpotlightOverlay targetSelector={spotlight} />
