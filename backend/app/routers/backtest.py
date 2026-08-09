@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
 
@@ -10,6 +11,7 @@ from app import alpaca_client
 from app.auth import get_current_user_id
 from app.db import get_db
 from app.dependencies.guardrails import check_ws_guardrail_input
+from app.services.guardrails import scan_output
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.error_handling import alpaca_errors
 from app.models import BacktestChatSession as BacktestChatSessionModel
@@ -248,6 +250,9 @@ async def backtest_chat(
     config: str = Query(...),
     window_start: str | None = Query(None),
     window_end: str | None = Query(None),
+    result: str | None = Query(None),
+    history: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> None:
     """Stream the config-chat agent's reply: token deltas, then a final config/done event."""
@@ -267,8 +272,19 @@ async def backtest_chat(
 
     try:
         current_config = BacktestConfig.model_validate_json(config)
-        async for event in astream_config_chat(current_config, message, window_start, window_end):
+        last_result = BacktestResult.model_validate_json(result) if result else None
+        chat_history: list[tuple[str, str]] = [tuple(pair) for pair in json.loads(history)] if history else []
+        reply_parts: list[str] = []
+        async for event in astream_config_chat(
+            db, user_id, current_config, message, window_start, window_end, last_result, chat_history
+        ):
+            if event.get("type") == "token":
+                reply_parts.append(event["text"])
             await websocket.send_json(event)
+
+        output_violation = scan_output("".join(reply_parts))
+        if output_violation:
+            logger.warning("output guardrail triggered in backtest chat for user %s: %s", user_id, output_violation)
     except RuntimeError as exc:
         await websocket.send_json({"type": "error", "detail": str(exc)})
     except WebSocketDisconnect:

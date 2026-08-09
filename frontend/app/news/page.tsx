@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { RefreshCw, Sparkles } from "lucide-react";
 import { api, MarketInsight, NewsArticle } from "@/lib/api";
+import { useAuth } from "@/components/AuthProvider";
 
 const SENTIMENT_STYLE: Record<MarketInsight["sentiment"], string> = {
   bullish: "bg-up/20 text-up",
@@ -31,10 +32,12 @@ function HeadlineSkeleton() {
 }
 
 export default function NewsPage() {
+  const { isAdmin } = useAuth();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(true);
   const [insight, setInsight] = useState<MarketInsight | null>(null);
   const [insightLoading, setInsightLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadNews = () => {
@@ -56,6 +59,15 @@ export default function NewsPage() {
       .finally(() => setInsightLoading(false));
   };
 
+  const regenerateInsight = () => {
+    setRegenerating(true);
+    api
+      .marketInsight(true)
+      .then(setInsight)
+      .catch(() => {})
+      .finally(() => setRegenerating(false));
+  };
+
   useEffect(() => {
     loadNews();
   }, []);
@@ -68,6 +80,17 @@ export default function NewsPage() {
         <div>
           <div className="text-xl font-normal text-fg">News</div>
         </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={regenerateInsight}
+            disabled={regenerating}
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent hover:text-fg disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+            {regenerating ? "Regenerating…" : "Regenerate Insights"}
+          </button>
+        )}
       </header>
 
       <div className="flex-1 overflow-auto p-3">
@@ -93,7 +116,7 @@ export default function NewsPage() {
               <div className="relative mb-2 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
                 <span className="text-sm font-semibold text-violet-600 dark:text-violet-300">Insights</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
                   {insight.sentiment}
                 </span>
               </div>

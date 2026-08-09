@@ -6,16 +6,18 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 (Anthropic/Ollama) here — that branching is meant to stay in one place.
 """
 
+import json
 from typing import Literal
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas import Candle
 from app.schemas_strategy import StrategyRuleSet
 from app.services.agent_graph import _base_model
 from app.services.rule_engine import evaluate_rule
-from app.services.strategy import archetype_name
+from app.services.strategy import archetype_name, get_active_strategy, render_playbook
 
 STRATEGIST_SYSTEM_PROMPT = (
     "You are a trading strategist. A trader has chosen an archetype and described their "
@@ -39,6 +41,92 @@ class StrategyPlaybook(BaseModel):
     risk_rules: list[str] = Field(description="1-3 short bullets on position sizing/stop rules")
     timeframe: list[str] = Field(description="1-3 short bullets on typical holding period")
     avoid: list[str] = Field(description="1-3 short bullets on what to avoid")
+
+
+async def get_strategy_context(db: AsyncSession, user_id: int) -> tuple[str, str] | None:
+    """The trader's active strategy as (archetype_label, rendered_playbook), or
+    None if they haven't stated one. Shared by every prompt that references the
+    trader's strategy — do not re-fetch/re-render this inline elsewhere."""
+    strategy = await get_active_strategy(db, user_id)
+    if not strategy or not strategy.structured_summary:
+        return None
+    try:
+        rendered = render_playbook(json.loads(strategy.structured_summary))
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        rendered = strategy.structured_summary  # legacy plain-text summary, pre-JSON playbooks
+    label = archetype_name(strategy.archetype) or "Custom"
+    return label, rendered
+
+
+ANSWER_QUESTION_SYSTEM_PROMPT = (
+    "You are a trading strategist answering a question about the trader's own stated "
+    "strategy/playbook. Be concrete and reference their actual rules — don't give generic "
+    "trading advice divorced from what they told you. If they haven't stated a strategy, say "
+    "so plainly rather than inventing one. Answer in 2-4 sentences, plain text, no markdown."
+)
+
+
+class _AnswerCritique(BaseModel):
+    valid: bool = Field(description="True if the answer is grounded in the trader's actual stated strategy")
+    correction: str = Field(
+        description="If not valid, one short sentence on what's wrong (e.g. the answer invents a rule the "
+        "trader never stated, contradicts the playbook, or gives generic advice instead of referencing "
+        "their actual rules). Empty string if valid."
+    )
+
+
+VALIDATE_ANSWER_SYSTEM_PROMPT = (
+    "You are reviewing another strategist's answer to a trader's question about their own stated "
+    "strategy, before it's shown to them. Check: does the answer actually reference rules from the "
+    "trader's stated strategy given below, rather than inventing ones or giving generic advice? If the "
+    "trader has no stated strategy, does the answer say so plainly instead of pretending one exists? "
+    "Judge harshly but fairly — minor stylistic issues are not grounds for rejection."
+)
+
+
+async def _validate_answer(question: str, answer: str, strategy_block: str) -> str | None:
+    """LLM judge over an already-generated strategy answer. Returns None if it holds up,
+    else a short correction note to feed back into a regeneration attempt."""
+    prompt = f"{strategy_block}\n\nQuestion: {question}\n\nAnswer given: {answer}"
+    model = _base_model(num_predict=150).with_structured_output(_AnswerCritique)
+    critique = await model.ainvoke([SystemMessage(VALIDATE_ANSWER_SYSTEM_PROMPT), HumanMessage(prompt)])
+    return critique.correction.strip() if not critique.valid and critique.correction.strip() else None
+
+
+def _content_text(response) -> str:
+    text = response.content
+    if isinstance(text, list):
+        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
+    return text.strip().strip('"“”')
+
+
+async def answer_strategy_question(db: AsyncSession, user_id: int, question: str) -> str:
+    """Answer user questions about their strategy."""
+    ctx = await get_strategy_context(db, user_id)
+    if ctx:
+        label, rendered = ctx
+        strategy_block = f"The trader's stated strategy ({label}):\n{rendered}"
+    else:
+        strategy_block = "The trader has not stated a strategy yet."
+
+    model = _base_model(num_predict=300)
+    messages: list = [
+        SystemMessage(ANSWER_QUESTION_SYSTEM_PROMPT),
+        HumanMessage(f"{strategy_block}\n\nQuestion: {question}"),
+    ]
+
+    for attempt in range(2):
+        response = await model.ainvoke(messages)
+        answer = _content_text(response)
+        correction = await _validate_answer(question, answer, strategy_block)
+        if correction is None or attempt == 1:
+            return answer
+        messages = [
+            *messages,
+            AIMessage(answer),
+            HumanMessage(f"That doesn't hold up: {correction}. Try again, fixing only that issue."),
+        ]
+    raise AssertionError("unreachable")
 
 
 async def asummarize_strategy(archetype: str | None, body: str) -> dict:
