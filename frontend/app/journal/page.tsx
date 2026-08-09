@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
 import { api, DebriefRequest, PortfolioPoint } from "@/lib/api";
 import JournalCalendar from "@/components/journal/JournalCalendar";
 import AnalystDebrief from "@/components/journal/AnalystDebrief";
@@ -17,7 +17,18 @@ export default function JournalPage() {
   const [debriefRequest, setDebriefRequest] = useState<DebriefRequest | null>(null);
   const [points, setPoints] = useState<PortfolioPoint[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const { report, refresh } = useDebriefReport();
+
+  const regenerateDebrief = () => {
+    setRegenerating(true);
+    api
+      .resetDebrief()
+      .then(() => api.generateDebriefNow())
+      .then(refresh)
+      .catch(() => {})
+      .finally(() => setRegenerating(false));
+  };
 
   useEffect(() => {
     api
@@ -66,11 +77,13 @@ export default function JournalPage() {
         <div className="text-xl font-normal text-fg">Journal</div>
         {process.env.NODE_ENV !== "production" && isAdmin && (
           <button
-            onClick={() => api.resetDebrief().then(() => api.generateDebriefNow())}
+            onClick={regenerateDebrief}
+            disabled={regenerating}
             title="Dev: resets last_debrief_at and immediately starts generating a debrief report, bypassing the schedule"
-            className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:border-accent hover:text-fg"
+            className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-muted transition-colors hover:border-accent hover:text-fg disabled:opacity-50"
           >
-            Dev: Generate Debrief Now
+            <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+            {regenerating ? "Regenerating…" : "Regenerate Debrief"}
           </button>
         )}
       </header>

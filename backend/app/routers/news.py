@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import get_current_user_id
 from app.db import get_db
 from app.dependencies.rate_limit import rate_limit
+from app.models import User
 from app.schemas import MarketInsightOut, NewsArticleOut
 from app.services.news import fetch_market_news
 from app.services.news_agent import get_market_insight
@@ -47,6 +48,11 @@ async def market_insight(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> MarketInsightOut:
+    if refresh:
+        user = await db.get(User, user_id)
+        if user is None or user.role != "admin":
+            raise HTTPException(status_code=403, detail="Admin access required to regenerate insights")
+
     try:
         articles = await fetch_market_news()
     except httpx.HTTPError as exc:

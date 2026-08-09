@@ -28,16 +28,27 @@ MARKET_SYSTEM_PROMPT = (
     "— ignore filler/routine stories. Then judge the overall market read through the lens of "
     "that strategy, e.g. a strong jobs report reads as fuel for a trend-riding trader but a "
     "reason for caution for a capital-preservation-focused trader. If the trader has no stated "
-    "strategy, give balanced, generic guidance instead. Be concrete and brief — this is a "
-    "scannable card, not a report. `highlighted_urls` must be exact URLs copied from the "
-    "headlines given, not paraphrased or invented."
+    "strategy, give balanced, generic guidance instead.\n\n"
+    "Write like you're texting a fellow trader a quick heads-up, not writing a research note: "
+    "short, plain sentences, one idea each. No stacked clauses joined by em dashes or semicolons "
+    "— break them into separate sentences instead. Skip financial-media buzzwords (backdrop, "
+    "tailwind/headwind, catalyst, macro, exhaustion point) in favor of the plain-English version. "
+    "Name the specific setup only when it's the point of the sentence, not in every clause. This "
+    "is a scannable card, not a report — say the one or two things that actually matter and stop. "
+    "`highlighted_urls` must be exact URLs copied from the headlines given, not paraphrased or "
+    "invented."
 )
 
 
 class MarketInsight(BaseModel):
     sentiment: str = Field(description="One of: bullish, bearish, neutral")
-    advice: str = Field(description="2-3 sentences of concrete advice for this trader, given the market read")
-    rationale: list[str] = Field(description="1-3 short bullets on what drove this read")
+    advice: str = Field(
+        description="1-2 short, plain-language sentences of concrete advice for this trader, given the "
+        "market read — no jargon, no stacked clauses, say the one thing that matters most"
+    )
+    rationale: list[str] = Field(
+        description="1-2 short bullets on what drove this read, each one plain sentence, no jargon"
+    )
     highlighted_urls: list[str] = Field(
         description="URLs (copied exactly from the given headlines) of the 3-6 most compelling/market-moving stories"
     )
