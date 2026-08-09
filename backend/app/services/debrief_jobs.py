@@ -57,7 +57,7 @@ async def run_debrief_job(db: AsyncSession, report: DebriefReport) -> None:
 
         report.status = "ready"
         report.completed_at = datetime.now(timezone.utc)
-        pref = await db.get(UserPreference, report.user_id)
+        pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == report.user_id))
         if pref is None:
             pref = UserPreference(user_id=report.user_id)
             db.add(pref)
@@ -83,7 +83,7 @@ async def create_pending_report(db: AsyncSession, user_id: int) -> DebriefReport
     if existing:
         return existing
     now = datetime.now(timezone.utc)
-    pref = await db.get(UserPreference, user_id)
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     window_start = (pref.last_debrief_at if pref else None) or (now - DEFAULT_WINDOW)
     report = DebriefReport(
         user_id=user_id, window_start=window_start, window_end=now, scheduled_for=now, status="pending"

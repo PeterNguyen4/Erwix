@@ -30,7 +30,7 @@ from app.services.guardrails import scan_output
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
 from app.services.reference_resolver import resolve_references
-from app.services.rule_engine import evaluate_rules, price_level_signal, rules_just_fired
+from app.services.rule_engine import evaluate_rules, signal_price_level, rules_just_fired
 from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
 
@@ -92,7 +92,7 @@ async def debrief_status(
     user_id: int = Depends(get_current_user_id),
 ) -> DebriefStatus:
     """Whether the user has fills since their last debrief, for the sidebar badge."""
-    pref = await db.get(UserPreference, user_id)
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     last_debrief_at = pref.last_debrief_at if pref else None
     since = last_debrief_at or (datetime.now(timezone.utc) - DEFAULT_LOOKBACK)
     count = await count_trades_since(db, user_id, since)
@@ -106,7 +106,7 @@ async def reset_debrief(
 ) -> DebriefStatus:
     """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
     for new fills. Not linked from any production UI path."""
-    pref = await db.get(UserPreference, user_id)
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     if pref:
         pref.last_debrief_at = None
         await db.commit()
@@ -143,7 +143,7 @@ async def debrief(
         async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
             await websocket.send_json(event)
 
-        pref = await db.get(UserPreference, user_id)
+        pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
         if pref is None:
             pref = UserPreference(user_id=user_id)
             db.add(pref)
@@ -178,7 +178,7 @@ async def watch(
     """Real-time evaluation of the user's compiled strategy rules plus,
     independently, stop-loss/take-profit awareness for whatever bracket the
     client currently has active (pre-trade draft or an open position) — no LLM
-    call in the loop, just evaluate_rules()/price_level_signal() re-run on the
+    call in the loop, just evaluate_rules()/signal_price_level() re-run on the
     latest price.
 
     Driven by Alpaca's live quote stream (via `live_feed`, which fans out a
@@ -299,7 +299,7 @@ async def watch(
                     })
                 was_firing = now_firing
 
-            level_hit = price_level_signal(
+            level_hit = signal_price_level(
                 candle.close,
                 levels["entry_price"],
                 levels["stop_loss_price"],

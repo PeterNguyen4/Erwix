@@ -105,7 +105,7 @@ def rules_just_fired(prev: list[bool], curr: list[bool]) -> list[int]:
     return [i for i, (p, c) in enumerate(zip(prev, curr)) if not p and c]
 
 
-def price_level_signal(
+def signal_price_level(
     price: float,
     entry_price: float | None,
     stop_loss_price: float | None,
