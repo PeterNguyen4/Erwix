@@ -21,6 +21,9 @@ def _pg_engine():
     that SQLite can't reproduce. Session-scoped: one container for the whole run,
     tables truncated between tests instead of recreated per test.
     """
+    import app.models  # noqa: F401 — registers every table on Base.metadata; without this,
+    # create_all below only sees tables from models some *other* collected test file happened
+    # to import already, which silently varies by which test files get run together.
     from app.db import Base
 
     with PostgresContainer("pgvector/pgvector:pg16", driver="psycopg") as pg:
