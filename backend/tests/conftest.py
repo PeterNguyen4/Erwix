@@ -65,6 +65,13 @@ def make_user(user_id: int, username: str | None = None):
     )
 
 
+class _AlwaysAllowRateLimiter:
+    async def check(self, key: str, limit: int, window_ms: int):
+        from app.services.rate_limiter import RateLimitResult
+
+        return RateLimitResult(allowed=True, remaining=limit, retry_after_ms=0, limit=limit)
+
+
 @pytest_asyncio.fixture()
 async def client(db_session, monkeypatch):
     from fastapi.testclient import TestClient
@@ -81,9 +88,14 @@ async def client(db_session, monkeypatch):
     monkeypatch.setattr(main, "run_execution_logger", _noop)
     monkeypatch.setattr(main, "fail_orphaned_reports", _noop)
 
-    # get_current_user_id is overridden below (skips the real DB lookup), but
-    # tests still write rows with a real FK to users.id, so that row must exist.
+    # Stub rate limiting to not hit the real Redis DB 429.
+    fake_limiter = _AlwaysAllowRateLimiter()
+    monkeypatch.setattr("app.dependencies.rate_limit.get_rate_limiter", lambda: fake_limiter)
+
+    # Auto-increment id past current
     db_session.add(make_user(TEST_USER_ID))
+    await db_session.commit()
+    await db_session.execute(text("SELECT setval('users_id_seq', (SELECT MAX(id) FROM users))"))
     await db_session.commit()
 
     async def override_get_db():
