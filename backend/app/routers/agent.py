@@ -92,7 +92,7 @@ async def debrief_status(
     user_id: int = Depends(get_current_user_id),
 ) -> DebriefStatus:
     """Whether the user has fills since their last debrief, for the sidebar badge."""
-    pref = await db.get(UserPreference, user_id)
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     last_debrief_at = pref.last_debrief_at if pref else None
     since = last_debrief_at or (datetime.now(timezone.utc) - DEFAULT_LOOKBACK)
     count = await count_trades_since(db, user_id, since)
@@ -106,7 +106,7 @@ async def reset_debrief(
 ) -> DebriefStatus:
     """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
     for new fills. Not linked from any production UI path."""
-    pref = await db.get(UserPreference, user_id)
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     if pref:
         pref.last_debrief_at = None
         await db.commit()
@@ -143,7 +143,7 @@ async def debrief(
         async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
             await websocket.send_json(event)
 
-        pref = await db.get(UserPreference, user_id)
+        pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
         if pref is None:
             pref = UserPreference(user_id=user_id)
             db.add(pref)

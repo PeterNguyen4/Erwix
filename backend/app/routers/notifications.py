@@ -42,7 +42,7 @@ async def _build_items(db: AsyncSession, user_id: int) -> list[NotificationOut]:
     dismissals = await _dismissal_map(db, user_id)
     items: list[NotificationOut] = []
 
-    pref = await db.get(UserPreference, user_id)
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     last_debrief_at = pref.last_debrief_at if pref else None
     since = last_debrief_at or (datetime.now(timezone.utc) - DEBRIEF_LOOKBACK)
     new_trade_count = await count_trades_since(db, user_id, since)
