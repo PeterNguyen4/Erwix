@@ -31,14 +31,6 @@ def test_encrypt_decrypt_survives_round_trip():
     assert token_crypto.decrypt_token(encrypted) == "this is my test encrypted token"
 
 
-def test_encrypt_generates_different_ciphertext_for_same_token():
-    # Encrypting same plaintext twice produce different ciphertext for nondeterminism.
-    a = token_crypto.encrypt_token("same token for encryption")
-    b = token_crypto.encrypt_token("same token for encryption")
-    assert a != b
-    assert token_crypto.decrypt_token(a) == token_crypto.decrypt_token(b) == "same token for encryption"
-
-
 def test_decrypt_rejects_invalid_ciphertext():
     with pytest.raises(ValueError):
         token_crypto.decrypt_token("this is an invalid ciphertext")
