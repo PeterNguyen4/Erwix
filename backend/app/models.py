@@ -1,6 +1,19 @@
 from datetime import date, datetime, time
+
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Date, DateTime, Float, ForeignKey, Integer, JSON, String, Text, Time, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    Time,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -10,12 +23,14 @@ TRADE_EMBEDDING_DIM = 512
 
 
 class User(Base):
-    __tablename__ = 'users'
+    __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String(128), unique=True, index=True)
     email: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(256))
-    role: Mapped[str] = mapped_column(String(16), default="user", server_default="user")  # user | admin
+    role: Mapped[str] = mapped_column(
+        String(16), default="user", server_default="user"
+    )  # user | admin
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
@@ -49,7 +64,9 @@ class PasswordResetToken(Base):
 class AlpacaAccount(Base):
     __tablename__ = "alpaca_accounts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), unique=True, index=True
+    )
     access_token: Mapped[str] = mapped_column(Text)
     env: Mapped[str] = mapped_column(String(16))  # "paper" | "live"
     alpaca_account_id: Mapped[str | None] = mapped_column(String(64))
@@ -63,7 +80,9 @@ class UserPreference(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     last_symbol: Mapped[str] = mapped_column(String(16), default="AAPL")
-    last_symbol_name: Mapped[str | None] = mapped_column(String(128), default="Apple Inc.")
+    last_symbol_name: Mapped[str | None] = mapped_column(
+        String(128), default="Apple Inc."
+    )
     last_timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
 
     # Last Agent analysis
@@ -89,7 +108,11 @@ class WatchlistItem(Base):
 
 class NotificationDismissal(Base):
     __tablename__ = "notification_dismissals"
-    __table_args__ = (UniqueConstraint("user_id", "notification_key", name="uq_notification_dismissal"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "notification_key", name="uq_notification_dismissal"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
@@ -114,7 +137,9 @@ class Trade(Base):
 
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(8))  # buy | sell
-    order_type: Mapped[str | None] = mapped_column(String(16))  # market | limit | stop | stop_limit
+    order_type: Mapped[str | None] = mapped_column(
+        String(16)
+    )  # market | limit | stop | stop_limit
     qty: Mapped[float] = mapped_column(Float)
     fill_price: Mapped[float | None] = mapped_column(Float)
     fees: Mapped[float] = mapped_column(Float, default=0.0)
@@ -137,7 +162,9 @@ class Trade(Base):
     # User's reflection on this trade
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    filled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -166,7 +193,9 @@ class JournalEntry(Base):
 
     symbol: Mapped[str | None] = mapped_column(String(16))
     side: Mapped[str | None] = mapped_column(String(8))  # buy | sell
-    timeframe: Mapped[str | None] = mapped_column(String(16))  # chart timeframe, e.g. "15Min", "1Day"
+    timeframe: Mapped[str | None] = mapped_column(
+        String(16)
+    )  # chart timeframe, e.g. "15Min", "1Day"
     entry_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     entry_price: Mapped[float | None] = mapped_column(Float)
     exit_time: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -196,7 +225,9 @@ class DebriefReport(Base):
     symbol: Mapped[str | None] = mapped_column(String(16))
     query: Mapped[str | None] = mapped_column(Text)
 
-    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|running|ready|error
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending"
+    )  # pending|running|ready|error
     scheduled_for: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -310,7 +341,9 @@ class StrategyRuleSet(Base):
 class MarketInsightCache(Base):
     __tablename__ = "market_insight_cache"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), unique=True, index=True
+    )
 
     # sha256 of the sorted article URLs used to generate this insight
     articles_hash: Mapped[str] = mapped_column(String(64))
@@ -348,9 +381,13 @@ class BacktestRun(Base):
     __tablename__ = "backtest_runs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
-    config_id: Mapped[int] = mapped_column(ForeignKey("backtest_configs.id"), index=True)
+    config_id: Mapped[int] = mapped_column(
+        ForeignKey("backtest_configs.id"), index=True
+    )
 
-    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|running|ready|error
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending"
+    )  # pending|running|ready|error
     start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     result: Mapped[dict | None] = mapped_column(JSON)

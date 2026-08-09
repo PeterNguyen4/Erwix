@@ -18,14 +18,22 @@ from app.models import BacktestConfig as BacktestConfigModel
 from app.models import BacktestRun as BacktestRunModel
 from app.services.embeddings import build_trade_text
 from app.services.news import fetch_news
-from app.services.trade_retrieval import compute_pnl_summary_pair, get_trades_window, semantic_search
+from app.services.trade_retrieval import (
+    compute_pnl_summary_pair,
+    get_trades_window,
+    semantic_search,
+)
 
 
-async def get_strategy_context(db: AsyncSession, user_id: int) -> tuple[str, str] | None:
+async def get_strategy_context(
+    db: AsyncSession, user_id: int
+) -> tuple[str, str] | None:
     """Thin re-export — strategy_agent.py owns this capability (like news_agent owns
     build_market_insight). Lazy import to avoid a circular import: agent_graph imports this
     module, and strategy_agent imports agent_graph._base_model."""
-    from app.services.strategy_agent import get_strategy_context as _get_strategy_context
+    from app.services.strategy_agent import (
+        get_strategy_context as _get_strategy_context,
+    )
 
     return await _get_strategy_context(db, user_id)
 
@@ -34,7 +42,9 @@ def _parse_iso(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def make_strategy_context_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_strategy_context_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
     async def strategy_context() -> str:
         """Look up the trader's stated strategy/playbook (their trading rules, archetype,
@@ -50,7 +60,9 @@ def make_strategy_context_tool(db: AsyncSession, user_id: int, lock: asyncio.Loc
     return strategy_context
 
 
-def make_strategy_advice_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_strategy_advice_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
     async def strategy_advice(question: str) -> str:
         """Ask the strategy specialist a judgment-call question about the trader's own stated
@@ -65,7 +77,9 @@ def make_strategy_advice_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock
     return strategy_advice
 
 
-def make_compare_trade_windows_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_compare_trade_windows_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
     async def compare_trade_windows(
         window_a_start: str, window_a_end: str, window_b_start: str, window_b_end: str
@@ -99,14 +113,20 @@ def make_compare_trade_windows_tool(db: AsyncSession, user_id: int, lock: asynci
     return compare_trade_windows
 
 
-def make_fetch_trades_window_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_fetch_trades_window_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
-    async def fetch_trades_window(start: str, end: str, symbol: str | None = None) -> str:
+    async def fetch_trades_window(
+        start: str, end: str, symbol: str | None = None
+    ) -> str:
         """Fetch a trader's individual fills in a date range (ISO 8601 datetimes,
         optionally filtered to one symbol) with per-trade detail (side, price, notes)
         — use this to look at specific trades, not just aggregate stats."""
         async with lock:
-            trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
+            trades = await get_trades_window(
+                db, user_id, _parse_iso(start), _parse_iso(end)
+            )
         if symbol:
             trades = [t for t in trades if t.symbol == symbol.upper()]
         if not trades:
@@ -116,7 +136,9 @@ def make_fetch_trades_window_tool(db: AsyncSession, user_id: int, lock: asyncio.
     return fetch_trades_window
 
 
-def make_search_trades_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_search_trades_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
     async def search_trades(query: str) -> str:
         """Semantic search over the trader's full trade history (not date-limited) for
@@ -131,7 +153,9 @@ def make_search_trades_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) 
     return search_trades
 
 
-def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_fetch_symbol_news_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
     async def fetch_symbol_news(start: str, end: str, symbol: str | None = None) -> str:
         """Fetch raw recent news headlines for the symbols the trader actually traded in a
@@ -139,8 +163,12 @@ def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lo
         itself (e.g. to quote one). For judging whether news explains a trade's outcome,
         prefer market_insight instead — it reasons over these same headlines for you."""
         async with lock:
-            trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
-        symbols = sorted({t.symbol for t in trades if not symbol or t.symbol == symbol.upper()})
+            trades = await get_trades_window(
+                db, user_id, _parse_iso(start), _parse_iso(end)
+            )
+        symbols = sorted(
+            {t.symbol for t in trades if not symbol or t.symbol == symbol.upper()}
+        )
         if not symbols:
             return "No trades (and so no symbols to look up news for) in this window."
         articles = await fetch_news(symbols, limit_per_symbol=6)
@@ -148,7 +176,9 @@ def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lo
             return "No recent headlines found for these symbols."
         by_symbol: dict[str, list[str]] = {}
         for a in articles:
-            by_symbol.setdefault(a.symbol, []).append(f"  - [{a.publisher}] {a.title} ({a.published_at:%Y-%m-%d})")
+            by_symbol.setdefault(a.symbol, []).append(
+                f"  - [{a.publisher}] {a.title} ({a.published_at:%Y-%m-%d})"
+            )
         lines = []
         for sym, headlines in by_symbol.items():
             lines.append(f"{sym}:")
@@ -158,7 +188,9 @@ def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lo
     return fetch_symbol_news
 
 
-def make_market_insight_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_market_insight_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
     async def market_insight(start: str, end: str, symbol: str | None = None) -> str:
         """Delegate to the news specialist for a sentiment read and strategy-conditioned advice
@@ -169,8 +201,12 @@ def make_market_insight_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock)
         from app.services.news_agent import build_market_insight
 
         async with lock:
-            trades = await get_trades_window(db, user_id, _parse_iso(start), _parse_iso(end))
-        symbols = sorted({t.symbol for t in trades if not symbol or t.symbol == symbol.upper()})
+            trades = await get_trades_window(
+                db, user_id, _parse_iso(start), _parse_iso(end)
+            )
+        symbols = sorted(
+            {t.symbol for t in trades if not symbol or t.symbol == symbol.upper()}
+        )
         if not symbols:
             return "No trades (and so no symbols to look up news for) in this window."
         articles = await fetch_news(symbols, limit_per_symbol=6)
@@ -187,7 +223,9 @@ def make_market_insight_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock)
     return market_insight
 
 
-def make_backtest_results_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+def make_backtest_results_tool(
+    db: AsyncSession, user_id: int, lock: asyncio.Lock
+) -> BaseTool:
     @tool
     async def backtest_results(symbol: str | None = None) -> str:
         """Look up the trader's already-completed backtest runs (rule-based strategy tests run
@@ -198,8 +236,14 @@ def make_backtest_results_tool(db: AsyncSession, user_id: int, lock: asyncio.Loc
             rows = (
                 await db.execute(
                     select(BacktestRunModel, BacktestConfigModel)
-                    .join(BacktestConfigModel, BacktestRunModel.config_id == BacktestConfigModel.id)
-                    .where(BacktestRunModel.user_id == user_id, BacktestRunModel.status == "ready")
+                    .join(
+                        BacktestConfigModel,
+                        BacktestRunModel.config_id == BacktestConfigModel.id,
+                    )
+                    .where(
+                        BacktestRunModel.user_id == user_id,
+                        BacktestRunModel.status == "ready",
+                    )
                     .order_by(BacktestRunModel.created_at.desc())
                     .limit(10)
                 )
@@ -211,7 +255,9 @@ def make_backtest_results_tool(db: AsyncSession, user_id: int, lock: asyncio.Loc
         lines = []
         for run, cfg in rows:
             stats = (run.result or {}).get("stats", {})
-            stats_str = ", ".join(f"{k}={v}" for k, v in stats.items()) or "no stats recorded"
+            stats_str = (
+                ", ".join(f"{k}={v}" for k, v in stats.items()) or "no stats recorded"
+            )
             lines.append(
                 f"- {cfg.name!r} on {cfg.symbol} ({cfg.timeframe}), tested {run.start:%Y-%m-%d} to "
                 f"{run.end:%Y-%m-%d}: {stats_str}"

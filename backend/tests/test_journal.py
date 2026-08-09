@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
 import pytest
@@ -16,7 +16,7 @@ def _make_trade(symbol: str, days_ago: int, side: str = "buy") -> Trade:
         qty=10,
         fill_price=100.0,
         fees=0.0,
-        filled_at=datetime.now(timezone.utc) - timedelta(days=days_ago),
+        filled_at=datetime.now(UTC) - timedelta(days=days_ago),
     )
 
 
@@ -27,7 +27,7 @@ async def test_trades_window_filters_by_date(client, db_session):
     )
     await db_session.commit()
 
-    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    since = (datetime.now(UTC) - timedelta(days=7)).isoformat()
     resp = client.get(f"/api/journal/trades?from={quote(since)}")
     assert resp.status_code == 200
     rows = resp.json()

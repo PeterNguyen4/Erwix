@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 
 import redis.asyncio as redis
-from redis.exceptions import NoScriptError, RedisError
+from redis.exceptions import NoScriptError
 
 from app.config import get_settings
 

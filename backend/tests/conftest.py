@@ -22,6 +22,7 @@ def _pg_engine():
     tables truncated between tests instead of recreated per test.
     """
     import app.models  # noqa: F401 — registers every table on Base.metadata; without this,
+
     # create_all below only sees tables from models some *other* collected test file happened
     # to import already, which silently varies by which test files get run together.
     from app.db import Base
@@ -46,7 +47,9 @@ def _pg_engine():
 async def db_session(_pg_engine):
     from app.db import Base
 
-    TestingSession = async_sessionmaker(bind=_pg_engine, autoflush=False, expire_on_commit=False)
+    TestingSession = async_sessionmaker(
+        bind=_pg_engine, autoflush=False, expire_on_commit=False
+    )
     session = TestingSession()
     try:
         yield session
@@ -72,7 +75,9 @@ class _AlwaysAllowRateLimiter:
     async def check(self, key: str, limit: int, window_ms: int):
         from app.services.rate_limiter import RateLimitResult
 
-        return RateLimitResult(allowed=True, remaining=limit, retry_after_ms=0, limit=limit)
+        return RateLimitResult(
+            allowed=True, remaining=limit, retry_after_ms=0, limit=limit
+        )
 
 
 @pytest_asyncio.fixture()
@@ -93,12 +98,16 @@ async def client(db_session, monkeypatch):
 
     # Stub rate limiting to not hit the real Redis DB 429.
     fake_limiter = _AlwaysAllowRateLimiter()
-    monkeypatch.setattr("app.dependencies.rate_limit.get_rate_limiter", lambda: fake_limiter)
+    monkeypatch.setattr(
+        "app.dependencies.rate_limit.get_rate_limiter", lambda: fake_limiter
+    )
 
     # Auto-increment id past current
     db_session.add(make_user(TEST_USER_ID))
     await db_session.commit()
-    await db_session.execute(text("SELECT setval('users_id_seq', (SELECT MAX(id) FROM users))"))
+    await db_session.execute(
+        text("SELECT setval('users_id_seq', (SELECT MAX(id) FROM users))")
+    )
     await db_session.commit()
 
     async def override_get_db():

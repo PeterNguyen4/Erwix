@@ -1,15 +1,28 @@
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import alpaca_client
 from app.auth import get_current_user_id, require_admin
+from app.config import get_settings
 from app.db import get_db
+from app.dependencies.guardrails import (
+    check_ws_guardrail_input,
+    guardrail_input_or_raise,
+)
+from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.models import DebriefMessage, DebriefReport, UserPreference
 from app.schemas import (
     AgentReviewRequest,
@@ -22,15 +35,22 @@ from app.schemas import (
     DebriefSessionRenameIn,
     DebriefStatus,
 )
-from app.config import get_settings
-from app.dependencies.guardrails import check_ws_guardrail_input, guardrail_input_or_raise
-from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
-from app.services.agent_graph import arun_ask, astream_ask, astream_review, exit_guidance, run_review
-from app.services.guardrails import scan_output
-from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
+from app.services.agent_graph import (
+    arun_ask,
+    astream_ask,
+    astream_review,
+    exit_guidance,
+    run_review,
+)
+from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
+from app.services.guardrails import scan_output
 from app.services.reference_resolver import resolve_references
-from app.services.rule_engine import evaluate_rules, signal_price_level, rules_just_fired
+from app.services.rule_engine import (
+    evaluate_rules,
+    rules_just_fired,
+    signal_price_level,
+)
 from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
 
@@ -68,7 +88,11 @@ def _report_out(report: DebriefReport) -> DebriefReportOut:
     )
 
 
-@router.post("/review", response_model=AgentReviewResponse, dependencies=[Depends(_llm_rate_limit)])
+@router.post(
+    "/review",
+    response_model=AgentReviewResponse,
+    dependencies=[Depends(_llm_rate_limit)],
+)
 async def review_trades(
     body: AgentReviewRequest,
     db: AsyncSession = Depends(get_db),
@@ -92,11 +116,15 @@ async def debrief_status(
     user_id: int = Depends(get_current_user_id),
 ) -> DebriefStatus:
     """Whether the user has fills since their last debrief, for the sidebar badge."""
-    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
+    pref = await db.scalar(
+        select(UserPreference).where(UserPreference.user_id == user_id)
+    )
     last_debrief_at = pref.last_debrief_at if pref else None
-    since = last_debrief_at or (datetime.now(timezone.utc) - DEFAULT_LOOKBACK)
+    since = last_debrief_at or (datetime.now(UTC) - DEFAULT_LOOKBACK)
     count = await count_trades_since(db, user_id, since)
-    return DebriefStatus(has_new_trades=count > 0, new_trade_count=count, last_debrief_at=last_debrief_at)
+    return DebriefStatus(
+        has_new_trades=count > 0, new_trade_count=count, last_debrief_at=last_debrief_at
+    )
 
 
 @router.post("/debrief/reset", response_model=DebriefStatus)
@@ -106,7 +134,9 @@ async def reset_debrief(
 ) -> DebriefStatus:
     """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
     for new fills. Not linked from any production UI path."""
-    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
+    pref = await db.scalar(
+        select(UserPreference).where(UserPreference.user_id == user_id)
+    )
     if pref:
         pref.last_debrief_at = None
         await db.commit()
@@ -126,7 +156,9 @@ async def debrief(
     """Stream the LangGraph analyst's debrief: token/annotations/spotlight/done events."""
     await websocket.accept()
 
-    rate_limit_error = await check_ws_rate_limit(user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False)
+    rate_limit_error = await check_ws_rate_limit(
+        user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False
+    )
     if rate_limit_error:
         await websocket.send_json({"type": "error", "detail": rate_limit_error})
         await websocket.close(code=1008)
@@ -140,20 +172,24 @@ async def debrief(
             return
 
     try:
-        async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
+        async for event in astream_review(
+            db, user_id, from_, to, symbol=symbol, query=query
+        ):
             await websocket.send_json(event)
 
-        pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
+        pref = await db.scalar(
+            select(UserPreference).where(UserPreference.user_id == user_id)
+        )
         if pref is None:
             pref = UserPreference(user_id=user_id)
             db.add(pref)
-        pref.last_debrief_at = datetime.now(timezone.utc)
+        pref.last_debrief_at = datetime.now(UTC)
         await db.commit()
     except RuntimeError as exc:
         await websocket.send_json({"type": "error", "detail": str(exc)})
     except WebSocketDisconnect:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("debrief stream failed for user %s", user_id)
         try:
             await websocket.send_json({"type": "error", "detail": "debrief failed"})
@@ -204,13 +240,16 @@ async def watch(
     await websocket.accept()
 
     if not alpaca_client.is_stream_available():
-        await websocket.send_json({"type": "error", "detail": "live stream unavailable"})
+        await websocket.send_json(
+            {"type": "error", "detail": "live stream unavailable"}
+        )
         await websocket.close()
         return
 
     rule_set = await load_rule_set(db, user_id)
     rules = (
-        [(r, "entry") for r in rule_set.entry_rules] + [(r, "exit") for r in rule_set.exit_rules]
+        [(r, "entry") for r in rule_set.entry_rules]
+        + [(r, "exit") for r in rule_set.exit_rules]
         if rule_set is not None
         else []
     )
@@ -222,9 +261,15 @@ async def watch(
         "take_profit_price": None,
     }
     try:
-        open_levels = await asyncio.to_thread(alpaca_client.get_open_bracket_levels, symbol, user_id)
-    except Exception:  # noqa: BLE001
-        logger.exception("failed to seed levels from open position for user %s symbol %s", user_id, symbol)
+        open_levels = await asyncio.to_thread(
+            alpaca_client.get_open_bracket_levels, symbol, user_id
+        )
+    except Exception:
+        logger.exception(
+            "failed to seed levels from open position for user %s symbol %s",
+            user_id,
+            symbol,
+        )
         open_levels = None
     if open_levels:
         levels.update(open_levels)
@@ -260,7 +305,9 @@ async def watch(
         while True:
             await asyncio.sleep(refresh_seconds)
             try:
-                fresh = await asyncio.to_thread(alpaca_client.get_candles, symbol, timeframe)
+                fresh = await asyncio.to_thread(
+                    alpaca_client.get_candles, symbol, timeframe
+                )
             except Exception:  # noqa: BLE001
                 continue
             if fresh:
@@ -274,29 +321,33 @@ async def watch(
             price = await tick_queue.get()
             if not candles:
                 continue
-            candles[-1] = candles[-1].model_copy(update={
-                "close": price,
-                "high": max(candles[-1].high, price),
-                "low": min(candles[-1].low, price),
-            })
+            candles[-1] = candles[-1].model_copy(
+                update={
+                    "close": price,
+                    "high": max(candles[-1].high, price),
+                    "low": min(candles[-1].low, price),
+                }
+            )
             candle = candles[-1]
 
             if all_rules:
                 now_firing = evaluate_rules(candles, all_rules)
                 for i in rules_just_fired(was_firing, now_firing):
                     rule, kind = rules[i]
-                    await websocket.send_json({
-                        "type": "signal",
-                        "kind": kind,
-                        "description": rule.description,
-                        "annotation": {
-                            "type": "marker",
-                            "time": candle.time,
-                            "price": candle.close,
-                            "label": rule.description,
-                            "color": ENTRY_COLOR if kind == "entry" else EXIT_COLOR,
-                        },
-                    })
+                    await websocket.send_json(
+                        {
+                            "type": "signal",
+                            "kind": kind,
+                            "description": rule.description,
+                            "annotation": {
+                                "type": "marker",
+                                "time": candle.time,
+                                "price": candle.close,
+                                "label": rule.description,
+                                "color": ENTRY_COLOR if kind == "entry" else EXIT_COLOR,
+                            },
+                        }
+                    )
                 was_firing = now_firing
 
             level_hit = signal_price_level(
@@ -322,26 +373,34 @@ async def watch(
                         levels["stop_loss_price"],
                         levels["take_profit_price"],
                     )
-                except Exception:  # noqa: BLE001
-                    logger.exception("exit guidance narration failed for user %s symbol %s", user_id, symbol)
+                except Exception:
+                    logger.exception(
+                        "exit guidance narration failed for user %s symbol %s",
+                        user_id,
+                        symbol,
+                    )
                     description = static_description
-                await websocket.send_json({
-                    "type": "signal",
-                    "kind": "exit",
-                    "description": description,
-                    "annotation": {
-                        "type": "marker",
-                        "time": candle.time,
-                        "price": candle.close,
-                        "label": description,
-                        "color": EXIT_COLOR,
-                    },
-                })
+                await websocket.send_json(
+                    {
+                        "type": "signal",
+                        "kind": "exit",
+                        "description": description,
+                        "annotation": {
+                            "type": "marker",
+                            "time": candle.time,
+                            "price": candle.close,
+                            "label": description,
+                            "color": EXIT_COLOR,
+                        },
+                    }
+                )
             was_level_hit = level_hit
     except WebSocketDisconnect:
         pass
-    except Exception:  # noqa: BLE001
-        logger.exception("rule watch loop failed for user %s symbol %s", user_id, symbol)
+    except Exception:
+        logger.exception(
+            "rule watch loop failed for user %s symbol %s", user_id, symbol
+        )
         try:
             await websocket.send_json({"type": "error", "detail": "watch loop failed"})
         except Exception:  # noqa: BLE001
@@ -361,7 +420,11 @@ async def watch(
             pass
 
 
-@router.post("/debrief/generate", response_model=DebriefReportOut, dependencies=[Depends(_llm_rate_limit)])
+@router.post(
+    "/debrief/generate",
+    response_model=DebriefReportOut,
+    dependencies=[Depends(_llm_rate_limit)],
+)
 async def generate_debrief_now(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(require_admin),
@@ -412,12 +475,16 @@ async def list_debrief_sessions(
         else:
             first_message = await db.scalar(
                 select(DebriefMessage.content)
-                .where(DebriefMessage.report_id == report.id, DebriefMessage.role == "user")
+                .where(
+                    DebriefMessage.report_id == report.id, DebriefMessage.role == "user"
+                )
                 .order_by(DebriefMessage.created_at.asc())
                 .limit(1)
             )
             title = (first_message or "New chat")[:80]
-        sessions.append({"id": report.id, "created_at": report.created_at, "title": title})
+        sessions.append(
+            {"id": report.id, "created_at": report.created_at, "title": title}
+        )
     return sessions
 
 
@@ -427,8 +494,10 @@ async def create_debrief_session(
     user_id: int = Depends(get_current_user_id),
 ) -> dict:
     """Create new session on clear."""
-    now = datetime.now(timezone.utc)
-    report = DebriefReport(user_id=user_id, report_type="ask", status="ready", scheduled_for=now, steps=[])
+    now = datetime.now(UTC)
+    report = DebriefReport(
+        user_id=user_id, report_type="ask", status="ready", scheduled_for=now, steps=[]
+    )
     db.add(report)
     await db.commit()
     await db.refresh(report)
@@ -447,7 +516,11 @@ async def rename_debrief_session(
         raise HTTPException(status_code=404, detail="session not found")
     report.query = body.title.strip()[:80] or None
     await db.commit()
-    return {"id": report.id, "created_at": report.created_at, "title": report.query or "New chat"}
+    return {
+        "id": report.id,
+        "created_at": report.created_at,
+        "title": report.query or "New chat",
+    }
 
 
 @router.delete("/debrief/{report_id}", status_code=204)
@@ -460,7 +533,9 @@ async def delete_debrief_session(
     report = await db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id or report.report_type != "ask":
         raise HTTPException(status_code=404, detail="session not found")
-    await db.execute(delete(DebriefMessage).where(DebriefMessage.report_id == report_id))
+    await db.execute(
+        delete(DebriefMessage).where(DebriefMessage.report_id == report_id)
+    )
     await db.delete(report)
     await db.commit()
 
@@ -488,7 +563,7 @@ async def mark_debrief_viewed(
     if report is None or report.user_id != user_id:
         raise HTTPException(status_code=404, detail="report not found")
     if report.viewed_at is None:
-        report.viewed_at = datetime.now(timezone.utc)
+        report.viewed_at = datetime.now(UTC)
         await db.commit()
     return _report_out(report)
 
@@ -526,11 +601,15 @@ async def clear_debrief_messages(
     report = await db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id:
         raise HTTPException(status_code=404, detail="report not found")
-    await db.execute(delete(DebriefMessage).where(DebriefMessage.report_id == report_id))
+    await db.execute(
+        delete(DebriefMessage).where(DebriefMessage.report_id == report_id)
+    )
     await db.commit()
 
 
-async def _resolve_ask_report(db: AsyncSession, user_id: int, report_id: int | None) -> tuple[DebriefReport, str | None]:
+async def _resolve_ask_report(
+    db: AsyncSession, user_id: int, report_id: int | None
+) -> tuple[DebriefReport, str | None]:
     """Ground questions in debrief chat window."""
     if report_id is not None:
         report = await db.get(DebriefReport, report_id)
@@ -548,8 +627,10 @@ async def _resolve_ask_report(db: AsyncSession, user_id: int, report_id: int | N
         )
         return report, window_context
 
-    now = datetime.now(timezone.utc)
-    report = DebriefReport(user_id=user_id, report_type="ask", status="ready", scheduled_for=now, steps=[])
+    now = datetime.now(UTC)
+    report = DebriefReport(
+        user_id=user_id, report_type="ask", status="ready", scheduled_for=now, steps=[]
+    )
     db.add(report)
     await db.commit()
     await db.refresh(report)
@@ -569,7 +650,11 @@ async def _debrief_history(db: AsyncSession, report_id: int) -> list[tuple[str, 
     return [(m.role, m.content) for m in prior]
 
 
-@router.post("/debrief/ask", response_model=DebriefMessageOut, dependencies=[Depends(_llm_rate_limit)])
+@router.post(
+    "/debrief/ask",
+    response_model=DebriefMessageOut,
+    dependencies=[Depends(_llm_rate_limit)],
+)
 async def ask_debrief(
     body: DebriefAskIn,
     db: AsyncSession = Depends(get_db),
@@ -581,11 +666,15 @@ async def ask_debrief(
         report, window_context = await _resolve_ask_report(db, user_id, body.report_id)
     except ValueError as exc:
         detail = str(exc)
-        raise HTTPException(status_code=409 if "not ready" in detail else 404, detail=detail) from exc
+        raise HTTPException(
+            status_code=409 if "not ready" in detail else 404, detail=detail
+        ) from exc
 
     history = await _debrief_history(db, report.id)
 
-    user_message = DebriefMessage(report_id=report.id, role="user", content=body.message)
+    user_message = DebriefMessage(
+        report_id=report.id, role="user", content=body.message
+    )
     db.add(user_message)
     await db.commit()
 
@@ -595,14 +684,20 @@ async def ask_debrief(
 
     try:
         reply, _annotations, provenance = await arun_ask(
-            db, user_id, body.message, history=history, attached_context=attached_context
+            db,
+            user_id,
+            body.message,
+            history=history,
+            attached_context=attached_context,
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     output_violation = scan_output(reply)
     if output_violation:
-        logger.warning("output guardrail triggered in ask_debrief: %s", output_violation)
+        logger.warning(
+            "output guardrail triggered in ask_debrief: %s", output_violation
+        )
         raise HTTPException(status_code=502, detail=output_violation)
 
     assistant_message = DebriefMessage(
@@ -625,7 +720,9 @@ async def ask_debrief_stream(
     """Conversation with streaming."""
     await websocket.accept()
 
-    rate_limit_error = await check_ws_rate_limit(user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False)
+    rate_limit_error = await check_ws_rate_limit(
+        user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False
+    )
     if rate_limit_error:
         await websocket.send_json({"type": "error", "detail": rate_limit_error})
         await websocket.close(code=1008)
@@ -653,7 +750,9 @@ async def ask_debrief_stream(
     await db.commit()
 
     try:
-        parsed_references = [AttachedReferenceIn.model_validate(r) for r in json.loads(references)]
+        parsed_references = [
+            AttachedReferenceIn.model_validate(r) for r in json.loads(references)
+        ]
     except (json.JSONDecodeError, ValueError):
         parsed_references = []
     attached_context = await resolve_references(db, user_id, parsed_references)
@@ -665,7 +764,9 @@ async def ask_debrief_stream(
     ordered_parts: list[dict] = []
 
     try:
-        async for event in astream_ask(db, user_id, message, history=history, attached_context=attached_context):
+        async for event in astream_ask(
+            db, user_id, message, history=history, attached_context=attached_context
+        ):
             if event["type"] == "token":
                 reply_parts.append(event["text"])
                 if ordered_parts and ordered_parts[-1]["type"] == "text":
@@ -674,13 +775,17 @@ async def ask_debrief_stream(
                     ordered_parts.append({"type": "text", "text": event["text"]})
             elif event["type"] == "tool_call":
                 provenance.append({"tool": event["tool"], "args": event["args"]})
-                ordered_parts.append({"type": "tool_call", "tool": event["tool"], "args": event["args"]})
+                ordered_parts.append(
+                    {"type": "tool_call", "tool": event["tool"], "args": event["args"]}
+                )
             await websocket.send_json(event)
 
         full_reply = "".join(reply_parts)
         output_violation = scan_output(full_reply)
         if output_violation:
-            logger.warning("output guardrail triggered in ask_debrief_stream: %s", output_violation)
+            logger.warning(
+                "output guardrail triggered in ask_debrief_stream: %s", output_violation
+            )
 
         assistant_message = DebriefMessage(
             report_id=report.id,
@@ -695,7 +800,7 @@ async def ask_debrief_stream(
         await websocket.send_json({"type": "error", "detail": str(exc)})
     except WebSocketDisconnect:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("debrief ask stream failed for user %s", user_id)
         try:
             await websocket.send_json({"type": "error", "detail": "ask failed"})

@@ -89,7 +89,9 @@ async def callback(
         return RedirectResponse(f"{settings_url}?alpaca=error")
 
     encrypted = encrypt_token(access_token)
-    account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
+    account = await db.scalar(
+        select(AlpacaAccount).where(AlpacaAccount.user_id == user_id)
+    )
     if account is None:
         account = AlpacaAccount(user_id=user_id, access_token=encrypted, env=env)
         db.add(account)
@@ -106,7 +108,9 @@ async def status(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> AlpacaStatusOut:
-    account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
+    account = await db.scalar(
+        select(AlpacaAccount).where(AlpacaAccount.user_id == user_id)
+    )
     if account is None:
         return AlpacaStatusOut(connected=False)
     return AlpacaStatusOut(connected=True, env=account.env)
@@ -117,7 +121,9 @@ async def disconnect(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> dict:
-    account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
+    account = await db.scalar(
+        select(AlpacaAccount).where(AlpacaAccount.user_id == user_id)
+    )
     if account is not None:
         await db.delete(account)
         await db.commit()

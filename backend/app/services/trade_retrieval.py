@@ -9,13 +9,18 @@ ranks trades by cosine distance in pgvector.
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Trade
-from app.services.embeddings import EMBEDDING_MODEL, build_trade_text, embed_documents, embed_query
+from app.services.embeddings import (
+    EMBEDDING_MODEL,
+    build_trade_text,
+    embed_documents,
+    embed_query,
+)
 
 logger = logging.getLogger("entro.trade_retrieval")
 
@@ -55,7 +60,9 @@ def _fifo_match(trades: list[Trade]) -> list[ClosedTrade]:
     lots queue per symbol, closed out oldest-first by opposite-side fills.
     Handles both long (buy-then-sell) and short (sell-then-buy) round-trips.
     """
-    lots: dict[str, deque[tuple[float, float, datetime]]] = defaultdict(deque)  # (qty, price, opened_at)
+    lots: dict[str, deque[tuple[float, float, datetime]]] = defaultdict(
+        deque
+    )  # (qty, price, opened_at)
     lot_side: dict[str, str] = {}
     closed: list[ClosedTrade] = []
 
@@ -123,7 +130,9 @@ async def _fifo_match_all(db: AsyncSession, user_id: int) -> list[ClosedTrade]:
     all_trades = list(
         (
             await db.scalars(
-                select(Trade).where(Trade.user_id == user_id, Trade.filled_at.isnot(None))
+                select(Trade).where(
+                    Trade.user_id == user_id, Trade.filled_at.isnot(None)
+                )
             )
         ).all()
     )
@@ -169,12 +178,16 @@ async def compute_pnl_summary_pair(
     return _summarize_closed(a), _summarize_closed(b)
 
 
-async def compute_pnl_weekly_comparison(db: AsyncSession, user_id: int) -> tuple[PnLSummary, PnLSummary]:
+async def compute_pnl_weekly_comparison(
+    db: AsyncSession, user_id: int
+) -> tuple[PnLSummary, PnLSummary]:
     """This-week vs previous-week PnL stats."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     week_ago = now - timedelta(days=7)
     two_weeks_ago = now - timedelta(days=14)
-    return await compute_pnl_summary_pair(db, user_id, (week_ago, now), (two_weeks_ago, week_ago))
+    return await compute_pnl_summary_pair(
+        db, user_id, (week_ago, now), (two_weeks_ago, week_ago)
+    )
 
 
 async def compute_pnl_daily_trend(
@@ -182,9 +195,11 @@ async def compute_pnl_daily_trend(
 ) -> dict[str, list]:
     """Daily snapshot for trend lines."""
     closed = await _fifo_match_all(db, user_id)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     start = now - timedelta(days=days - 1)
-    closed = sorted((c for c in closed if c.closed_at >= start), key=lambda c: c.closed_at)
+    closed = sorted(
+        (c for c in closed if c.closed_at >= start), key=lambda c: c.closed_at
+    )
 
     win_rate: list[float | None] = []
     risk_reward: list[float | None] = []
@@ -208,8 +223,12 @@ async def compute_pnl_daily_trend(
         decided = len(running_wins) + len(running_losses)
         win_rate.append((len(running_wins) / decided) if decided else None)
         avg_win = (sum(running_wins) / len(running_wins)) if running_wins else None
-        avg_loss = (sum(running_losses) / len(running_losses)) if running_losses else None
-        risk_reward.append((avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None)
+        avg_loss = (
+            (sum(running_losses) / len(running_losses)) if running_losses else None
+        )
+        risk_reward.append(
+            (avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None
+        )
         total_pnl.append(running_total)
         win_loss_diff.append(len(running_wins) - len(running_losses))
 
@@ -225,15 +244,24 @@ async def count_trades_since(db: AsyncSession, user_id: int, since: datetime) ->
     """Number of a user's fills strictly after `since` — used both by the sidebar
     badge (GET /api/agent/status) and the scheduler's "anything new to debrief?"
     check (app.services.debrief_jobs)."""
-    return await db.scalar(
-        select(func.count()).select_from(Trade).where(Trade.user_id == user_id, Trade.filled_at > since)
-    ) or 0
+    return (
+        await db.scalar(
+            select(func.count())
+            .select_from(Trade)
+            .where(Trade.user_id == user_id, Trade.filled_at > since)
+        )
+        or 0
+    )
 
 
-async def latest_fill_since(db: AsyncSession, user_id: int, since: datetime) -> datetime | None:
+async def latest_fill_since(
+    db: AsyncSession, user_id: int, since: datetime
+) -> datetime | None:
     """Most recent fill time after last."""
     return await db.scalar(
-        select(func.max(Trade.filled_at)).where(Trade.user_id == user_id, Trade.filled_at > since)
+        select(func.max(Trade.filled_at)).where(
+            Trade.user_id == user_id, Trade.filled_at > since
+        )
     )
 
 
@@ -248,12 +276,16 @@ def primary_symbol(trades: list[Trade]) -> str | None:
     return max(counts, key=counts.get)
 
 
-async def get_trades_window(db: AsyncSession, user_id: int, start: datetime, end: datetime) -> list[Trade]:
+async def get_trades_window(
+    db: AsyncSession, user_id: int, start: datetime, end: datetime
+) -> list[Trade]:
     """All of a user's fills in [start, end], oldest first — the window the
     Phase-2 analyst agent reviews."""
     stmt = (
         select(Trade)
-        .where(Trade.user_id == user_id, Trade.filled_at >= start, Trade.filled_at <= end)
+        .where(
+            Trade.user_id == user_id, Trade.filled_at >= start, Trade.filled_at <= end
+        )
         .order_by(Trade.filled_at.asc())
     )
     return list((await db.scalars(stmt)).all())
@@ -264,7 +296,7 @@ async def embed_trade(db: AsyncSession, trade: Trade) -> None:
     vector = embed_documents([build_trade_text(trade)])[0]
     trade.embedding = vector
     trade.embedding_model = EMBEDDING_MODEL
-    trade.embedded_at = datetime.now(timezone.utc)
+    trade.embedded_at = datetime.now(UTC)
     await db.commit()
 
 
@@ -273,12 +305,14 @@ async def embed_trade_best_effort(db: AsyncSession, trade: Trade) -> None:
     embedding must never block the fill/notes write it's attached to."""
     try:
         await embed_trade(db, trade)
-    except Exception:  # noqa: BLE001 — embedding is best-effort, never blocks the caller's write
+    except Exception:
         await db.rollback()
         logger.warning("Failed to embed trade %s", trade.id, exc_info=True)
 
 
-async def backfill_embeddings(db: AsyncSession, user_id: int, batch_size: int = 50) -> int:
+async def backfill_embeddings(
+    db: AsyncSession, user_id: int, batch_size: int = 50
+) -> int:
     """Embed any of the user's trades that don't yet have one (new fills, or
     trades logged before this pipeline existed, or a stale embedding model).
     Returns the number embedded."""
@@ -292,7 +326,7 @@ async def backfill_embeddings(db: AsyncSession, user_id: int, batch_size: int = 
     if not trades:
         return 0
     vectors = embed_documents([build_trade_text(t) for t in trades])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     for trade, vector in zip(trades, vectors):
         trade.embedding = vector
         trade.embedding_model = EMBEDDING_MODEL
@@ -301,7 +335,9 @@ async def backfill_embeddings(db: AsyncSession, user_id: int, batch_size: int = 
     return len(trades)
 
 
-async def semantic_search(db: AsyncSession, user_id: int, query: str, limit: int = 5) -> list[Trade]:
+async def semantic_search(
+    db: AsyncSession, user_id: int, query: str, limit: int = 5
+) -> list[Trade]:
     """Find the user's trades whose embedded text is closest in meaning to `query`."""
     query_vector = embed_query(query)
     stmt = (

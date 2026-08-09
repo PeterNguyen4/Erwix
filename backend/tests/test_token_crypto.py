@@ -19,7 +19,11 @@ class _FakeSettings:
 
 @pytest.fixture(autouse=True)
 def _configured_encryption_key(monkeypatch):
-    monkeypatch.setattr(token_crypto, "get_settings", lambda: _FakeSettings(Fernet.generate_key().decode()))
+    monkeypatch.setattr(
+        token_crypto,
+        "get_settings",
+        lambda: _FakeSettings(Fernet.generate_key().decode()),
+    )
     token_crypto._fernet.cache_clear()
     yield
     token_crypto._fernet.cache_clear()
@@ -39,7 +43,9 @@ def test_decrypt_rejects_invalid_ciphertext():
 def test_decrypt_rejects_ciphertext_from_a_different_key(monkeypatch):
     from cryptography.fernet import Fernet
 
-    encrypted_under_other_key = Fernet(Fernet.generate_key()).encrypt(b"secret").decode()
+    encrypted_under_other_key = (
+        Fernet(Fernet.generate_key()).encrypt(b"secret").decode()
+    )
     with pytest.raises(ValueError):
         token_crypto.decrypt_token(encrypted_under_other_key)
 

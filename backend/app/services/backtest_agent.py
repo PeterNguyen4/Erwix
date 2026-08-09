@@ -32,6 +32,7 @@ class _ChatEditResult(BaseModel):
         "the trader explicitly asked to change it — otherwise null.",
     )
 
+
 SYSTEM_PROMPT = (
     "You are uWick, helping a trader build a backtest config by editing a structured "
     "rule set from plain-text descriptions (e.g. 'buy when RSI drops below 30, sell "
@@ -40,27 +41,27 @@ SYSTEM_PROMPT = (
     "existing fields the instruction didn't touch rather than dropping them. "
     "entry_rules/exit_rules each hold a mix of rule types, discriminated by 'type': "
     "comparison, pattern, gated.\n\n"
-    "COMPARISON ({\"type\": \"comparison\", indicator, comparator, value}): available "
+    'COMPARISON ({"type": "comparison", indicator, comparator, value}): available '
     "indicators are close, open, high, low, sma_N, ema_N, rsi_N, macd, macd_signal, "
     "stoch_k_N, stoch_d_N (stochastics), trend_strength_N (categorical, 0=weak, 1=strong), "
     "color, body_ratio, upper_wick_ratio, lower_wick_ratio (per-candle shape, "
     "color: 0=red/1=green), and their Heikin Ashi equivalents prefixed ha_. Comparators: "
     "<, <=, >, >=, ==, crosses_above, crosses_below. value is a string — either a numeric "
-    "threshold (e.g. \"30\") or another indicator key (e.g. \"sma_50\") to compare two "
+    'threshold (e.g. "30") or another indicator key (e.g. "sma_50") to compare two '
     "indicators directly, like 'close crosses above the 50-period SMA' -> "
-    "{\"type\": \"comparison\", \"indicator\": \"close\", \"comparator\": \"crosses_above\", "
-    "\"value\": \"sma_50\"}.\n\n"
-    "PATTERN ({\"type\": \"pattern\", source, steps, description}): matches a sequence of "
+    '{"type": "comparison", "indicator": "close", "comparator": "crosses_above", '
+    '"value": "sma_50"}.\n\n'
+    'PATTERN ({"type": "pattern", source, steps, description}): matches a sequence of '
     "consecutive candles by shape when the trader describes a multi-candle setup. source "
-    "is \"ha\" or \"candle\"; steps is an ordered list (last = current bar) of "
-    "{color: \"green\"|\"red\", min_body_ratio?, max_upper_wick_ratio?, "
+    'is "ha" or "candle"; steps is an ordered list (last = current bar) of '
+    '{color: "green"|"red", min_body_ratio?, max_upper_wick_ratio?, '
     "max_lower_wick_ratio?}, only setting ratio fields the trader actually implied.\n\n"
-    "GATED ({\"type\": \"gated\", condition, gate, description}): 'X only counts when Y is "
+    'GATED ({"type": "gated", condition, gate, description}): \'X only counts when Y is '
     "also true' — condition is a comparison or pattern rule, gate is always a comparison "
     "rule; both must hold on the same bar.\n\n"
     "stop_loss and take_profit are each either null "
-    "or an object shaped {\"value\": <percent>} where <percent> is a positive number "
-    "(e.g. a 4% stop loss is {\"value\": 4}, never a negative number or a bare float).\n\n"
+    'or an object shaped {"value": <percent>} where <percent> is a positive number '
+    '(e.g. a 4% stop loss is {"value": 4}, never a negative number or a bare float).\n\n'
     "You also control the backtest's date range via window_start/window_end (ISO "
     "YYYY-MM-DD), separate from the rule config — set one or both only if the trader "
     "explicitly asked to change the start/end date (absolute, like '2/5', or relative, "
@@ -184,7 +185,9 @@ def _make_ask_strategy_tool(db: AsyncSession, user_id: int) -> BaseTool:
     return ask_strategy
 
 
-def _make_ask_news_tool(db: AsyncSession, user_id: int, default_symbol: str) -> BaseTool:
+def _make_ask_news_tool(
+    db: AsyncSession, user_id: int, default_symbol: str
+) -> BaseTool:
     @tool
     async def ask_news(symbol: str | None = None) -> str:
         """The trader is asking for a news/market read, not a config edit. symbol defaults to
@@ -211,7 +214,9 @@ def _make_ask_report_tool(result: BacktestResult | None) -> BaseTool:
         """The trader is asking about the results of a backtest they already ran (win rate,
         drawdown, a specific trade, the equity curve) — not a config edit."""
         if result is None:
-            return "No backtest has been run yet in this session — nothing to report on."
+            return (
+                "No backtest has been run yet in this session — nothing to report on."
+            )
         stats_block = "\n".join(f"{k}: {v}" for k, v in result.stats.items())
         prompt = (
             f"Backtest stats:\n{stats_block}\n\n{len(result.trades)} trades total.\n\n"
@@ -235,7 +240,11 @@ def _make_ask_report_tool(result: BacktestResult | None) -> BaseTool:
 def _content_text(response) -> str:
     content = response.content
     if isinstance(content, list):
-        content = "".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+        content = "".join(
+            b.get("text", "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
     return content.strip().strip('"“”')
 
 
@@ -250,7 +259,8 @@ async def astream_config_chat(
     history: list[tuple[str, str]] | None = None,
 ):
     history_messages: list[AnyMessage] = [
-        HumanMessage(content) if role == "user" else AIMessage(content) for role, content in history or []
+        HumanMessage(content) if role == "user" else AIMessage(content)
+        for role, content in history or []
     ]
 
     delegate_tools = [
@@ -261,12 +271,19 @@ async def astream_config_chat(
     tools_by_name = {t.name: t for t in delegate_tools}
     delegate_model = _base_model().bind_tools(delegate_tools)
     delegate_response = await delegate_model.ainvoke(
-        [SystemMessage(DELEGATE_SYSTEM_PROMPT), *history_messages, HumanMessage(message)]
+        [
+            SystemMessage(DELEGATE_SYSTEM_PROMPT),
+            *history_messages,
+            HumanMessage(message),
+        ]
     )
     delegate_calls = getattr(delegate_response, "tool_calls", None) or []
     if delegate_calls:
         answers = await asyncio.gather(
-            *(_safe_tool_call(tools_by_name[call["name"]], call["args"]) for call in delegate_calls)
+            *(
+                _safe_tool_call(tools_by_name[call["name"]], call["args"])
+                for call in delegate_calls
+            )
         )
         yield {"type": "token", "text": "\n\n".join(answers)}
         yield {"type": "done"}
@@ -280,9 +297,13 @@ async def astream_config_chat(
         f"Instruction:\n{message}"
     )
 
-    structured_model = _base_model().with_structured_output(_ChatEditResult, method="function_calling")
+    structured_model = _base_model().with_structured_output(
+        _ChatEditResult, method="function_calling"
+    )
     try:
-        result = await structured_model.ainvoke([SystemMessage(SYSTEM_PROMPT), *history_messages, HumanMessage(prompt)])
+        result = await structured_model.ainvoke(
+            [SystemMessage(SYSTEM_PROMPT), *history_messages, HumanMessage(prompt)]
+        )
     except Exception as exc:  # noqa: BLE001 — model returned a shape we can't coerce
         yield {"type": "error", "detail": f"Couldn't apply that change: {exc}"}
         return
@@ -291,7 +312,10 @@ async def astream_config_chat(
     new_window_start = result.window_start or window_start
     new_window_end = result.window_end or window_end
     card = _changed_card(
-        current_config, new_config, (window_start, window_end), (new_window_start, new_window_end)
+        current_config,
+        new_config,
+        (window_start, window_end),
+        (new_window_start, new_window_end),
     )
     model = _base_model()
 
@@ -299,7 +323,8 @@ async def astream_config_chat(
         explain_response = await model.ainvoke(
             [
                 SystemMessage(
-                    SYSTEM_PROMPT + " Nothing in the config actually changed for this instruction. "
+                    SYSTEM_PROMPT
+                    + " Nothing in the config actually changed for this instruction. "
                     "In one short sentence, explain why you couldn't apply it. Do not wrap your "
                     "reply in quotation marks."
                 ),
@@ -315,7 +340,8 @@ async def astream_config_chat(
     ack_response = await model.ainvoke(
         [
             SystemMessage(
-                SYSTEM_PROMPT + " You already applied this change. In one short sentence, past "
+                SYSTEM_PROMPT
+                + " You already applied this change. In one short sentence, past "
                 "tense, acknowledge what you changed. Do not wrap your reply in quotation marks."
             ),
             HumanMessage(

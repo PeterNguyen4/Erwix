@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -26,8 +26,7 @@ class PatternRule(BaseModel):
     description: str
 
 
-
-Condition = Annotated[Union[StrategyRule, PatternRule], Field(discriminator="type")]
+Condition = Annotated[StrategyRule | PatternRule, Field(discriminator="type")]
 
 
 class GatedRule(BaseModel):
@@ -37,7 +36,7 @@ class GatedRule(BaseModel):
     description: str
 
 
-AnyRule = Annotated[Union[StrategyRule, PatternRule, GatedRule], Field(discriminator="type")]
+AnyRule = Annotated[StrategyRule | PatternRule | GatedRule, Field(discriminator="type")]
 
 
 class StrategyRuleSet(BaseModel):

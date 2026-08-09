@@ -1,11 +1,10 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.models import Trade
 from app.services import trade_retrieval
-from tests.conftest import make_user
 from app.services.trade_retrieval import (
     ClosedTrade,
     _fifo_match,
@@ -13,16 +12,29 @@ from app.services.trade_retrieval import (
     compute_pnl_summary_pair,
     compute_pnl_weekly_comparison,
 )
+from tests.conftest import make_user
 
 
 def _closed(pnl: float, closed_at: datetime) -> ClosedTrade:
     return ClosedTrade(
-        symbol="AAPL", qty=10, entry_price=100.0, exit_price=100.0 + pnl / 10,
-        pnl=pnl, opened_at=closed_at, closed_at=closed_at,
+        symbol="AAPL",
+        qty=10,
+        entry_price=100.0,
+        exit_price=100.0 + pnl / 10,
+        pnl=pnl,
+        opened_at=closed_at,
+        closed_at=closed_at,
     )
 
 
-def _fill(symbol: str, side: str, qty: float, price: float, minutes_ago: float, user_id: int = 1) -> Trade:
+def _fill(
+    symbol: str,
+    side: str,
+    qty: float,
+    price: float,
+    minutes_ago: float,
+    user_id: int = 1,
+) -> Trade:
     return Trade(
         user_id=user_id,
         symbol=symbol,
@@ -31,18 +43,20 @@ def _fill(symbol: str, side: str, qty: float, price: float, minutes_ago: float, 
         qty=qty,
         fill_price=price,
         fees=0.0,
-        filled_at=datetime.now(timezone.utc) - timedelta(minutes=minutes_ago),
+        filled_at=datetime.now(UTC) - timedelta(minutes=minutes_ago),
     )
 
 
 @pytest.mark.asyncio
 async def test_compute_pnl_summary_pair_splits_by_arbitrary_window():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     closed = [
         _closed(100.0, now - timedelta(days=3)),  # falls in window A
         _closed(-50.0, now - timedelta(days=10)),  # falls in window B
     ]
-    with patch.object(trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)):
+    with patch.object(
+        trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)
+    ):
         a, b = await compute_pnl_summary_pair(
             db=None,
             user_id=1,
@@ -58,9 +72,11 @@ async def test_compute_pnl_summary_pair_splits_by_arbitrary_window():
 
 @pytest.mark.asyncio
 async def test_compute_pnl_weekly_comparison_delegates_to_pair():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     closed = [_closed(100.0, now - timedelta(days=1))]
-    with patch.object(trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)):
+    with patch.object(
+        trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)
+    ):
         current, previous = await compute_pnl_weekly_comparison(db=None, user_id=1)
 
     assert current.total_pnl == pytest.approx(100.0)
@@ -146,7 +162,7 @@ def test_fifo_match_keeps_symbols_independent():
 
 @pytest.mark.asyncio
 async def test_compute_pnl_summary_only_counts_round_trips_closed_in_window(db_session):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     db_session.add(make_user(1))
     await db_session.commit()
     db_session.add_all(
@@ -161,7 +177,9 @@ async def test_compute_pnl_summary_only_counts_round_trips_closed_in_window(db_s
     )
     await db_session.commit()
 
-    summary = await compute_pnl_summary(db_session, user_id=1, start=now - timedelta(days=7), end=now)
+    summary = await compute_pnl_summary(
+        db_session, user_id=1, start=now - timedelta(days=7), end=now
+    )
 
     assert len(summary.closed_trades) == 1
     assert summary.closed_trades[0].symbol == "MSFT"
@@ -194,7 +212,7 @@ async def test_compute_pnl_summary_scopes_to_user(db_session):
 def test_summarize_closed_win_rate_and_averages():
     from app.services.trade_retrieval import _summarize_closed
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     closed = [
         _closed(100.0, now),
         _closed(-40.0, now),
@@ -215,7 +233,7 @@ def test_summarize_closed_win_rate_and_averages():
 def test_summarize_closed_win_rate_none_when_no_decided_trades():
     from app.services.trade_retrieval import _summarize_closed
 
-    summary = _summarize_closed([_closed(0.0, datetime.now(timezone.utc))])
+    summary = _summarize_closed([_closed(0.0, datetime.now(UTC))])
     assert summary.win_rate is None
     assert summary.avg_win is None
     assert summary.avg_loss is None

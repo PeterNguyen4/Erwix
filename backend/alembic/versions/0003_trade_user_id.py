@@ -5,15 +5,15 @@ Revises: 0002_user_preference_symbol_name
 Create Date: 2026-07-02
 
 """
-from typing import Sequence, Union
 
-import sqlalchemy as sa
+from collections.abc import Sequence
+
 from alembic import op
 
 revision: str = "0003_trade_user_id"
-down_revision: Union[str, None] = "0002_user_preference_symbol_name"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0002_user_preference_symbol_name"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

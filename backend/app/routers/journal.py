@@ -1,10 +1,10 @@
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from app.auth import get_current_user_id
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_user_id
 from app.db import get_db
 from app.models import JournalEntry, Trade
 from app.schemas import (
@@ -24,7 +24,9 @@ from app.services.trade_retrieval import (
     embed_trade_best_effort,
 )
 
-router = APIRouter(prefix="/api/journal", tags=["journal"], dependencies=[Depends(get_current_user_id)])
+router = APIRouter(
+    prefix="/api/journal", tags=["journal"], dependencies=[Depends(get_current_user_id)]
+)
 
 
 @router.get("/trades", response_model=list[TradeOut])
@@ -93,7 +95,11 @@ async def pnl_summary_trend(
 
 
 @router.get("/trades/{trade_id}", response_model=TradeOut)
-async def get_trade(trade_id: int, db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)) -> Trade:
+async def get_trade(
+    trade_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> Trade:
     trade = await db.get(Trade, trade_id)
     if trade is None or trade.user_id != user_id:
         raise HTTPException(status_code=404, detail="Trade not found")
@@ -125,7 +131,11 @@ async def list_journal_entries(
     from_: date | None = Query(None, alias="from"),
     to: date | None = None,
 ) -> list[JournalEntry]:
-    stmt = select(JournalEntry).where(JournalEntry.user_id == user_id).order_by(JournalEntry.entry_date.desc())
+    stmt = (
+        select(JournalEntry)
+        .where(JournalEntry.user_id == user_id)
+        .order_by(JournalEntry.entry_date.desc())
+    )
     if symbol:
         stmt = stmt.where(JournalEntry.symbol == symbol.upper())
     if from_:

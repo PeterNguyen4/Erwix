@@ -9,15 +9,17 @@ strategy_notes was defined but never wired up (no router/UI, no user_id) so
 this recreates the table rather than migrating data — nothing meaningful is
 stored in it yet.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0009_strategy_notes_user_scope"
-down_revision: Union[str, None] = "0008_debrief_reports"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0008_debrief_reports"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -31,10 +33,16 @@ def upgrade() -> None:
         sa.Column("structured_summary", sa.Text(), nullable=True),
         sa.Column("summary_model", sa.String(length=64), nullable=True),
         sa.Column("summarized_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
     )
-    op.create_index("ix_strategy_notes_user_id", "strategy_notes", ["user_id"], unique=True)
+    op.create_index(
+        "ix_strategy_notes_user_id", "strategy_notes", ["user_id"], unique=True
+    )
 
 
 def downgrade() -> None:
@@ -46,5 +54,7 @@ def downgrade() -> None:
         sa.Column("title", sa.String(length=128), nullable=False),
         sa.Column("body", sa.Text(), nullable=False),
         sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
     )

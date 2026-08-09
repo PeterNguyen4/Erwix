@@ -1,11 +1,14 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
 from app.schemas import Candle, Quote
 
 
 def test_search_returns_alpaca_results(client):
-    with patch("app.routers.market.alpaca_client.search_assets", new=AsyncMock(return_value=[{"symbol": "AAPL"}])):
+    with patch(
+        "app.routers.market.alpaca_client.search_assets",
+        new=AsyncMock(return_value=[{"symbol": "AAPL"}]),
+    ):
         resp = client.get("/api/market/search?q=apple")
     assert resp.status_code == 200
     assert resp.json() == [{"symbol": "AAPL"}]
@@ -20,25 +23,35 @@ def test_candles_returns_alpaca_candles(client):
 
 
 def test_candles_maps_runtime_error_to_503(client):
-    with patch("app.routers.market.alpaca_client.get_candles", side_effect=RuntimeError("no creds")):
+    with patch(
+        "app.routers.market.alpaca_client.get_candles",
+        side_effect=RuntimeError("no creds"),
+    ):
         resp = client.get("/api/market/candles?symbol=AAPL")
     assert resp.status_code == 503
 
 
 def test_candles_maps_value_error_to_400(client):
-    with patch("app.routers.market.alpaca_client.get_candles", side_effect=ValueError("bad timeframe")):
+    with patch(
+        "app.routers.market.alpaca_client.get_candles",
+        side_effect=ValueError("bad timeframe"),
+    ):
         resp = client.get("/api/market/candles?symbol=AAPL&timeframe=bogus")
     assert resp.status_code == 400
 
 
 def test_candles_maps_unexpected_error_to_502(client):
-    with patch("app.routers.market.alpaca_client.get_candles", side_effect=Exception("boom")):
+    with patch(
+        "app.routers.market.alpaca_client.get_candles", side_effect=Exception("boom")
+    ):
         resp = client.get("/api/market/candles?symbol=AAPL")
     assert resp.status_code == 502
 
 
 def test_quote_returns_alpaca_quote(client):
-    quote = Quote(symbol="AAPL", bid=100.0, ask=100.5, price=100.25, timestamp=datetime.now(timezone.utc))
+    quote = Quote(
+        symbol="AAPL", bid=100.0, ask=100.5, price=100.25, timestamp=datetime.now(UTC)
+    )
     with patch("app.routers.market.alpaca_client.get_quote", return_value=quote):
         resp = client.get("/api/market/quote?symbol=AAPL")
     assert resp.status_code == 200

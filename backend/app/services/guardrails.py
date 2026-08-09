@@ -1,17 +1,23 @@
 import re
 
 _INJECTION_PATTERNS = [
-    re.compile(r"ignore (all|any|the)?\s*(previous|prior|above)\s*(instructions?|rules?|prompt)", re.I),
-    re.compile(r"disregard (all|any|the)?\s*(previous|prior|above)\s*(instructions?|rules?|prompt)", re.I),
-    re.compile(r"reveal (your|the) (system prompt|instructions)", re.I),
-    re.compile(r"you are (now|no longer) (a|an)\s", re.I),
-    re.compile(r"new instructions\s*:", re.I),
-    re.compile(r"</?(system|assistant)>", re.I),
-    re.compile(r"\[/?system\]", re.I),
+    re.compile(
+        r"ignore (all|any|the)?\s*(previous|prior|above)\s*(instructions?|rules?|prompt)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"disregard (all|any|the)?\s*(previous|prior|above)\s*(instructions?|rules?|prompt)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"reveal (your|the) (system prompt|instructions)", re.IGNORECASE),
+    re.compile(r"you are (now|no longer) (a|an)\s", re.IGNORECASE),
+    re.compile(r"new instructions\s*:", re.IGNORECASE),
+    re.compile(r"</?(system|assistant)>", re.IGNORECASE),
+    re.compile(r"\[/?system\]", re.IGNORECASE),
 ]
 
 _OUTPUT_PATTERNS = [
-    re.compile(r"(here('s| is)|the) (full |complete )?system prompt", re.I),
+    re.compile(r"(here('s| is)|the) (full |complete )?system prompt", re.IGNORECASE),
 ]
 
 _SSN_PATTERN = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")

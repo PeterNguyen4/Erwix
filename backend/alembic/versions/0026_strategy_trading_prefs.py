@@ -5,21 +5,31 @@ Revision ID: 0026_strategy_trading_prefs
 Revises: 0025_user_role
 Create Date: 2026-08-06
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0026_strategy_trading_prefs"
-down_revision: Union[str, None] = "0025_user_role"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0025_user_role"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("strategy_notes", sa.Column("preferred_symbols", sa.JSON(), nullable=True))
-    op.add_column("strategy_notes", sa.Column("context_timeframe", sa.String(length=16), nullable=True))
-    op.add_column("strategy_notes", sa.Column("entry_timeframe", sa.String(length=16), nullable=True))
+    op.add_column(
+        "strategy_notes", sa.Column("preferred_symbols", sa.JSON(), nullable=True)
+    )
+    op.add_column(
+        "strategy_notes",
+        sa.Column("context_timeframe", sa.String(length=16), nullable=True),
+    )
+    op.add_column(
+        "strategy_notes",
+        sa.Column("entry_timeframe", sa.String(length=16), nullable=True),
+    )
 
 
 def downgrade() -> None:

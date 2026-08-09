@@ -8,24 +8,32 @@ Adds a pgvector column (populated via Voyage AI — see app/services/embeddings.
 plus bookkeeping columns so re-embedding after a model change can be detected.
 The `vector` extension itself was already enabled in 0001_baseline.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
-from alembic import op
 from pgvector.sqlalchemy import Vector
 
+from alembic import op
+
 revision: str = "0006_trade_embedding"
-down_revision: Union[str, None] = "0005_trade_notes"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0005_trade_notes"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 EMBEDDING_DIM = 512
 
 
 def upgrade() -> None:
-    op.add_column("trades", sa.Column("embedding", Vector(EMBEDDING_DIM), nullable=True))
-    op.add_column("trades", sa.Column("embedding_model", sa.String(length=64), nullable=True))
-    op.add_column("trades", sa.Column("embedded_at", sa.DateTime(timezone=True), nullable=True))
+    op.add_column(
+        "trades", sa.Column("embedding", Vector(EMBEDDING_DIM), nullable=True)
+    )
+    op.add_column(
+        "trades", sa.Column("embedding_model", sa.String(length=64), nullable=True)
+    )
+    op.add_column(
+        "trades", sa.Column("embedded_at", sa.DateTime(timezone=True), nullable=True)
+    )
     op.create_index(
         "ix_trades_embedding_cosine",
         "trades",

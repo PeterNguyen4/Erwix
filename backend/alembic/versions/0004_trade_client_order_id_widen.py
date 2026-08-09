@@ -8,15 +8,15 @@ client_order_id is "<clerk_user_id>:<uuid4>" (see alpaca_client.py). Clerk user
 ids plus the separator and uuid4 can exceed the original VARCHAR(64), which
 caused fill reconciliation/logging to fail with StringDataRightTruncation.
 """
-from typing import Sequence, Union
 
-import sqlalchemy as sa
+from collections.abc import Sequence
+
 from alembic import op
 
 revision: str = "0004_trade_client_order_id_widen"
-down_revision: Union[str, None] = "0003_trade_user_id"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0003_trade_user_id"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

@@ -46,8 +46,12 @@ def run_backtest(candles: list[Candle], config: BacktestConfig) -> BacktestResul
         price = candle.close
 
         if open_trade is None:
-            can_long = config.direction in ("long", "both") and _rules_hold(config.entry_rules, candles, i)
-            can_short = config.direction in ("short", "both") and _rules_hold(config.entry_rules, candles, i)
+            can_long = config.direction in ("long", "both") and _rules_hold(
+                config.entry_rules, candles, i
+            )
+            can_short = config.direction in ("short", "both") and _rules_hold(
+                config.entry_rules, candles, i
+            )
             side = "long" if can_long else ("short" if can_short else None)
             if side is not None:
                 qty = _position_qty(config, equity, price)
@@ -78,7 +82,9 @@ def run_backtest(candles: list[Candle], config: BacktestConfig) -> BacktestResul
                 else:
                     hit_target = price <= open_trade.entry_price * (1 - offset / 100)
 
-            should_exit = hit_stop or hit_target or _rules_hold(config.exit_rules, candles, i)
+            should_exit = (
+                hit_stop or hit_target or _rules_hold(config.exit_rules, candles, i)
+            )
             if should_exit:
                 direction_mult = 1 if open_side == "long" else -1
                 pnl = direction_mult * (price - open_trade.entry_price) * open_qty
@@ -96,7 +102,11 @@ def run_backtest(candles: list[Candle], config: BacktestConfig) -> BacktestResul
             direction_mult = 1 if open_side == "long" else -1
             unrealized = direction_mult * (price - open_trade.entry_price) * open_qty
         equity_curve.append(
-            {"time": candle.time, "equity": equity + unrealized, "profit_loss": equity + unrealized - _INITIAL_EQUITY}
+            {
+                "time": candle.time,
+                "equity": equity + unrealized,
+                "profit_loss": equity + unrealized - _INITIAL_EQUITY,
+            }
         )
 
     if open_trade is not None:

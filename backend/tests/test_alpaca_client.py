@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 from app import alpaca_client
@@ -10,7 +10,7 @@ class _FakeBars:
 
 
 def test_get_candles_maps_bars(monkeypatch):
-    ts = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    ts = datetime(2026, 1, 2, tzinfo=UTC)
     bar = SimpleNamespace(
         timestamp=ts, open=1.0, high=2.0, low=0.5, close=1.5, volume=1000
     )
@@ -29,9 +29,7 @@ def test_get_candles_maps_bars(monkeypatch):
 
 
 def test_get_quote_computes_mid(monkeypatch):
-    q = SimpleNamespace(
-        bid_price=10.0, ask_price=12.0, timestamp=datetime.now(timezone.utc)
-    )
+    q = SimpleNamespace(bid_price=10.0, ask_price=12.0, timestamp=datetime.now(UTC))
 
     class FakeClient:
         def get_stock_latest_quote(self, req):

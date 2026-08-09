@@ -10,15 +10,17 @@ Revision ID: 0014_local_auth
 Revises: 0013_strategy_rule_sets
 Create Date: 2026-07-25
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0014_local_auth"
-down_revision: Union[str, None] = "0013_strategy_rule_sets"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0013_strategy_rule_sets"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 # (table, old index name on user_id, was user_id the primary key)
@@ -39,7 +41,9 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("username", sa.String(length=128), nullable=False),
         sa.Column("hashed_password", sa.String(length=256), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_users_username", "users", ["username"], unique=True)
     op.create_index("ix_users_id", "users", ["id"])
@@ -53,18 +57,27 @@ def upgrade() -> None:
         if was_pk:
             # user_preferences: user_id was the sole primary key; swap to a
             # surrogate id and repoint user_id at the new users table.
-            op.drop_constraint("user_preferences_pkey", "user_preferences", type_="primary")
+            op.drop_constraint(
+                "user_preferences_pkey", "user_preferences", type_="primary"
+            )
             op.drop_column(table, "user_id")
-            op.add_column(table, sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True))
             op.add_column(
                 table,
-                sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
+                sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+            )
+            op.add_column(
+                table,
+                sa.Column(
+                    "user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False
+                ),
             )
         else:
             op.drop_column(table, "user_id")
             op.add_column(
                 table,
-                sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
+                sa.Column(
+                    "user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False
+                ),
             )
 
         op.create_index(f"ix_{table}_user_id", table, ["user_id"])

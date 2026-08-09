@@ -1,8 +1,8 @@
 import hashlib
 import logging
 import secrets
-from typing import Annotated
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import jwt
 from fastapi import Cookie, Depends, HTTPException, status
@@ -41,9 +41,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         )
     raw_data.update({"exp": expire})
     encoded_jwt = jwt.encode(
-        raw_data,
-        settings.secret_key.get_secret_value(),
-        algorithm=settings.algorithm
+        raw_data, settings.secret_key.get_secret_value(), algorithm=settings.algorithm
     )
     return encoded_jwt
 
@@ -54,7 +52,7 @@ def verify_access_token(token: str) -> tuple[str, int] | None:
             token,
             settings.secret_key.get_secret_value(),
             algorithms=[settings.algorithm],
-            options={"require": ["exp", "sub", "tv"]}
+            options={"require": ["exp", "sub", "tv"]},
         )
     except jwt.InvalidTokenError:
         return None
@@ -76,7 +74,9 @@ def hash_refresh_token(raw_token: str) -> str:
 def generate_password_reset_token() -> tuple[str, str, datetime]:
     raw_token = secrets.token_urlsafe(48)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    expires_at = datetime.now(UTC) + timedelta(minutes=settings.password_reset_token_expire_minutes)
+    expires_at = datetime.now(UTC) + timedelta(
+        minutes=settings.password_reset_token_expire_minutes
+    )
     return raw_token, token_hash, expires_at
 
 
@@ -141,5 +141,7 @@ async def require_admin(
 ) -> int:
     user = await db.get(User, user_id)
     if user is None or user.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
+        )
     return user_id

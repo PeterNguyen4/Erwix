@@ -15,7 +15,7 @@ before.
 import asyncio
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -35,8 +35,16 @@ _FILL_EVENTS = {"fill", "partial_fill"}
 # Lifecycle events worth persisting a status update for. Anything else (e.g.
 # "order_replace_rejected") is ignored.
 _STATUS_EVENTS = _FILL_EVENTS | {
-    "new", "canceled", "expired", "rejected", "replaced", "done_for_day",
-    "stopped", "suspended", "pending_cancel", "pending_replace",
+    "new",
+    "canceled",
+    "expired",
+    "rejected",
+    "replaced",
+    "done_for_day",
+    "stopped",
+    "suspended",
+    "pending_cancel",
+    "pending_replace",
 }
 _RECONCILE_LOOKBACK = timedelta(days=7)
 
@@ -79,7 +87,9 @@ def _fill_only_trade(
     )
 
 
-async def log_order_intent(response: OrderResponse, request: OrderRequest, user_id: int) -> None:
+async def log_order_intent(
+    response: OrderResponse, request: OrderRequest, user_id: int
+) -> None:
     """Log an order the instant it's accepted by Alpaca, before any fill.
 
     Writes one row for the entry leg and, for bracket orders, one additional
@@ -127,9 +137,13 @@ async def log_order_intent(response: OrderResponse, request: OrderRequest, user_
             await db.commit()
             logger.info(
                 "Logged order intent: %s %s %s (%s, %d leg(s))",
-                entry.side, entry.qty, entry.symbol, entry.order_class, len(response.legs),
+                entry.side,
+                entry.qty,
+                entry.symbol,
+                entry.order_class,
+                len(response.legs),
             )
-        except Exception:  # noqa: BLE001 — never block order submission
+        except Exception:
             await db.rollback()
             logger.exception("Failed to log order intent")
 
@@ -147,29 +161,43 @@ async def _handle_trade_update(data) -> None:
     is_fill = event in _FILL_EVENTS
     broker_order_id = str(getattr(order, "id", "") or "") or None
     client_order_id = getattr(order, "client_order_id", None)
-    status = getattr(getattr(order, "status", None), "value", str(getattr(order, "status", "")) or event)
+    status = getattr(
+        getattr(order, "status", None),
+        "value",
+        str(getattr(order, "status", "")) or event,
+    )
 
     async with SessionLocal() as db:
         try:
             trade = None
             if broker_order_id:
-                trade = await db.scalar(select(Trade).where(Trade.broker_order_id == broker_order_id))
+                trade = await db.scalar(
+                    select(Trade).where(Trade.broker_order_id == broker_order_id)
+                )
             if trade is None and client_order_id:
-                trade = await db.scalar(select(Trade).where(Trade.client_order_id == client_order_id))
+                trade = await db.scalar(
+                    select(Trade).where(Trade.client_order_id == client_order_id)
+                )
 
             if trade is None:
                 if not is_fill:
                     # No intent row (logger wasn't running at submission time) and
                     # nothing filled yet — nothing worth persisting.
                     return
-                filled_at = getattr(order, "filled_at", None) or datetime.now(timezone.utc)
-                price = getattr(data, "price", None) or getattr(order, "filled_avg_price", None)
+                filled_at = getattr(order, "filled_at", None) or datetime.now(UTC)
+                price = getattr(data, "price", None) or getattr(
+                    order, "filled_avg_price", None
+                )
                 qty = getattr(data, "qty", None) or getattr(order, "filled_qty", None)
                 trade = _fill_only_trade(
                     broker_order_id=broker_order_id,
                     client_order_id=client_order_id,
                     symbol=getattr(order, "symbol", ""),
-                    side=getattr(getattr(order, "side", None), "value", str(getattr(order, "side", ""))),
+                    side=getattr(
+                        getattr(order, "side", None),
+                        "value",
+                        str(getattr(order, "side", "")),
+                    ),
                     order_type=getattr(
                         getattr(order, "order_type", None),
                         "value",
@@ -185,18 +213,26 @@ async def _handle_trade_update(data) -> None:
             else:
                 trade.status = status
                 if is_fill:
-                    trade.filled_at = getattr(order, "filled_at", None) or datetime.now(timezone.utc)
-                    price = getattr(data, "price", None) or getattr(order, "filled_avg_price", None)
-                    qty = getattr(data, "qty", None) or getattr(order, "filled_qty", None)
+                    trade.filled_at = getattr(order, "filled_at", None) or datetime.now(
+                        UTC
+                    )
+                    price = getattr(data, "price", None) or getattr(
+                        order, "filled_avg_price", None
+                    )
+                    qty = getattr(data, "qty", None) or getattr(
+                        order, "filled_qty", None
+                    )
                     trade.fill_price = _to_float(price)
                     trade.qty = _to_float(qty, trade.qty)
                 trade.raw = json.dumps(data, default=str)
 
             await db.commit()
-            logger.info("Logged %s: %s %s %s", event, trade.side, trade.qty, trade.symbol)
+            logger.info(
+                "Logged %s: %s %s %s", event, trade.side, trade.qty, trade.symbol
+            )
             if is_fill:
                 await embed_trade_best_effort(db, trade)
-        except Exception:  # noqa: BLE001
+        except Exception:
             await db.rollback()
             logger.exception("Failed to log trade update")
 
@@ -206,7 +242,7 @@ async def reconcile_recent_fills() -> None:
     update the fill fields on any existing intent row that hasn't caught up
     yet. Covers gaps where the live stream missed an event (e.g. backend was
     down or reconnecting when the fill happened)."""
-    since = datetime.now(timezone.utc) - _RECONCILE_LOOKBACK
+    since = datetime.now(UTC) - _RECONCILE_LOOKBACK
     async with SessionLocal() as db:
         try:
             orders = await asyncio.to_thread(get_recent_filled_orders, since)
@@ -240,7 +276,9 @@ async def reconcile_recent_fills() -> None:
                     client_order_id=o.client_order_id,
                     symbol=o.symbol,
                     side=getattr(o.side, "value", str(o.side)),
-                    order_type=getattr(o.order_type, "value", str(o.order_type)) if o.order_type else None,
+                    order_type=getattr(o.order_type, "value", str(o.order_type))
+                    if o.order_type
+                    else None,
                     qty=o.filled_qty,
                     fill_price=o.filled_avg_price,
                     status="filled",
@@ -252,9 +290,11 @@ async def reconcile_recent_fills() -> None:
             if added or updated:
                 await db.commit()
                 logger.info(
-                    "Reconciled fills: %d added, %d updated from Alpaca order history", added, updated
+                    "Reconciled fills: %d added, %d updated from Alpaca order history",
+                    added,
+                    updated,
                 )
-        except Exception:  # noqa: BLE001
+        except Exception:
             await db.rollback()
             logger.exception("Fill reconciliation failed")
 

@@ -3,7 +3,7 @@ Wrapper around alpaca-py for data, paper trading, and live streaming.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 # Suppress all Alpaca websocket noise — auth failures and retries are handled by
 # _guarded_start_ws and surfaced once through entro.market instead.
@@ -78,7 +78,9 @@ async def search_assets(q: str, limit: int = 10) -> list[dict]:
     """Search tickers via Yahoo Finance's public suggest API — no API key required."""
     from app.services.yahoo_finance import yahoo_search
 
-    data = await yahoo_search({"q": q, "quotesCount": limit, "newsCount": 0, "enableFuzzyQuery": "true"})
+    data = await yahoo_search(
+        {"q": q, "quotesCount": limit, "newsCount": 0, "enableFuzzyQuery": "true"}
+    )
     results = []
     for item in data.get("quotes", [])[:limit]:
         symbol = item.get("symbol", "")
@@ -97,15 +99,15 @@ def get_candles(
     tf = _TIMEFRAMES.get(timeframe, _TIMEFRAMES["1Day"])
     if start is None:
         _lookback = {
-            "1Min":  timedelta(days=3),
-            "5Min":  timedelta(days=7),
+            "1Min": timedelta(days=3),
+            "5Min": timedelta(days=7),
             "15Min": timedelta(days=14),
             "1Hour": timedelta(days=30),
-            "1Day":  timedelta(days=180),
+            "1Day": timedelta(days=180),
             "1Week": timedelta(days=730),
             "1Month": timedelta(days=1825),
         }
-        start = datetime.now(timezone.utc) - _lookback.get(timeframe, timedelta(days=180))
+        start = datetime.now(UTC) - _lookback.get(timeframe, timedelta(days=180))
     req = StockBarsRequest(
         symbol_or_symbols=symbol.upper(),
         timeframe=tf,
@@ -215,7 +217,9 @@ def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
             id=str(leg.id),
             client_order_id=leg.client_order_id,
             side=leg.side.value if hasattr(leg.side, "value") else str(leg.side),
-            type=leg.order_type.value if hasattr(leg.order_type, "value") else str(leg.order_type),
+            type=leg.order_type.value
+            if hasattr(leg.order_type, "value")
+            else str(leg.order_type),
             limit_price=float(leg.limit_price) if leg.limit_price is not None else None,
             stop_price=float(leg.stop_price) if leg.stop_price is not None else None,
         )
@@ -227,7 +231,9 @@ def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
         symbol=o.symbol,
         qty=float(o.qty),
         side=o.side.value if hasattr(o.side, "value") else str(o.side),
-        type=o.order_type.value if hasattr(o.order_type, "value") else str(o.order_type),
+        type=o.order_type.value
+        if hasattr(o.order_type, "value")
+        else str(o.order_type),
         order_class=order.order_class,
         status=o.status.value if hasattr(o.status, "value") else str(o.status),
         submitted_at=o.submitted_at,
@@ -252,10 +258,12 @@ def get_positions() -> list[Position]:
     return out
 
 
-def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None] | None:
+def get_open_bracket_levels(
+    symbol: str, user_id: int
+) -> dict[str, float | None] | None:
     """Entry price from the user's open position. None if no open position."""
-    from alpaca.trading.requests import GetOrdersRequest
     from alpaca.trading.enums import QueryOrderStatus
+    from alpaca.trading.requests import GetOrdersRequest
 
     client = _trading_client()
     symbol = symbol.upper()
@@ -264,7 +272,9 @@ def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None
     if position is None:
         return None
 
-    req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[symbol], nested=True, limit=500)
+    req = GetOrdersRequest(
+        status=QueryOrderStatus.OPEN, symbols=[symbol], nested=True, limit=500
+    )
     stop_loss_price: float | None = None
     take_profit_price: float | None = None
     for o in client.get_orders(req):
@@ -286,11 +296,13 @@ def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None
 def get_recent_filled_orders(after: datetime) -> list:
     """Raw Alpaca orders with a fill, submitted after `after` (UTC). Used to
     reconcile the trades table against fills the live stream may have missed."""
-    from alpaca.trading.requests import GetOrdersRequest
     from alpaca.trading.enums import QueryOrderStatus
+    from alpaca.trading.requests import GetOrdersRequest
 
     client = _trading_client()
-    req = GetOrdersRequest(status=QueryOrderStatus.CLOSED, after=after, limit=500, nested=False)
+    req = GetOrdersRequest(
+        status=QueryOrderStatus.CLOSED, after=after, limit=500, nested=False
+    )
     return [o for o in client.get_orders(req) if o.filled_at is not None]
 
 
@@ -306,7 +318,9 @@ def get_account() -> Account:
     )
 
 
-def get_portfolio_history(period: str = "1M", timeframe: str | None = None) -> PortfolioHistory:
+def get_portfolio_history(
+    period: str = "1M", timeframe: str | None = None
+) -> PortfolioHistory:
     """Equity curve for the (shared paper) account over `period`.
 
     `timeframe` defaults to a resolution Alpaca picks for the period when None.
@@ -327,7 +341,9 @@ def get_portfolio_history(period: str = "1M", timeframe: str | None = None) -> P
             PortfolioPoint(
                 time=int(ts),
                 equity=float(eq),
-                profit_loss=float(pls[i]) if i < len(pls) and pls[i] is not None else 0.0,
+                profit_loss=float(pls[i])
+                if i < len(pls) and pls[i] is not None
+                else 0.0,
             )
         )
     return PortfolioHistory(base_value=float(h.base_value or 0.0), points=points)
@@ -372,7 +388,8 @@ def get_data_stream() -> StockDataStream:
                 stream._should_run = False
                 _stream_permanently_failed = True
                 logging.getLogger("entro.market").warning(
-                    "Alpaca stream auth failed (%s) — live bars unavailable for this session", e
+                    "Alpaca stream auth failed (%s) — live bars unavailable for this session",
+                    e,
                 )
 
         stream._start_ws = _guarded_start_ws
@@ -395,6 +412,7 @@ def stop_data_stream() -> None:
         ws = getattr(_data_stream, "_ws", None)
         if ws is not None:
             import asyncio
+
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():

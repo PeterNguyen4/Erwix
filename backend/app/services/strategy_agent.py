@@ -36,14 +36,24 @@ class StrategyPlaybook(BaseModel):
     (see STRATEGIST_SYSTEM_PROMPT) so every StrategyNote.structured_summary has the
     same shape for both the Strategy tab UI and the Analyst's prompt context."""
 
-    goal: list[str] = Field(description="1-3 short bullets on the trader's overall goal/edge")
-    entry_rules: list[str] = Field(description="1-3 short bullets on entry setup/triggers")
-    risk_rules: list[str] = Field(description="1-3 short bullets on position sizing/stop rules")
-    timeframe: list[str] = Field(description="1-3 short bullets on typical holding period")
+    goal: list[str] = Field(
+        description="1-3 short bullets on the trader's overall goal/edge"
+    )
+    entry_rules: list[str] = Field(
+        description="1-3 short bullets on entry setup/triggers"
+    )
+    risk_rules: list[str] = Field(
+        description="1-3 short bullets on position sizing/stop rules"
+    )
+    timeframe: list[str] = Field(
+        description="1-3 short bullets on typical holding period"
+    )
     avoid: list[str] = Field(description="1-3 short bullets on what to avoid")
 
 
-async def get_strategy_context(db: AsyncSession, user_id: int) -> tuple[str, str] | None:
+async def get_strategy_context(
+    db: AsyncSession, user_id: int
+) -> tuple[str, str] | None:
     """The trader's active strategy as (archetype_label, rendered_playbook), or
     None if they haven't stated one. Shared by every prompt that references the
     trader's strategy — do not re-fetch/re-render this inline elsewhere."""
@@ -53,7 +63,9 @@ async def get_strategy_context(db: AsyncSession, user_id: int) -> tuple[str, str
     try:
         rendered = render_playbook(json.loads(strategy.structured_summary))
     except (json.JSONDecodeError, TypeError, AttributeError):
-        rendered = strategy.structured_summary  # legacy plain-text summary, pre-JSON playbooks
+        rendered = (
+            strategy.structured_summary
+        )  # legacy plain-text summary, pre-JSON playbooks
     label = archetype_name(strategy.archetype) or "Custom"
     return label, rendered
 
@@ -67,7 +79,9 @@ ANSWER_QUESTION_SYSTEM_PROMPT = (
 
 
 class _AnswerCritique(BaseModel):
-    valid: bool = Field(description="True if the answer is grounded in the trader's actual stated strategy")
+    valid: bool = Field(
+        description="True if the answer is grounded in the trader's actual stated strategy"
+    )
     correction: str = Field(
         description="If not valid, one short sentence on what's wrong (e.g. the answer invents a rule the "
         "trader never stated, contradicts the playbook, or gives generic advice instead of referencing "
@@ -84,23 +98,37 @@ VALIDATE_ANSWER_SYSTEM_PROMPT = (
 )
 
 
-async def _validate_answer(question: str, answer: str, strategy_block: str) -> str | None:
+async def _validate_answer(
+    question: str, answer: str, strategy_block: str
+) -> str | None:
     """LLM judge over an already-generated strategy answer. Returns None if it holds up,
     else a short correction note to feed back into a regeneration attempt."""
     prompt = f"{strategy_block}\n\nQuestion: {question}\n\nAnswer given: {answer}"
     model = _base_model(num_predict=150).with_structured_output(_AnswerCritique)
-    critique = await model.ainvoke([SystemMessage(VALIDATE_ANSWER_SYSTEM_PROMPT), HumanMessage(prompt)])
-    return critique.correction.strip() if not critique.valid and critique.correction.strip() else None
+    critique = await model.ainvoke(
+        [SystemMessage(VALIDATE_ANSWER_SYSTEM_PROMPT), HumanMessage(prompt)]
+    )
+    return (
+        critique.correction.strip()
+        if not critique.valid and critique.correction.strip()
+        else None
+    )
 
 
 def _content_text(response) -> str:
     text = response.content
     if isinstance(text, list):
-        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
+        text = "".join(
+            b.get("text", "")
+            for b in text
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
     return text.strip().strip('"“”')
 
 
-async def answer_strategy_question(db: AsyncSession, user_id: int, question: str) -> str:
+async def answer_strategy_question(
+    db: AsyncSession, user_id: int, question: str
+) -> str:
     """Answer user questions about their strategy."""
     ctx = await get_strategy_context(db, user_id)
     if ctx:
@@ -124,7 +152,9 @@ async def answer_strategy_question(db: AsyncSession, user_id: int, question: str
         messages = [
             *messages,
             AIMessage(answer),
-            HumanMessage(f"That doesn't hold up: {correction}. Try again, fixing only that issue."),
+            HumanMessage(
+                f"That doesn't hold up: {correction}. Try again, fixing only that issue."
+            ),
         ]
     raise AssertionError("unreachable")
 
@@ -135,7 +165,9 @@ async def asummarize_strategy(archetype: str | None, body: str) -> dict:
     label = archetype_name(archetype) or "no specific archetype"
     prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
     model = _base_model(num_predict=800).with_structured_output(StrategyPlaybook)
-    result = await model.ainvoke([SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)])
+    result = await model.ainvoke(
+        [SystemMessage(STRATEGIST_SYSTEM_PROMPT), HumanMessage(prompt)]
+    )
     return result.model_dump()
 
 
@@ -157,7 +189,9 @@ PREFERENCES_SYSTEM_PROMPT = (
 
 
 class TradingPreferences(BaseModel):
-    symbols: list[str] = Field(description="Tickers the trader explicitly says they trade, e.g. ['TSLA']")
+    symbols: list[str] = Field(
+        description="Tickers the trader explicitly says they trade, e.g. ['TSLA']"
+    )
     context_timeframe: _TIMEFRAMES | None = Field(
         description="Higher timeframe checked for context/trend before entering, if the trader mentioned one"
     )
@@ -170,7 +204,9 @@ async def aextract_preferences(archetype: str | None, body: str) -> TradingPrefe
     label = archetype_name(archetype) or "no specific archetype"
     prompt = f"Chosen archetype: {label}\n\nTrader's own description:\n{body}"
     model = _base_model(num_predict=200).with_structured_output(TradingPreferences)
-    return await model.ainvoke([SystemMessage(PREFERENCES_SYSTEM_PROMPT), HumanMessage(prompt)])
+    return await model.ainvoke(
+        [SystemMessage(PREFERENCES_SYSTEM_PROMPT), HumanMessage(prompt)]
+    )
 
 
 RULES_SYSTEM_PROMPT = (
@@ -234,14 +270,19 @@ def _synthetic_candles() -> list[Candle]:
         high = price + 1.5
         low = price - 1.5
         open_ = price - 0.5 + (i % 3) * 0.3
-        candles.append(Candle(time=i, open=open_, high=high, low=low, close=price, volume=1000.0))
+        candles.append(
+            Candle(time=i, open=open_, high=high, low=low, close=price, volume=1000.0)
+        )
     return candles
 
 
 def _validate_ruleset(rule_set: StrategyRuleSet) -> str | None:
     """Runs rules to check proper formatting."""
     candles = _synthetic_candles()
-    for section, rules in (("entry_rules", rule_set.entry_rules), ("exit_rules", rule_set.exit_rules)):
+    for section, rules in (
+        ("entry_rules", rule_set.entry_rules),
+        ("exit_rules", rule_set.exit_rules),
+    ):
         for rule in rules:
             try:
                 for i in range(len(candles)):
@@ -259,9 +300,9 @@ async def acompile_rules(archetype: str | None, body: str) -> StrategyRuleSet:
     last_result: StrategyRuleSet | None = None
     last_error: Exception | str | None = None
     for temperature in RULE_COMPILE_RETRY_TEMPERATURES:
-        model = _base_model(num_predict=1500, temperature=temperature).with_structured_output(
-            StrategyRuleSet, method="function_calling"
-        )
+        model = _base_model(
+            num_predict=1500, temperature=temperature
+        ).with_structured_output(StrategyRuleSet, method="function_calling")
         try:
             result = await model.ainvoke(messages)
         except Exception as exc:  # noqa: BLE001

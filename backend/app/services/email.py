@@ -11,12 +11,14 @@ settings = get_settings()
 
 def _send_sync(to: str, subject: str, html: str) -> None:
     resend.api_key = settings.resend_api_key
-    resend.Emails.send({
-        "from": settings.resend_from_email,
-        "to": [to],
-        "subject": subject,
-        "html": html,
-    })
+    resend.Emails.send(
+        {
+            "from": settings.resend_from_email,
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
+    )
 
 
 async def send_password_reset_email(to: str, reset_url: str) -> None:

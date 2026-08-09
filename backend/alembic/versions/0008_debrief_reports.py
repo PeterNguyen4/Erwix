@@ -10,24 +10,29 @@ incrementally by app.services.debrief_jobs) and DebriefMessage (persisted
 follow-up chat tied to a report), plus a per-user schedule
 (debrief_enabled/debrief_day_of_week/debrief_time) on user_preferences.
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0008_debrief_reports"
-down_revision: Union[str, None] = "0007_last_debrief_at"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0007_last_debrief_at"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     op.add_column(
         "user_preferences",
-        sa.Column("debrief_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column(
+            "debrief_enabled", sa.Boolean(), nullable=False, server_default=sa.true()
+        ),
     )
     op.add_column(
-        "user_preferences", sa.Column("debrief_day_of_week", sa.Integer(), nullable=True)
+        "user_preferences",
+        sa.Column("debrief_day_of_week", sa.Integer(), nullable=True),
     )
     op.add_column(
         "user_preferences", sa.Column("debrief_time", sa.Time(), nullable=True)
@@ -41,7 +46,9 @@ def upgrade() -> None:
         sa.Column("window_end", sa.DateTime(timezone=True), nullable=False),
         sa.Column("symbol", sa.String(length=16), nullable=True),
         sa.Column("query", sa.Text(), nullable=True),
-        sa.Column("status", sa.String(length=16), nullable=False, server_default="pending"),
+        sa.Column(
+            "status", sa.String(length=16), nullable=False, server_default="pending"
+        ),
         sa.Column("scheduled_for", sa.DateTime(timezone=True), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -49,7 +56,9 @@ def upgrade() -> None:
         sa.Column("current_step", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("steps", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("error_detail", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_debrief_reports_user_id", "debrief_reports", ["user_id"])
 
@@ -64,7 +73,9 @@ def upgrade() -> None:
         ),
         sa.Column("role", sa.String(length=16), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_debrief_messages_report_id", "debrief_messages", ["report_id"])
 

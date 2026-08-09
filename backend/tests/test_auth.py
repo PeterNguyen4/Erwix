@@ -32,7 +32,9 @@ def test_access_token_rejects_invalid_signature():
 
 
 def test_access_token_rejects_expired_token():
-    token = auth.create_access_token({"sub": "50", "tv": 3}, expires_delta=timedelta(seconds=-1))
+    token = auth.create_access_token(
+        {"sub": "50", "tv": 3}, expires_delta=timedelta(seconds=-1)
+    )
     assert auth.verify_access_token(token) is None
 
 

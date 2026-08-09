@@ -11,12 +11,19 @@ node that constructs the chat model.
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import Annotated, AsyncIterator, Literal, TypedDict
+from typing import Annotated, Literal, TypedDict
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import (
+    AIMessage,
+    AnyMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
@@ -32,7 +39,11 @@ from app.services.agent_tools import build_retrieval_tools
 
 # Lazy import inside functions, not here: strategy_agent imports _base_model from this module.
 from app.services.embeddings import build_trade_text
-from app.services.trade_retrieval import get_trades_window, primary_symbol, semantic_search
+from app.services.trade_retrieval import (
+    get_trades_window,
+    primary_symbol,
+    semantic_search,
+)
 
 logger = logging.getLogger("entro.agent_graph")
 
@@ -144,7 +155,9 @@ def _initial_state(
     }
 
 
-def _base_model(num_predict: int = 400, temperature: float | None = None) -> BaseChatModel:
+def _base_model(
+    num_predict: int = 400, temperature: float | None = None
+) -> BaseChatModel:
     settings = get_settings()
     if settings.llm_provider == "ollama":
         return ChatOllama(
@@ -192,7 +205,12 @@ def _extract_tool_events(response) -> list[dict]:
     events: list[dict] = []
     for call in raw_calls:
         if call["name"] == "draw_annotations":
-            events.append({"type": "annotations", "annotations": call["args"].get("annotations", [])})
+            events.append(
+                {
+                    "type": "annotations",
+                    "annotations": call["args"].get("annotations", []),
+                }
+            )
         elif call["name"] == "spotlight_day":
             day_keys = call["args"].get("day_keys", [])
             if day_keys:
@@ -225,7 +243,9 @@ def _extract_tool_events(response) -> list[dict]:
             text = call["args"].get("text")
             trade_id = call["args"].get("trade_id")
             if text and trade_id is not None:
-                events.append({"type": "note_quote", "trade_id": trade_id, "text": text})
+                events.append(
+                    {"type": "note_quote", "trade_id": trade_id, "text": text}
+                )
     return events
 
 
@@ -248,7 +268,9 @@ async def _system_prompt(db: AsyncSession, user_id: int) -> str:
 
 
 async def _retrieve(state: AgentState, db: AsyncSession) -> dict:
-    trades = await get_trades_window(db, state["user_id"], state["window_start"], state["window_end"])
+    trades = await get_trades_window(
+        db, state["user_id"], state["window_start"], state["window_end"]
+    )
     if state["symbol"]:
         trades = [t for t in trades if t.symbol == state["symbol"].upper()]
 
@@ -259,12 +281,19 @@ async def _retrieve(state: AgentState, db: AsyncSession) -> dict:
         found = await semantic_search(db, state["user_id"], state["query"])
         similar = [t for t in found if t.id not in {tr.id for tr in trades}]
         if similar:
-            context += "\n\nSimilar past trades (semantic match on: {!r}):\n".format(state["query"])
-            context += "\n".join(f"- (trade_id={t.id}) {build_trade_text(t)}" for t in similar)
+            context += "\n\nSimilar past trades (semantic match on: {!r}):\n".format(
+                state["query"]
+            )
+            context += "\n".join(
+                f"- (trade_id={t.id}) {build_trade_text(t)}" for t in similar
+            )
 
     prompt = f"Trade window {state['window_start']:%Y-%m-%d} to {state['window_end']:%Y-%m-%d}:\n{context}"
     return {
-        "messages": [SystemMessage(await _system_prompt(db, state["user_id"])), HumanMessage(prompt)],
+        "messages": [
+            SystemMessage(await _system_prompt(db, state["user_id"])),
+            HumanMessage(prompt),
+        ],
         "primary_symbol": state["symbol"] or primary_symbol(trades),
         "trades": trades,
     }
@@ -272,7 +301,11 @@ async def _retrieve(state: AgentState, db: AsyncSession) -> dict:
 
 def _analyze(state: AgentState) -> dict:
     narrative_response = _base_model().invoke(state["messages"])
-    followup_messages = [*state["messages"], narrative_response, HumanMessage(TOOL_FOLLOWUP_PROMPT)]
+    followup_messages = [
+        *state["messages"],
+        narrative_response,
+        HumanMessage(TOOL_FOLLOWUP_PROMPT),
+    ]
     tool_response = _tool_model().invoke(followup_messages)
 
     annotations: list[dict] = []
@@ -302,10 +335,14 @@ async def run_review(
 ) -> tuple[str, list[dict]]:
     """Run the analyst graph and return (narrative, annotations)."""
     app = build_graph(db)
-    result = await app.ainvoke(_initial_state(user_id, window_start, window_end, symbol, query))
+    result = await app.ainvoke(
+        _initial_state(user_id, window_start, window_end, symbol, query)
+    )
     narrative = result["messages"][-1].content
     if isinstance(narrative, list):
-        narrative = "".join(block.get("text", "") for block in narrative if isinstance(block, dict))
+        narrative = "".join(
+            block.get("text", "") for block in narrative if isinstance(block, dict)
+        )
     return narrative, result["annotations"]
 
 
@@ -317,7 +354,9 @@ def _text_delta(chunk) -> str:
         return content
     if isinstance(content, list):
         return "".join(
-            block.get("text", "") for block in content if isinstance(block, dict) and block.get("type") == "text"
+            block.get("text", "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
         )
     return ""
 
@@ -380,7 +419,10 @@ def _step_from_tool_events(trade: Trade, narrative: str, events: list[dict]) -> 
         if event["type"] == "annotations":
             step["annotations"].extend(event["annotations"])
         elif event["type"] == "spotlight":
-            step["spotlight"] = {"selector": event["selector"], "message": event.get("message")}
+            step["spotlight"] = {
+                "selector": event["selector"],
+                "message": event.get("message"),
+            }
         elif event["type"] == "zoom":
             step["zoom"] = {"from": event["from"], "to": event["to"]}
         elif event["type"] == "note_quote":
@@ -415,7 +457,11 @@ async def agenerate_steps(
         narrative_response = await narrative_model.ainvoke(turn_messages)
         narrative = narrative_response.content
         if isinstance(narrative, list):
-            narrative = "".join(b.get("text", "") for b in narrative if isinstance(b, dict) and b.get("type") == "text")
+            narrative = "".join(
+                b.get("text", "")
+                for b in narrative
+                if isinstance(b, dict) and b.get("type") == "text"
+            )
         narrative = narrative.strip().strip('"“”')
         conversation = [*turn_messages, narrative_response]
 
@@ -425,7 +471,9 @@ async def agenerate_steps(
             price=trade.fill_price,
             filled_at=int(trade.filled_at.timestamp()),
         )
-        tool_response = await tool_model.ainvoke([*conversation, HumanMessage(tool_prompt)])
+        tool_response = await tool_model.ainvoke(
+            [*conversation, HumanMessage(tool_prompt)]
+        )
         events = _extract_tool_events(tool_response)
         yield _step_from_tool_events(trade, narrative, events)
 
@@ -445,10 +493,16 @@ async def summarize_report(narratives: list[str]) -> str:
         return ""
     model = _base_model(num_predict=120)
     joined = "\n".join(f"- {n}" for n in narratives)
-    response = await model.ainvoke([HumanMessage(f"{REPORT_SUMMARY_PROMPT}\n\n{joined}")])
+    response = await model.ainvoke(
+        [HumanMessage(f"{REPORT_SUMMARY_PROMPT}\n\n{joined}")]
+    )
     summary = response.content
     if isinstance(summary, list):
-        summary = "".join(b.get("text", "") for b in summary if isinstance(b, dict) and b.get("type") == "text")
+        summary = "".join(
+            b.get("text", "")
+            for b in summary
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
     return summary.strip().strip('"“”')
 
 
@@ -486,11 +540,18 @@ async def exit_guidance(
         f"take-profit {take_profit_price if take_profit_price is not None else 'unset'}."
         f"{strategy_line}"
     )
-    messages: list[AnyMessage] = [SystemMessage(EXIT_GUIDANCE_SYSTEM_PROMPT), HumanMessage(prompt)]
+    messages: list[AnyMessage] = [
+        SystemMessage(EXIT_GUIDANCE_SYSTEM_PROMPT),
+        HumanMessage(prompt),
+    ]
     response = await _base_model().ainvoke(messages)
     text = response.content
     if isinstance(text, list):
-        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
+        text = "".join(
+            b.get("text", "")
+            for b in text
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
     return text.strip().strip('"“”')
 
 
@@ -559,7 +620,9 @@ async def astream_review(
             price=trade.fill_price,
             filled_at=int(trade.filled_at.timestamp()),
         )
-        tool_response = await tool_model.ainvoke([*conversation, HumanMessage(tool_prompt)])
+        tool_response = await tool_model.ainvoke(
+            [*conversation, HumanMessage(tool_prompt)]
+        )
         for event in _extract_tool_events(tool_response):
             yield event
 
@@ -598,7 +661,13 @@ ROUTER_SYSTEM_PROMPT = (
 
 MAX_ROUTER_TOOL_TURNS = 6
 
-CHART_TOOLS = [draw_annotations, spotlight_day, spotlight_trade, zoom_to_range, quote_note]
+CHART_TOOLS = [
+    draw_annotations,
+    spotlight_day,
+    spotlight_trade,
+    zoom_to_range,
+    quote_note,
+]
 
 
 async def _safe_tool_call(t, args: dict) -> str:
@@ -621,7 +690,10 @@ async def _router_plan(state: RouterAgentState, db: AsyncSession, user_id: int) 
     tool_turns = state["tool_turns"]
     if tool_turns >= MAX_ROUTER_TOOL_TURNS:
         model = _base_model()
-        messages = [*state["messages"], HumanMessage("Answer now with what you have — no more tool calls.")]
+        messages = [
+            *state["messages"],
+            HumanMessage("Answer now with what you have — no more tool calls."),
+        ]
     else:
         model = _base_model().bind_tools(tools)
         messages = state["messages"]
@@ -635,6 +707,7 @@ def _make_router_tool_node(db: AsyncSession, user_id: int) -> ToolNode:
 
 def build_router_graph(db: AsyncSession, user_id: int):
     graph = StateGraph(RouterAgentState)
+
     async def _plan_node(state: RouterAgentState) -> dict:
         return await _router_plan(state, db, user_id)
 
@@ -651,7 +724,11 @@ def _message_text(message: AnyMessage) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return "".join(b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text")
+        return "".join(
+            b.get("text", "")
+            for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
     return ""
 
 
@@ -667,7 +744,9 @@ async def arun_ask(
     for role, content in history or []:
         messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
     if attached_context:
-        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
+        messages.append(
+            HumanMessage("Referenced context:\n" + "\n\n".join(attached_context))
+        )
     messages.append(HumanMessage(question))
 
     graph = build_router_graph(db, user_id)
@@ -686,7 +765,10 @@ async def arun_ask(
             all_provenance.append({"tool": call["name"], "args": call["args"]})
             if call["name"] == "draw_annotations":
                 annotation_events.append(
-                    {"type": "annotations", "annotations": call["args"].get("annotations", [])}
+                    {
+                        "type": "annotations",
+                        "annotations": call["args"].get("annotations", []),
+                    }
                 )
 
     return reply, annotation_events, all_provenance
@@ -705,7 +787,9 @@ async def astream_ask(
     for role, content in history or []:
         messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
     if attached_context:
-        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
+        messages.append(
+            HumanMessage("Referenced context:\n" + "\n\n".join(attached_context))
+        )
     messages.append(HumanMessage(question))
 
     tools = build_retrieval_tools(db, user_id) + CHART_TOOLS
@@ -719,7 +803,10 @@ async def astream_ask(
         model = plain_model if forced_final else tool_model
         turn_messages = messages
         if forced_final:
-            turn_messages = [*messages, HumanMessage("Answer now with what you have — no more tool calls.")]
+            turn_messages = [
+                *messages,
+                HumanMessage("Answer now with what you have — no more tool calls."),
+            ]
 
         accumulated = None
         async for kind, payload in _stream_narrative(model, turn_messages):
@@ -728,7 +815,11 @@ async def astream_ask(
             else:
                 accumulated = payload
 
-        tool_calls = [] if forced_final or accumulated is None else (getattr(accumulated, "tool_calls", None) or [])
+        tool_calls = (
+            []
+            if forced_final or accumulated is None
+            else (getattr(accumulated, "tool_calls", None) or [])
+        )
         if not tool_calls:
             break
 
@@ -738,7 +829,10 @@ async def astream_ask(
             yield {"type": "tool_call", "tool": call["name"], "args": call["args"]}
 
         results = await asyncio.gather(
-            *(_safe_tool_call(tools_by_name[call["name"]], call["args"]) for call in tool_calls)
+            *(
+                _safe_tool_call(tools_by_name[call["name"]], call["args"])
+                for call in tool_calls
+            )
         )
         messages = [
             *messages,

@@ -79,7 +79,9 @@ def test_macd_line_none_before_slow_ema_is_defined():
 
 
 def test_macd_signal_none_when_too_few_macd_points():
-    closes = [100.0] * 20  # slow ema(26) never seeds -> macd all None -> signal all None
+    closes = [
+        100.0
+    ] * 20  # slow ema(26) never seeds -> macd all None -> signal all None
     assert macd_signal(closes) == [None] * 20
 
 
@@ -100,7 +102,11 @@ def test_stochastic_k_100_when_close_at_period_high():
 
 
 def test_stochastic_k_0_when_close_at_period_low():
-    candles = [_candle(0, 10, 15, 5, 10), _candle(1, 10, 15, 5, 10), _candle(2, 10, 15, 5, 5)]
+    candles = [
+        _candle(0, 10, 15, 5, 10),
+        _candle(1, 10, 15, 5, 10),
+        _candle(2, 10, 15, 5, 5),
+    ]
     result = stochastic_k(candles, period=3)
     assert result[2] == pytest.approx(0.0)
 
@@ -149,7 +155,11 @@ def test_trend_strength_is_categorical():
 
 
 def test_candle_color_green_when_close_gte_open():
-    candles = [_candle(0, 10, 11, 9, 11), _candle(1, 10, 11, 9, 9), _candle(2, 10, 11, 9, 10)]
+    candles = [
+        _candle(0, 10, 11, 9, 11),
+        _candle(1, 10, 11, 9, 9),
+        _candle(2, 10, 11, 9, 10),
+    ]
     assert candle_color(candles) == [1.0, 0.0, 1.0]
 
 

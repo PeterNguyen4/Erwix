@@ -12,7 +12,7 @@ DebriefReport.steps per trade so progress/ETA are queryable mid-run.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -22,7 +22,11 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.models import DebriefReport, UserPreference
 from app.services.agent_graph import agenerate_steps, summarize_report
-from app.services.trade_retrieval import count_trades_since, get_trades_window, primary_symbol
+from app.services.trade_retrieval import (
+    count_trades_since,
+    get_trades_window,
+    primary_symbol,
+)
 
 logger = logging.getLogger("entro.debrief_jobs")
 
@@ -32,39 +36,55 @@ DEFAULT_WINDOW = timedelta(days=30)
 async def run_debrief_job(db: AsyncSession, report: DebriefReport) -> None:
     """Runs a pending DebriefReport to completion, persisting steps as they finish."""
     report.status = "running"
-    report.started_at = datetime.now(timezone.utc)
-    trades = await get_trades_window(db, report.user_id, report.window_start, report.window_end)
+    report.started_at = datetime.now(UTC)
+    trades = await get_trades_window(
+        db, report.user_id, report.window_start, report.window_end
+    )
     if report.symbol:
         trades = [t for t in trades if t.symbol == report.symbol.upper()]
     else:
-        report.symbol = primary_symbol(trades)  # so the report viewer knows what chart to load
+        report.symbol = primary_symbol(
+            trades
+        )  # so the report viewer knows what chart to load
     report.total_steps = len(trades)
     await db.commit()
 
     try:
         async for step in agenerate_steps(
-            db, report.user_id, report.window_start, report.window_end,
-            symbol=report.symbol, query=report.query,
+            db,
+            report.user_id,
+            report.window_start,
+            report.window_end,
+            symbol=report.symbol,
+            query=report.query,
         ):
             report.steps = [*report.steps, step]
             report.current_step += 1
             await db.commit()
 
         try:
-            report.summary = await summarize_report([s["narrative"] for s in report.steps])
-        except Exception:  # noqa: BLE001
-            logger.exception("debrief summary generation failed for report %s", report.id)
+            report.summary = await summarize_report(
+                [s["narrative"] for s in report.steps]
+            )
+        except Exception:
+            logger.exception(
+                "debrief summary generation failed for report %s", report.id
+            )
 
         report.status = "ready"
-        report.completed_at = datetime.now(timezone.utc)
-        pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == report.user_id))
+        report.completed_at = datetime.now(UTC)
+        pref = await db.scalar(
+            select(UserPreference).where(UserPreference.user_id == report.user_id)
+        )
         if pref is None:
             pref = UserPreference(user_id=report.user_id)
             db.add(pref)
         pref.last_debrief_at = report.completed_at
         await db.commit()
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("debrief job failed for user %s report %s", report.user_id, report.id)
+    except Exception as exc:
+        logger.exception(
+            "debrief job failed for user %s report %s", report.user_id, report.id
+        )
         await db.rollback()
         report.status = "error"
         report.error_detail = str(exc)
@@ -77,16 +97,23 @@ async def create_pending_report(db: AsyncSession, user_id: int) -> DebriefReport
     "generate now" doesn't spawn duplicates), bypassing the day/time schedule."""
     existing = await db.scalar(
         select(DebriefReport).where(
-            DebriefReport.user_id == user_id, DebriefReport.status.in_(["pending", "running"])
+            DebriefReport.user_id == user_id,
+            DebriefReport.status.in_(["pending", "running"]),
         )
     )
     if existing:
         return existing
-    now = datetime.now(timezone.utc)
-    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
+    now = datetime.now(UTC)
+    pref = await db.scalar(
+        select(UserPreference).where(UserPreference.user_id == user_id)
+    )
     window_start = (pref.last_debrief_at if pref else None) or (now - DEFAULT_WINDOW)
     report = DebriefReport(
-        user_id=user_id, window_start=window_start, window_end=now, scheduled_for=now, status="pending"
+        user_id=user_id,
+        window_start=window_start,
+        window_end=now,
+        scheduled_for=now,
+        status="pending",
     )
     db.add(report)
     await db.commit()
@@ -102,14 +129,20 @@ async def fail_orphaned_reports() -> None:
     "reuse the in-flight report" check."""
     async with SessionLocal() as db:
         stuck = (
-            await db.scalars(select(DebriefReport).where(DebriefReport.status.in_(["pending", "running"])))
+            await db.scalars(
+                select(DebriefReport).where(
+                    DebriefReport.status.in_(["pending", "running"])
+                )
+            )
         ).all()
         for report in stuck:
             report.status = "error"
             report.error_detail = "Interrupted by a server restart"
         if stuck:
             await db.commit()
-            logger.warning("Marked %d orphaned debrief report(s) as errored on startup", len(stuck))
+            logger.warning(
+                "Marked %d orphaned debrief report(s) as errored on startup", len(stuck)
+            )
 
 
 async def run_debrief_job_by_id(report_id: int) -> None:
@@ -128,7 +161,10 @@ def _slot_due(pref: UserPreference, now: datetime, interval: timedelta) -> bool:
     if pref.debrief_day_of_week is None or pref.debrief_time is None:
         return False
     candidate = now.replace(
-        hour=pref.debrief_time.hour, minute=pref.debrief_time.minute, second=0, microsecond=0
+        hour=pref.debrief_time.hour,
+        minute=pref.debrief_time.minute,
+        second=0,
+        microsecond=0,
     )
     candidate -= timedelta(days=(candidate.weekday() - pref.debrief_day_of_week) % 7)
     if candidate > now:
@@ -141,10 +177,12 @@ async def check_and_schedule_debriefs() -> None:
     just passed and who has new fills since their last debrief."""
     settings = get_settings()
     interval = timedelta(minutes=settings.debrief_poll_interval_minutes)
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     async with SessionLocal() as db:
         prefs = (
-            await db.scalars(select(UserPreference).where(UserPreference.debrief_enabled.is_(True)))
+            await db.scalars(
+                select(UserPreference).where(UserPreference.debrief_enabled.is_(True))
+            )
         ).all()
         for pref in prefs:
             if not _slot_due(pref, now, interval):
@@ -190,7 +228,8 @@ def start_scheduler() -> None:
     )
     _scheduler.start()
     logger.info(
-        "Started debrief scheduler (poll every %s min)", settings.debrief_poll_interval_minutes
+        "Started debrief scheduler (poll every %s min)",
+        settings.debrief_poll_interval_minutes,
     )
 
 

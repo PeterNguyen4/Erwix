@@ -8,7 +8,7 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 """
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
@@ -74,7 +74,9 @@ def _normalize_sentiment(raw: str) -> str:
 
 
 class _InsightCritique(BaseModel):
-    valid: bool = Field(description="True if the insight is internally consistent and well-supported")
+    valid: bool = Field(
+        description="True if the insight is internally consistent and well-supported"
+    )
     correction: str = Field(
         description="If not valid, one short sentence on what's wrong (e.g. sentiment contradicts advice, "
         "rationale doesn't tie to the headlines, advice is generic boilerplate). Empty string if valid."
@@ -90,7 +92,9 @@ VALIDATE_SYSTEM_PROMPT = (
 )
 
 
-async def _validate_insight(insight: MarketInsight, articles: list[NewsArticle], strategy_block: str) -> str | None:
+async def _validate_insight(
+    insight: MarketInsight, articles: list[NewsArticle], strategy_block: str
+) -> str | None:
     """LLM judge evaluating insight. Returns None if it holds up,
     else a short correction note to feed back into a regeneration attempt."""
     prompt = (
@@ -99,11 +103,19 @@ async def _validate_insight(insight: MarketInsight, articles: list[NewsArticle],
         f"Rationale: {'; '.join(insight.rationale) if insight.rationale else '(none given)'}"
     )
     model = _base_model(num_predict=150).with_structured_output(_InsightCritique)
-    critique = await model.ainvoke([SystemMessage(VALIDATE_SYSTEM_PROMPT), HumanMessage(prompt)])
-    return critique.correction.strip() if not critique.valid and critique.correction.strip() else None
+    critique = await model.ainvoke(
+        [SystemMessage(VALIDATE_SYSTEM_PROMPT), HumanMessage(prompt)]
+    )
+    return (
+        critique.correction.strip()
+        if not critique.valid and critique.correction.strip()
+        else None
+    )
 
 
-async def build_market_insight(db: AsyncSession, user_id: int, articles: list[NewsArticle]) -> MarketInsight:
+async def build_market_insight(
+    db: AsyncSession, user_id: int, articles: list[NewsArticle]
+) -> MarketInsight:
     strategy_block = await _strategy_block(db, user_id)
     headlines_block = _headlines_block(articles)
     known_urls = {a.url for a in articles}
@@ -111,7 +123,9 @@ async def build_market_insight(db: AsyncSession, user_id: int, articles: list[Ne
 
     messages: list = [
         SystemMessage(MARKET_SYSTEM_PROMPT),
-        HumanMessage(f"Recent market-wide headlines:\n{headlines_block}\n\n{strategy_block}"),
+        HumanMessage(
+            f"Recent market-wide headlines:\n{headlines_block}\n\n{strategy_block}"
+        ),
     ]
 
     for attempt in range(2):
@@ -128,13 +142,17 @@ async def build_market_insight(db: AsyncSession, user_id: int, articles: list[Ne
         messages = [
             *messages,
             AIMessage(result.model_dump_json()),
-            HumanMessage(f"That read doesn't hold up: {correction}. Try again, fixing only that issue."),
+            HumanMessage(
+                f"That read doesn't hold up: {correction}. Try again, fixing only that issue."
+            ),
         ]
     raise AssertionError("unreachable")
 
 
 def _articles_hash(articles: list[NewsArticle]) -> str:
-    return hashlib.sha256("\n".join(sorted(a.url for a in articles)).encode()).hexdigest()
+    return hashlib.sha256(
+        "\n".join(sorted(a.url for a in articles)).encode()
+    ).hexdigest()
 
 
 async def get_market_insight(
@@ -147,10 +165,12 @@ async def get_market_insight(
     every fetch, so a hash-of-headlines gate almost never matched and silently
     regenerated on every visit. `force` (Refresh button) always regenerates."""
     articles_hash = _articles_hash(articles)
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
 
     cached = (
-        await db.execute(select(MarketInsightCache).where(MarketInsightCache.user_id == user_id))
+        await db.execute(
+            select(MarketInsightCache).where(MarketInsightCache.user_id == user_id)
+        )
     ).scalar_one_or_none()
 
     if cached and not force and cached.generated_at.date() == today:

@@ -284,7 +284,9 @@ class DebriefStatus(BaseModel):
 
 class NotificationOut(BaseModel):
     id: str
-    type: Literal["debrief_ready", "news_insight", "alpaca_disconnected", "strategy_missing"]
+    type: Literal[
+        "debrief_ready", "news_insight", "alpaca_disconnected", "strategy_missing"
+    ]
     title: str
     body: str
     href: str

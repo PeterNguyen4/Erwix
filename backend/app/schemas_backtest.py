@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -8,12 +8,14 @@ from app.schemas_strategy import GatedRule, PatternRule
 
 class BacktestRule(BaseModel):
     type: Literal["comparison"] = "comparison"
-    indicator: str 
+    indicator: str
     comparator: Literal["<", "<=", ">", ">=", "==", "crosses_above", "crosses_below"]
     value: str
 
 
-AnyBacktestRule = Annotated[Union[BacktestRule, PatternRule, GatedRule], Field(discriminator="type")]
+AnyBacktestRule = Annotated[
+    BacktestRule | PatternRule | GatedRule, Field(discriminator="type")
+]
 
 
 class BacktestSizing(BaseModel):
