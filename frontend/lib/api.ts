@@ -113,6 +113,23 @@ export interface BacktestRun {
   error_detail: string | null;
 }
 
+export interface BacktestChatSessionSummary {
+  id: number;
+  title: string;
+  updated_at: string;
+}
+
+export interface BacktestChatSessionData {
+  id: number;
+  title: string;
+  config: BacktestConfig;
+  messages: unknown[];
+  input: string;
+  window_start: string | null;
+  window_end: string | null;
+  updated_at: string;
+}
+
 export type BacktestChatEvent =
   | { type: "action"; label: string }
   | { type: "token"; text: string }
@@ -470,6 +487,12 @@ export interface DebriefMessage {
   created_at: string;
 }
 
+export interface DebriefSession {
+  id: number;
+  title: string;
+  created_at: string;
+}
+
 export interface AttachedReference {
   type: "trade" | "journal_entry" | "day" | "symbol";
   refId: string;
@@ -664,6 +687,12 @@ export const api = {
   debriefMessages: (id: number) => getJSON<DebriefMessage[]>(`/api/agent/debrief/${id}/messages`),
   clearDebriefMessages: (id: number) =>
     fetch(`${API}/api/agent/debrief/${id}/messages`, { method: "DELETE", credentials: "include" }),
+  listDebriefSessions: () => getJSON<DebriefSession[]>("/api/agent/debrief/sessions"),
+  createDebriefSession: () => postJSON<DebriefSession>("/api/agent/debrief/sessions", {}),
+  renameDebriefSession: (id: number, title: string) =>
+    postJSON<DebriefSession>(`/api/agent/debrief/sessions/${id}`, { title }, "PATCH"),
+  deleteDebriefSession: (id: number) =>
+    fetch(`${API}/api/agent/debrief/${id}`, { method: "DELETE", credentials: "include" }),
   debriefAskStreamUrl: async (message: string, reportId: number | null, references: AttachedReference[] = []) => {
     const q = new URLSearchParams();
     q.set("message", message);
@@ -711,6 +740,21 @@ export const api = {
     if (windowEnd) q.set("window_end", windowEnd);
     return `${WS}/api/backtest/chat?${q.toString()}`;
   },
+  listBacktestChatSessions: () => getJSON<BacktestChatSessionSummary[]>("/api/backtest/chat-sessions"),
+  createBacktestChatSession: () => postJSON<BacktestChatSessionData>("/api/backtest/chat-sessions", {}),
+  getBacktestChatSession: (id: number) => getJSON<BacktestChatSessionData>(`/api/backtest/chat-sessions/${id}`),
+  updateBacktestChatSession: (
+    id: number,
+    body: {
+      title: string;
+      config: BacktestConfig;
+      messages: unknown[];
+      input: string;
+      window_start: string | null;
+      window_end: string | null;
+    },
+  ) => postJSON<BacktestChatSessionData>(`/api/backtest/chat-sessions/${id}`, body, "PUT"),
+  deleteBacktestChatSession: (id: number) => deleteRequest(`/api/backtest/chat-sessions/${id}`),
   streamUrl: async (symbol: string) => {
     return `${WS}/api/market/stream/${encodeURIComponent(symbol)}`;
   },

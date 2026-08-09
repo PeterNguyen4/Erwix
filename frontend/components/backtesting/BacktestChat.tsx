@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, ArrowUp, Calendar as CalendarIcon, ChevronDown, Hammer, ListChecks, Loader2, Pencil, Play, Plus, Search, Settings2, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Calendar as CalendarIcon, ChevronDown, Hammer, History, ListChecks, Loader2, Pencil, Play, Plus, Search, Settings2, SlashSquare, Trash2, X } from "lucide-react";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import {
   api,
   Archetype,
   BacktestChatEvent,
+  BacktestChatSessionSummary,
   BacktestConfig,
   BacktestRisk,
   BacktestRule,
@@ -23,6 +24,16 @@ import {
 import HintLibrary, { CATEGORY_ICONS } from "@/components/backtesting/HintLibrary";
 import { presentationFor } from "@/components/strategy/presentation";
 import { backtestDraft, DEFAULT_BACKTEST_CONFIG } from "@/lib/backtestDraft";
+import {
+  createBacktestSession,
+  deleteBacktestSession,
+  getBacktestSession,
+  getCurrentSessionId,
+  listBacktestSessions,
+  saveBacktestSession,
+  setCurrentSessionId,
+  titleFromSession,
+} from "@/lib/backtestSessions";
 import { useClickOutside } from "@/lib/useClickOutside";
 
 const INDICATOR_FAMILIES: { id: string; label: string; hasPeriod: boolean; defaultPeriod?: number }[] = [
@@ -85,6 +96,10 @@ const PLACEHOLDER_PROMPTS = [
   "Load a strategy previously saved",
   "Pick a rule from the library",
   "e.g. buy when RSI drops below 30, sell when it crosses back above 70",
+];
+
+const SLASH_COMMANDS: { cmd: string; description: string }[] = [
+  { cmd: "/clear", description: "Start a new chat" },
 ];
 
 function comparatorLabel(c: string) {
@@ -1217,16 +1232,137 @@ export default function BacktestChat({
   const [error, setError] = useState<string | null>(null);
   const [sendHover, setSendHover] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [sessionId, setSessionId] = useState<number | null>(null);
+  const [sessionTitle, setSessionTitle] = useState("New chat");
+  const [sessions, setSessions] = useState<BacktestChatSessionSummary[]>([]);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const sendButtonRef = useRef<HTMLButtonElement>(null);
   const rulesChipRef = useRef<HTMLButtonElement>(null);
   const rulesPanelRef = useRef<HTMLDivElement>(null);
+  const commandsRef = useRef<HTMLDivElement>(null);
+  const sessionsRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(backtestDraft.nextId);
   const configRef = useRef(config);
   configRef.current = config;
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleManualRef = useRef(false);
   const isEmpty = messages.length === 0;
+  useClickOutside(commandsRef, () => setCommandsOpen(false), commandsOpen);
+  useClickOutside(sessionsRef, () => setSessionsOpen(false), sessionsOpen);
+
+  const refreshSessions = () => {
+    listBacktestSessions().then(setSessions).catch(() => {});
+  };
+
+  useEffect(() => {
+    (async () => {
+      let id = getCurrentSessionId();
+      let session = id ? await getBacktestSession(id).catch(() => null) : null;
+      if (!session) {
+        session = await createBacktestSession();
+        id = session.id;
+        setCurrentSessionId(id);
+      }
+      setSessionId(id);
+      setSessionTitle(session.title);
+      titleManualRef.current = session.title !== "New chat";
+      setMessages(session.messages);
+      setInput(session.input);
+      onConfigChange(session.config);
+      onUpdateWindowStart(session.windowStart);
+      onUpdateWindowEnd(session.windowEnd);
+      refreshSessions();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    const title =
+      !titleManualRef.current && messages.length > 0 ? titleFromSession(configRef.current, messages) : sessionTitle;
+    if (title !== sessionTitle) setSessionTitle(title);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveBacktestSession({
+        id: sessionId,
+        title,
+        config: configRef.current,
+        messages,
+        input,
+        windowStart,
+        windowEnd,
+      })
+        .then(refreshSessions)
+        .catch(() => {});
+    }, 600);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId, messages, config, input, windowStart, windowEnd]);
+
+  const startNewSession = async () => {
+    setSessionsOpen(false);
+    setCommandsOpen(false);
+    const session = await createBacktestSession().catch(() => null);
+    if (!session) return;
+    setCurrentSessionId(session.id);
+    setSessionId(session.id);
+    setSessionTitle(session.title);
+    titleManualRef.current = false;
+    setMessages([]);
+    setInput("");
+    onConfigChange(DEFAULT_BACKTEST_CONFIG);
+    onUpdateWindowStart(null);
+    onUpdateWindowEnd(null);
+    refreshSessions();
+  };
+
+  const loadSession = async (id: number) => {
+    setSessionsOpen(false);
+    if (id === sessionId) return;
+    const session = await getBacktestSession(id).catch(() => null);
+    if (!session) return;
+    setCurrentSessionId(id);
+    setSessionId(id);
+    setSessionTitle(session.title);
+    titleManualRef.current = session.title !== "New chat";
+    setMessages(session.messages);
+    setInput(session.input);
+    onConfigChange(session.config);
+    onUpdateWindowStart(session.windowStart);
+    onUpdateWindowEnd(session.windowEnd);
+  };
+
+  const startEditTitle = () => {
+    setTitleDraft(sessionTitle);
+    setEditingTitle(true);
+  };
+
+  const commitTitle = () => {
+    setEditingTitle(false);
+    const trimmed = titleDraft.trim();
+    if (!trimmed) return;
+    titleManualRef.current = true;
+    setSessionTitle(trimmed);
+  };
+
+  const deleteSession = async (id: number) => {
+    await deleteBacktestSession(id).catch(() => {});
+    refreshSessions();
+    if (id === sessionId) await startNewSession();
+  };
+
+  const runSlashCommand = (cmd: string) => {
+    setCommandsOpen(false);
+    if (cmd === "/clear") startNewSession();
+  };
 
   useEffect(() => {
     backtestDraft.messages = messages;
@@ -1424,6 +1560,11 @@ export default function BacktestChat({
   const send = async () => {
     const message = input.trim();
     if (!message || streaming) return;
+    if (SLASH_COMMANDS.some((c) => c.cmd === message)) {
+      setInput("");
+      runSlashCommand(message);
+      return;
+    }
     setInput("");
     setError(null);
     setMessages((prev) => [
@@ -1493,7 +1634,11 @@ export default function BacktestChat({
           <textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setInput(value);
+              setCommandsOpen(value.startsWith("/") && !value.includes(" "));
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -1508,6 +1653,31 @@ export default function BacktestChat({
         <div className="flex items-center justify-between px-3 pb-3">
           <div className="flex items-center gap-1.5">
             <LoadStrategyMenu onLoad={loadStrategy} />
+            <div ref={commandsRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setCommandsOpen((v) => !v)}
+                aria-label="Chat commands"
+                className="flex shrink-0 items-center justify-center rounded-full bg-field p-1.5 text-muted transition-colors hover:bg-fg/10 hover:text-fg"
+              >
+                <SlashSquare size={15} strokeWidth={2} />
+              </button>
+              {commandsOpen && (
+                <div className="absolute bottom-full left-0 z-20 mb-2 w-56 rounded-md border border-border bg-panel py-1 shadow-lg">
+                  {SLASH_COMMANDS.filter((c) => !input.startsWith("/") || c.cmd.startsWith(input)).map((c) => (
+                    <button
+                      key={c.cmd}
+                      type="button"
+                      onClick={() => runSlashCommand(c.cmd)}
+                      className="flex w-full flex-col items-start px-3 py-1.5 text-left transition-colors hover:bg-violet-500/10"
+                    >
+                      <span className="font-mono text-xs text-fg">{c.cmd}</span>
+                      <span className="truncate text-[10px] text-muted">{c.description}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <div className="relative">
               <button
                 ref={rulesChipRef}
@@ -1552,21 +1722,103 @@ export default function BacktestChat({
     </div>
   );
 
+  const sessionsMenu = (
+    <div ref={sessionsRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setSessionsOpen((v) => !v)}
+        aria-label="Chat sessions"
+        className="flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted transition-colors hover:border-accent hover:text-fg"
+      >
+        <History size={13} strokeWidth={2} />
+        Sessions
+      </button>
+      {sessionsOpen && (
+        <div className="absolute right-0 top-full z-30 mt-1 max-h-72 w-64 overflow-y-auto rounded-md border border-border bg-panel py-1 shadow-lg">
+          <button
+            type="button"
+            onClick={startNewSession}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs font-medium text-accent transition-colors hover:bg-violet-500/10"
+          >
+            <Plus size={12} strokeWidth={2.2} />
+            New chat
+          </button>
+          {sessions.length > 0 && <div className="my-1 border-t border-border" />}
+          {sessions.map((s) => (
+            <div
+              key={s.id}
+              className={`group flex items-center gap-1 ${s.id === sessionId ? "bg-violet-500/10" : ""}`}
+            >
+              <button
+                type="button"
+                onClick={() => loadSession(s.id)}
+                className="min-w-0 flex-1 truncate px-3 py-1.5 text-left text-xs text-fg transition-colors hover:text-accent"
+              >
+                {s.title}
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteSession(s.id)}
+                aria-label={`Delete ${s.title}`}
+                className="mr-1 shrink-0 rounded p-1 text-muted opacity-0 transition-opacity hover:text-down group-hover:opacity-100"
+              >
+                <Trash2 size={11} strokeWidth={2} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  const titleBar = editingTitle ? (
+    <input
+      autoFocus
+      value={titleDraft}
+      onChange={(e) => setTitleDraft(e.target.value)}
+      onBlur={commitTitle}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") commitTitle();
+        if (e.key === "Escape") setEditingTitle(false);
+      }}
+      className="w-40 rounded border border-violet-400 bg-field px-1.5 py-0.5 text-xs font-medium text-fg outline-none"
+    />
+  ) : (
+    <button
+      type="button"
+      onClick={startEditTitle}
+      title="Rename chat"
+      className="min-w-0 truncate rounded px-1.5 py-0.5 text-xs font-medium text-muted transition-colors hover:bg-fg/10 hover:text-fg"
+    >
+      {sessionTitle}
+    </button>
+  );
+
   if (isEmpty) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-5 px-4">
-        {error && (
-          <div className="mx-4 rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
-        )}
-        <h2 className="text-2xl font-normal text-fg">Describe your strategy</h2>
-        {inputRow}
+      <div className="flex h-full flex-col">
+        <div className="flex shrink-0 items-center justify-between px-4 pt-3">
+          {titleBar}
+          {sessionsMenu}
+        </div>
+        <div className="flex flex-1 flex-col items-center justify-center gap-5 px-4">
+          {error && (
+            <div className="mx-4 rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
+          )}
+          <h2 className="text-2xl font-normal text-fg">Describe your strategy</h2>
+          {inputRow}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="relative flex h-full flex-col">
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-6 bg-gradient-to-b from-panel to-transparent" />
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-2">
+        {titleBar}
+        {sessionsMenu}
+      </div>
+      <div className="pointer-events-none absolute inset-x-0 top-[41px] z-10 h-6 bg-gradient-to-b from-panel to-transparent" />
       <div ref={scrollRef} className="chat-scroll flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-4 pb-32 pt-6">
         {error && (
           <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>

@@ -230,6 +230,25 @@ class DebriefMessage(Base):
     )
 
 
+class BacktestChatSession(Base):
+    __tablename__ = "backtest_chat_sessions"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(120), default="New chat")
+    config: Mapped[dict] = mapped_column(JSON)
+    messages: Mapped[list] = mapped_column(JSON, default=list)
+    input: Mapped[str] = mapped_column(Text, default="")
+    window_start: Mapped[str | None] = mapped_column(String(10))
+    window_end: Mapped[str | None] = mapped_column(String(10))
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class StrategyNote(Base):
     """
     The user's stated strategy / rules based on archetype
@@ -307,8 +326,6 @@ class MarketInsightCache(Base):
 
 
 class BacktestConfig(Base):
-    """A saved backtest rule config"""
-
     __tablename__ = "backtest_configs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
