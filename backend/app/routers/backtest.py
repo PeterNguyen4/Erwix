@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import alpaca_client
 from app.auth import get_current_user_id
 from app.db import get_db
+from app.dependencies.guardrails import check_ws_guardrail_input
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.error_handling import alpaca_errors
 from app.models import BacktestChatSession as BacktestChatSessionModel
@@ -255,6 +256,12 @@ async def backtest_chat(
     rate_limit_error = await check_ws_rate_limit(user_id, "backtest-chat", limit=10, window_ms=60_000, fail_open=False)
     if rate_limit_error:
         await websocket.send_json({"type": "error", "detail": rate_limit_error})
+        await websocket.close(code=1008)
+        return
+
+    guardrail_error = await check_ws_guardrail_input(message)
+    if guardrail_error:
+        await websocket.send_json({"type": "error", "detail": guardrail_error})
         await websocket.close(code=1008)
         return
 
