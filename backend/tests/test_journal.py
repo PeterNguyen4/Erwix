@@ -1,11 +1,15 @@
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
+import pytest
+
 from app.models import Trade
+from tests.conftest import TEST_USER_ID
 
 
 def _make_trade(symbol: str, days_ago: int, side: str = "buy") -> Trade:
     return Trade(
+        user_id=TEST_USER_ID,
         symbol=symbol,
         side=side,
         order_type="market",
@@ -16,11 +20,12 @@ def _make_trade(symbol: str, days_ago: int, side: str = "buy") -> Trade:
     )
 
 
-def test_trades_window_filters_by_date(client, db_session):
+@pytest.mark.asyncio
+async def test_trades_window_filters_by_date(client, db_session):
     db_session.add_all(
         [_make_trade("AAPL", 1), _make_trade("AAPL", 10), _make_trade("MSFT", 2)]
     )
-    db_session.commit()
+    await db_session.commit()
 
     since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     resp = client.get(f"/api/journal/trades?from={quote(since)}")
@@ -31,9 +36,10 @@ def test_trades_window_filters_by_date(client, db_session):
     assert {r["symbol"] for r in rows} == {"AAPL", "MSFT"}
 
 
-def test_trades_filter_by_symbol(client, db_session):
+@pytest.mark.asyncio
+async def test_trades_filter_by_symbol(client, db_session):
     db_session.add_all([_make_trade("AAPL", 1), _make_trade("MSFT", 1)])
-    db_session.commit()
+    await db_session.commit()
 
     resp = client.get("/api/journal/trades?symbol=aapl")
     assert resp.status_code == 200
