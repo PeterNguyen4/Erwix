@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import re
 from datetime import date
 
@@ -13,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.schemas_backtest import BacktestConfig, BacktestResult
 from app.services.agent_graph import ANALYST_MODEL
+
+logger = logging.getLogger("entro.backtest_agent")
 
 
 class _ChatEditResult(BaseModel):
@@ -149,6 +153,15 @@ def _changed_card(
     return None
 
 
+async def _safe_tool_call(t: BaseTool, args: dict) -> str:
+    """Isolate tool errors to preserve chat."""
+    try:
+        return str(await t.ainvoke(args))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("backtest delegate tool %r failed: %s", t.name, exc)
+        return f"Couldn't complete that: {exc}"
+
+
 DELEGATE_SYSTEM_PROMPT = (
     "You are uWick, helping a trader build a backtest config. Most messages are instructions "
     "to edit the config, but if the trader is instead asking a question about their stated "
@@ -247,9 +260,10 @@ async def astream_config_chat(
     )
     delegate_calls = getattr(delegate_response, "tool_calls", None) or []
     if delegate_calls:
-        call = delegate_calls[0]
-        answer = await tools_by_name[call["name"]].ainvoke(call["args"])
-        yield {"type": "token", "text": str(answer)}
+        answers = await asyncio.gather(
+            *(_safe_tool_call(tools_by_name[call["name"]], call["args"]) for call in delegate_calls)
+        )
+        yield {"type": "token", "text": "\n\n".join(answers)}
         yield {"type": "done"}
         return
 

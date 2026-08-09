@@ -10,6 +10,7 @@ from app import alpaca_client
 from app.auth import get_current_user_id
 from app.db import get_db
 from app.dependencies.guardrails import check_ws_guardrail_input
+from app.services.guardrails import scan_output
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.error_handling import alpaca_errors
 from app.models import BacktestChatSession as BacktestChatSessionModel
@@ -270,10 +271,17 @@ async def backtest_chat(
     try:
         current_config = BacktestConfig.model_validate_json(config)
         last_result = BacktestResult.model_validate_json(result) if result else None
+        reply_parts: list[str] = []
         async for event in astream_config_chat(
             db, user_id, current_config, message, window_start, window_end, last_result
         ):
+            if event.get("type") == "token":
+                reply_parts.append(event["text"])
             await websocket.send_json(event)
+
+        output_violation = scan_output("".join(reply_parts))
+        if output_violation:
+            logger.warning("output guardrail triggered in backtest chat for user %s: %s", user_id, output_violation)
     except RuntimeError as exc:
         await websocket.send_json({"type": "error", "detail": str(exc)})
     except WebSocketDisconnect:

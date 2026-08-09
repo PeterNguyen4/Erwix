@@ -116,7 +116,7 @@ export default function NewsPage() {
               <div className="relative mb-2 flex items-center gap-2">
                 <Sparkles className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
                 <span className="text-sm font-semibold text-violet-600 dark:text-violet-300">Insights</span>
-                <span className={`rounded-full px-2 py-0.5 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
                   {insight.sentiment}
                 </span>
               </div>

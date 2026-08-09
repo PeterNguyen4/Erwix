@@ -598,6 +598,15 @@ MAX_ROUTER_TOOL_TURNS = 6
 CHART_TOOLS = [draw_annotations, spotlight_day, spotlight_trade, zoom_to_range, quote_note]
 
 
+async def _safe_tool_call(t, args: dict) -> str:
+    """Isolate errors in tool call to preserve chat."""
+    try:
+        return str(await t.ainvoke(args))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("router tool %r failed: %s", t.name, exc)
+        return f"Error running {t.name}: {exc}"
+
+
 class RouterAgentState(TypedDict):
     messages: Annotated[list[AnyMessage], add_messages]
     user_id: int
@@ -726,7 +735,7 @@ async def astream_ask(
             yield {"type": "tool_call", "tool": call["name"], "args": call["args"]}
 
         results = await asyncio.gather(
-            *(tools_by_name[call["name"]].ainvoke(call["args"]) for call in tool_calls)
+            *(_safe_tool_call(tools_by_name[call["name"]], call["args"]) for call in tool_calls)
         )
         messages = [
             *messages,
