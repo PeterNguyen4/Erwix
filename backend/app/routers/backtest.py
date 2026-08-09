@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from datetime import datetime
 
@@ -250,6 +251,7 @@ async def backtest_chat(
     window_start: str | None = Query(None),
     window_end: str | None = Query(None),
     result: str | None = Query(None),
+    history: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> None:
@@ -271,9 +273,10 @@ async def backtest_chat(
     try:
         current_config = BacktestConfig.model_validate_json(config)
         last_result = BacktestResult.model_validate_json(result) if result else None
+        chat_history: list[tuple[str, str]] = [tuple(pair) for pair in json.loads(history)] if history else []
         reply_parts: list[str] = []
         async for event in astream_config_chat(
-            db, user_id, current_config, message, window_start, window_end, last_result
+            db, user_id, current_config, message, window_start, window_end, last_result, chat_history
         ):
             if event.get("type") == "token":
                 reply_parts.append(event["text"])

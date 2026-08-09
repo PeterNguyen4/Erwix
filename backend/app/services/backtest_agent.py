@@ -5,7 +5,7 @@ from datetime import date
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool, tool
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
@@ -247,7 +247,12 @@ async def astream_config_chat(
     window_start: str | None = None,
     window_end: str | None = None,
     last_result: BacktestResult | None = None,
+    history: list[tuple[str, str]] | None = None,
 ):
+    history_messages: list[AnyMessage] = [
+        HumanMessage(content) if role == "user" else AIMessage(content) for role, content in history or []
+    ]
+
     delegate_tools = [
         _make_ask_strategy_tool(db, user_id),
         _make_ask_news_tool(db, user_id, current_config.symbol),
@@ -256,7 +261,7 @@ async def astream_config_chat(
     tools_by_name = {t.name: t for t in delegate_tools}
     delegate_model = _base_model().bind_tools(delegate_tools)
     delegate_response = await delegate_model.ainvoke(
-        [SystemMessage(DELEGATE_SYSTEM_PROMPT), HumanMessage(message)]
+        [SystemMessage(DELEGATE_SYSTEM_PROMPT), *history_messages, HumanMessage(message)]
     )
     delegate_calls = getattr(delegate_response, "tool_calls", None) or []
     if delegate_calls:
@@ -277,7 +282,7 @@ async def astream_config_chat(
 
     structured_model = _base_model().with_structured_output(_ChatEditResult, method="function_calling")
     try:
-        result = await structured_model.ainvoke([SystemMessage(SYSTEM_PROMPT), HumanMessage(prompt)])
+        result = await structured_model.ainvoke([SystemMessage(SYSTEM_PROMPT), *history_messages, HumanMessage(prompt)])
     except Exception as exc:  # noqa: BLE001 — model returned a shape we can't coerce
         yield {"type": "error", "detail": f"Couldn't apply that change: {exc}"}
         return

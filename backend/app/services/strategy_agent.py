@@ -66,6 +66,40 @@ ANSWER_QUESTION_SYSTEM_PROMPT = (
 )
 
 
+class _AnswerCritique(BaseModel):
+    valid: bool = Field(description="True if the answer is grounded in the trader's actual stated strategy")
+    correction: str = Field(
+        description="If not valid, one short sentence on what's wrong (e.g. the answer invents a rule the "
+        "trader never stated, contradicts the playbook, or gives generic advice instead of referencing "
+        "their actual rules). Empty string if valid."
+    )
+
+
+VALIDATE_ANSWER_SYSTEM_PROMPT = (
+    "You are reviewing another strategist's answer to a trader's question about their own stated "
+    "strategy, before it's shown to them. Check: does the answer actually reference rules from the "
+    "trader's stated strategy given below, rather than inventing ones or giving generic advice? If the "
+    "trader has no stated strategy, does the answer say so plainly instead of pretending one exists? "
+    "Judge harshly but fairly — minor stylistic issues are not grounds for rejection."
+)
+
+
+async def _validate_answer(question: str, answer: str, strategy_block: str) -> str | None:
+    """LLM judge over an already-generated strategy answer. Returns None if it holds up,
+    else a short correction note to feed back into a regeneration attempt."""
+    prompt = f"{strategy_block}\n\nQuestion: {question}\n\nAnswer given: {answer}"
+    model = _base_model(num_predict=150).with_structured_output(_AnswerCritique)
+    critique = await model.ainvoke([SystemMessage(VALIDATE_ANSWER_SYSTEM_PROMPT), HumanMessage(prompt)])
+    return critique.correction.strip() if not critique.valid and critique.correction.strip() else None
+
+
+def _content_text(response) -> str:
+    text = response.content
+    if isinstance(text, list):
+        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
+    return text.strip().strip('"“”')
+
+
 async def answer_strategy_question(db: AsyncSession, user_id: int, question: str) -> str:
     """Answer user questions about their strategy."""
     ctx = await get_strategy_context(db, user_id)
@@ -74,14 +108,25 @@ async def answer_strategy_question(db: AsyncSession, user_id: int, question: str
         strategy_block = f"The trader's stated strategy ({label}):\n{rendered}"
     else:
         strategy_block = "The trader has not stated a strategy yet."
+
     model = _base_model(num_predict=300)
-    response = await model.ainvoke(
-        [SystemMessage(ANSWER_QUESTION_SYSTEM_PROMPT), HumanMessage(f"{strategy_block}\n\nQuestion: {question}")]
-    )
-    text = response.content
-    if isinstance(text, list):
-        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
-    return text.strip().strip('"“”')
+    messages: list = [
+        SystemMessage(ANSWER_QUESTION_SYSTEM_PROMPT),
+        HumanMessage(f"{strategy_block}\n\nQuestion: {question}"),
+    ]
+
+    for attempt in range(2):
+        response = await model.ainvoke(messages)
+        answer = _content_text(response)
+        correction = await _validate_answer(question, answer, strategy_block)
+        if correction is None or attempt == 1:
+            return answer
+        messages = [
+            *messages,
+            AIMessage(answer),
+            HumanMessage(f"That doesn't hold up: {correction}. Try again, fixing only that issue."),
+        ]
+    raise AssertionError("unreachable")
 
 
 async def asummarize_strategy(archetype: str | None, body: str) -> dict:

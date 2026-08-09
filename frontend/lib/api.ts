@@ -733,6 +733,7 @@ export const api = {
     windowStart: string | null,
     windowEnd: string | null,
     lastResult?: BacktestResult | null,
+    history?: [string, string][],
   ) => {
     const q = new URLSearchParams();
     q.set("message", message);
@@ -740,6 +741,7 @@ export const api = {
     if (windowStart) q.set("window_start", windowStart);
     if (windowEnd) q.set("window_end", windowEnd);
     if (lastResult) q.set("result", JSON.stringify(lastResult));
+    if (history && history.length > 0) q.set("history", JSON.stringify(history));
     return `${WS}/api/backtest/chat?${q.toString()}`;
   },
   listBacktestChatSessions: () => getJSON<BacktestChatSessionSummary[]>("/api/backtest/chat-sessions"),

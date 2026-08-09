@@ -1570,6 +1570,9 @@ export default function BacktestChat({
       runSlashCommand(message);
       return;
     }
+    const history: [string, string][] = messages
+      .filter((m): m is Extract<ChatItem, { kind: "text" }> => m.kind === "text" && m.done)
+      .map((m) => [m.role, m.text]);
     setInput("");
     setError(null);
     setMessages((prev) => [
@@ -1580,7 +1583,14 @@ export default function BacktestChat({
     setWaiting(true);
     let assistantId: number | null = null;
 
-    const url = await api.backtestChatStreamUrl(configRef.current, message, windowStart, windowEnd, lastResult);
+    const url = await api.backtestChatStreamUrl(
+      configRef.current,
+      message,
+      windowStart,
+      windowEnd,
+      lastResult,
+      history,
+    );
     const ws = new WebSocket(url);
     ws.onmessage = (ev) => {
       const msg: BacktestChatEvent = JSON.parse(ev.data);
