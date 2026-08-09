@@ -217,6 +217,8 @@ function LoadStrategyMenu({ onLoad }: { onLoad: (ruleSet: StrategyRuleSet, note:
     try {
       await api.regenerateStrategy(noteId);
       await selectStrategy(noteId);
+    } catch {
+      setSelected({ status: "failed", noteId, error: "Couldn't regenerate this strategy." });
     } finally {
       setRetrying(false);
     }
