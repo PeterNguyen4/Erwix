@@ -23,8 +23,10 @@ from app.schemas import (
     DebriefStatus,
 )
 from app.config import get_settings
+from app.dependencies.guardrails import check_ws_guardrail_input, guardrail_input_or_raise
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.services.agent_graph import arun_ask, astream_ask, astream_review, exit_guidance, run_review
+from app.services.guardrails import scan_output
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services import live_feed
 from app.services.reference_resolver import resolve_references
@@ -129,6 +131,13 @@ async def debrief(
         await websocket.send_json({"type": "error", "detail": rate_limit_error})
         await websocket.close(code=1008)
         return
+
+    if query:
+        guardrail_error = await check_ws_guardrail_input(query)
+        if guardrail_error:
+            await websocket.send_json({"type": "error", "detail": guardrail_error})
+            await websocket.close(code=1008)
+            return
 
     try:
         async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
@@ -566,6 +575,8 @@ async def ask_debrief(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> DebriefMessage:
+    guardrail_input_or_raise(body.message)
+
     try:
         report, window_context = await _resolve_ask_report(db, user_id, body.report_id)
     except ValueError as exc:
@@ -588,6 +599,11 @@ async def ask_debrief(
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    output_violation = scan_output(reply)
+    if output_violation:
+        logger.warning("output guardrail triggered in ask_debrief: %s", output_violation)
+        raise HTTPException(status_code=502, detail=output_violation)
 
     assistant_message = DebriefMessage(
         report_id=report.id, role="assistant", content=reply, tool_provenance=provenance
@@ -612,6 +628,12 @@ async def ask_debrief_stream(
     rate_limit_error = await check_ws_rate_limit(user_id, "agent-llm", limit=10, window_ms=60_000, fail_open=False)
     if rate_limit_error:
         await websocket.send_json({"type": "error", "detail": rate_limit_error})
+        await websocket.close(code=1008)
+        return
+
+    guardrail_error = await check_ws_guardrail_input(message)
+    if guardrail_error:
+        await websocket.send_json({"type": "error", "detail": guardrail_error})
         await websocket.close(code=1008)
         return
 
@@ -655,10 +677,15 @@ async def ask_debrief_stream(
                 ordered_parts.append({"type": "tool_call", "tool": event["tool"], "args": event["args"]})
             await websocket.send_json(event)
 
+        full_reply = "".join(reply_parts)
+        output_violation = scan_output(full_reply)
+        if output_violation:
+            logger.warning("output guardrail triggered in ask_debrief_stream: %s", output_violation)
+
         assistant_message = DebriefMessage(
             report_id=report.id,
             role="assistant",
-            content="".join(reply_parts),
+            content=full_reply,
             tool_provenance=provenance,
             parts=ordered_parts,
         )
