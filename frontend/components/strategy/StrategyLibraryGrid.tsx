@@ -181,7 +181,7 @@ export default function StrategyLibraryGrid({
   const archetypeName = (id: string | null) => archetypes.find((a) => a.id === id)?.name ?? null;
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-4">
+    <div className="mx-auto grid max-w-[67rem] grid-cols-[repeat(auto-fill,16rem)] justify-center gap-4">
       {strategies.map((s) => (
         <StrategyCard
           key={s.id}
@@ -196,7 +196,7 @@ export default function StrategyLibraryGrid({
 
       <button
         onClick={onAdd}
-        className="flex min-h-[14rem] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-panel/40 text-muted transition-colors hover:border-accent hover:bg-fg/5 hover:text-fg"
+        className="flex min-h-[14rem] w-64 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-panel/40 text-muted transition-colors hover:border-accent hover:bg-fg/5 hover:text-fg"
       >
         <Plus size={20} strokeWidth={2} />
         <span className="text-sm font-medium">Add Strategy</span>

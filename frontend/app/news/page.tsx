@@ -70,8 +70,8 @@ export default function NewsPage() {
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <div className="flex-1 overflow-auto p-3">
+        <div className="mx-auto flex max-w-3xl flex-col gap-3">
           {error && (
             <div className="rounded-lg border border-down/40 bg-down/10 px-4 py-2 text-sm text-down">{error}</div>
           )}

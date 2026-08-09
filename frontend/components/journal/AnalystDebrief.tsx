@@ -223,7 +223,7 @@ export default function AnalystDebrief({ request, onClose, onSpotlight, onFinish
           </div>
         </div>
 
-        <div className="grid flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:overflow-hidden">
+        <div className="grid flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-2 lg:overflow-hidden">
           <div className="flex min-h-[420px] flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
             <div ref={scrollRef} className="flex-1 space-y-3 overflow-auto px-4 py-3">
               {chatMessages}

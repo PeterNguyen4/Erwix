@@ -10,9 +10,7 @@ import RecentTransactions from "@/components/journal/RecentTransactions";
 import Watchlist from "@/components/journal/Watchlist";
 import Sparkline from "@/components/journal/Sparkline";
 import AnalystDebrief from "@/components/journal/AnalystDebrief";
-import DebriefScheduleSettings from "@/components/journal/DebriefScheduleSettings";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
-import { useAuth } from "@/components/AuthProvider";
 
 function WeekDelta({ value }: { value: number | null }) {
   if (value == null || Number.isNaN(value) || value === 0) return null;
@@ -60,7 +58,6 @@ function StatChip({ chip }: { chip: Chip }) {
 }
 
 export default function PortfolioPage() {
-  const { isAdmin } = useAuth();
   const [account, setAccount] = useState<Account | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [positionsLoading, setPositionsLoading] = useState(true);
@@ -177,20 +174,10 @@ export default function PortfolioPage() {
         <div className="text-xl font-normal text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted">Paper account</div>
-          {process.env.NODE_ENV !== "production" && isAdmin && (
-            <button
-              onClick={() => api.resetDebrief().then(() => api.generateDebriefNow())}
-              title="Dev: resets last_debrief_at and immediately starts generating a debrief report, bypassing the schedule"
-              className="rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted transition-colors hover:border-accent hover:text-fg"
-            >
-              Dev: Generate Debrief Now
-            </button>
-          )}
-          <DebriefScheduleSettings />
         </div>
       </header>
 
-      <div className="flex-1 p-4 space-y-4">
+      <div className="flex-1 p-3 space-y-3">
         {error && (
           <div className="rounded-lg border border-down/40 bg-down/10 px-4 py-2 text-sm text-down">
             {error}
@@ -198,7 +185,7 @@ export default function PortfolioPage() {
         )}
 
         {/* Portfolio value graph (2/3) + total assets (1/3) */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <PortfolioChart
               points={history?.points ?? []}
@@ -213,10 +200,10 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
           <RecentTransactions onDebriefTrade={setDebriefRequest} />
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {pnlLoading || !chips
                 ? Array.from({ length: 4 }).map((_, i) => (
@@ -227,7 +214,7 @@ export default function PortfolioPage() {
                   ))
                 : chips.map((c) => <StatChip key={c.key} chip={c} />)}
             </div>
-            <div className="grid grid-cols-2 items-start gap-4">
+            <div className="grid grid-cols-2 items-start gap-3">
               <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
               <Watchlist />
             </div>

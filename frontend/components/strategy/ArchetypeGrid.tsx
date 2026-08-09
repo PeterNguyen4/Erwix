@@ -11,7 +11,7 @@ interface Props {
 
 export default function ArchetypeGrid({ archetypes, selected, onSelect }: Props) {
   return (
-    <div className="grid max-w-[67rem] grid-cols-[repeat(auto-fill,16rem)] gap-4">
+    <div className="mx-auto grid max-w-[67rem] grid-cols-[repeat(auto-fill,16rem)] justify-center gap-4">
       {archetypes.map((a) => {
         const presentation = presentationFor(a.id);
         const Icon = presentation.icon;

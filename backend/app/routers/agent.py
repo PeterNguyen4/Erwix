@@ -18,6 +18,8 @@ from app.schemas import (
     DebriefAskIn,
     DebriefMessageOut,
     DebriefReportOut,
+    DebriefSessionOut,
+    DebriefSessionRenameIn,
     DebriefStatus,
 )
 from app.config import get_settings
@@ -379,6 +381,79 @@ async def latest_debrief_report(
         .limit(1)
     )
     return _report_out(report) if report else None
+
+
+@router.get("/debrief/sessions", response_model=list[DebriefSessionOut])
+async def list_debrief_sessions(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> list[dict]:
+    """Display all chat sessions."""
+    reports = (
+        await db.scalars(
+            select(DebriefReport)
+            .where(DebriefReport.user_id == user_id, DebriefReport.report_type == "ask")
+            .order_by(DebriefReport.created_at.desc())
+        )
+    ).all()
+    sessions = []
+    for report in reports:
+        if report.query:
+            title = report.query
+        else:
+            first_message = await db.scalar(
+                select(DebriefMessage.content)
+                .where(DebriefMessage.report_id == report.id, DebriefMessage.role == "user")
+                .order_by(DebriefMessage.created_at.asc())
+                .limit(1)
+            )
+            title = (first_message or "New chat")[:80]
+        sessions.append({"id": report.id, "created_at": report.created_at, "title": title})
+    return sessions
+
+
+@router.post("/debrief/sessions", response_model=DebriefSessionOut)
+async def create_debrief_session(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> dict:
+    """Create new session on clear."""
+    now = datetime.now(timezone.utc)
+    report = DebriefReport(user_id=user_id, report_type="ask", status="ready", scheduled_for=now, steps=[])
+    db.add(report)
+    await db.commit()
+    await db.refresh(report)
+    return {"id": report.id, "created_at": report.created_at, "title": "New chat"}
+
+
+@router.patch("/debrief/sessions/{report_id}", response_model=DebriefSessionOut)
+async def rename_debrief_session(
+    report_id: int,
+    body: DebriefSessionRenameIn,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> dict:
+    report = await db.get(DebriefReport, report_id)
+    if report is None or report.user_id != user_id or report.report_type != "ask":
+        raise HTTPException(status_code=404, detail="session not found")
+    report.query = body.title.strip()[:80] or None
+    await db.commit()
+    return {"id": report.id, "created_at": report.created_at, "title": report.query or "New chat"}
+
+
+@router.delete("/debrief/{report_id}", status_code=204)
+async def delete_debrief_session(
+    report_id: int,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
+) -> None:
+    """Clear debrief chat session."""
+    report = await db.get(DebriefReport, report_id)
+    if report is None or report.user_id != user_id or report.report_type != "ask":
+        raise HTTPException(status_code=404, detail="session not found")
+    await db.execute(delete(DebriefMessage).where(DebriefMessage.report_id == report_id))
+    await db.delete(report)
+    await db.commit()
 
 
 @router.get("/debrief/{report_id}", response_model=DebriefReportOut)

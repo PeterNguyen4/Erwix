@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
@@ -52,3 +53,29 @@ class BacktestResult(BaseModel):
     trades: list[BacktestTrade]
     equity_curve: list[dict]  # [{time, equity, profit_loss}, ...]
     stats: dict[str, float]
+
+
+class BacktestChatSessionSummary(BaseModel):
+    id: int
+    title: str
+    updated_at: datetime
+
+
+class BacktestChatSessionOut(BaseModel):
+    id: int
+    title: str
+    config: BacktestConfig
+    messages: list[dict] = Field(default_factory=list)
+    input: str = ""
+    window_start: str | None = None
+    window_end: str | None = None
+    updated_at: datetime
+
+
+class BacktestChatSessionIn(BaseModel):
+    title: str
+    config: BacktestConfig
+    messages: list[dict] = Field(default_factory=list)
+    input: str = ""
+    window_start: str | None = None
+    window_end: str | None = None

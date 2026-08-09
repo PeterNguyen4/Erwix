@@ -79,7 +79,7 @@ function ChartSkeleton() {
 
 function QuoteCardSkeleton() {
   return (
-    <div className="rounded-lg border border-border bg-panel p-4">
+    <div className="rounded-lg border border-border bg-panel p-3">
       <div className="mb-2 flex items-baseline gap-2">
         <div className="h-4 w-14 animate-pulse rounded bg-border/40" />
         <div className="h-3 w-24 animate-pulse rounded bg-border/40" />
@@ -363,7 +363,7 @@ function ChartPage() {
         </div>
       </header>
 
-      <div className="grid flex-1 min-h-0 grid-cols-1 gap-4 p-4 lg:grid-rows-1 lg:grid-cols-[1fr_320px] lg:overflow-hidden">
+      <div className="grid flex-1 min-h-0 grid-cols-1 gap-3 p-3 lg:grid-rows-1 lg:grid-cols-[1fr_320px] lg:overflow-hidden">
         <div className="flex h-[480px] shrink-0 flex-col overflow-hidden lg:h-auto lg:min-h-0">
           <div className="relative flex-1 min-h-0 rounded-lg border border-auth-field/40 bg-bg overflow-hidden">
             {error ? (
@@ -399,7 +399,7 @@ function ChartPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 lg:overflow-auto">
+        <div className="flex flex-col gap-3 lg:overflow-auto">
           {prefsResolved ? (
             <QuoteCard symbol={symbol} symbolName={symbolName} candles={candles} liveQuote={liveQuote} />
           ) : (

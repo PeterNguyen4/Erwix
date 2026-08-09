@@ -38,8 +38,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center w-full h-screen bg-auth-bg p-6 gap-6">
-      <div className="hidden lg:flex relative w-1/2 h-full flex-col justify-between p-10 overflow-hidden rounded-3xl">
+    <div className="flex items-center w-full h-screen bg-auth-bg p-4 gap-4 2xl:p-6 2xl:gap-6">
+      <div className="hidden lg:flex relative w-1/2 h-full flex-col justify-between p-6 2xl:p-10 overflow-hidden rounded-3xl">
         <Image
           src="/image-card.jpg"
           alt=""
@@ -50,11 +50,11 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute inset-0 bg-auth-panel-via/50" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="relative z-10 flex items-center gap-2">
-          <Image src="/entro-white.svg" alt="Entro" width={32} height={32} />
-          <span className="text-3xl font-normal text-zinc-100 leading-tight">Entro</span>
+          <Image src="/entro-white.svg" alt="Entro" width={30} height={30} />
+          <span className="text-2xl 2xl:text-3xl font-normal text-zinc-100 leading-tight">Entro</span>
         </div>
         <div className="relative z-10">
-          <h2 className="text-4xl font-normal text-zinc-100 leading-tight">
+          <h2 className="text-3xl 2xl:text-4xl font-normal text-zinc-100 leading-tight">
             Strategize, Test, Trade
           </h2>
         </div>
@@ -63,10 +63,10 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center px-6">
         <form
             onSubmit={handleSubmit}
-            className="flex flex-col gap-4 w-full max-w-sm"
+            className="flex flex-col gap-3 2xl:gap-4 w-full max-w-xs 2xl:max-w-sm"
           >
-            <div className="mb-3">
-              <h1 className="text-4xl font-normal text-zinc-100">
+            <div className="mb-2 2xl:mb-3">
+              <h1 className="text-3xl 2xl:text-4xl font-normal text-zinc-100">
                 {mode === "login" ? "Log in" : mode === "register" ? "Create an account" : "Reset your password"}
               </h1>
               {mode === "register" && (
@@ -94,7 +94,7 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="px-3 py-2.5 rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
+                className="px-3 py-2 2xl:py-2.5 text-sm 2xl:text-base rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
               />
             )}
             <input
@@ -103,7 +103,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="px-3 py-2.5 rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
+              className="px-3 py-2 2xl:py-2.5 text-sm 2xl:text-base rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
             />
             {mode !== "forgot" && (
               <input
@@ -113,7 +113,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={8}
-                className="px-3 py-2.5 rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
+                className="px-3 py-2 2xl:py-2.5 text-sm 2xl:text-base rounded-lg bg-auth-field text-gray-100 placeholder-gray-500 border border-transparent focus:outline-none focus:border-violet-300"
               />
             )}
 
@@ -123,7 +123,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-4 px-3 py-2.5 rounded-lg bg-auth-button hover:bg-auth-button-hover text-zinc-100 font-medium disabled:opacity-50 transition-colors"
+              className="mt-4 px-3 py-2 2xl:py-2.5 text-sm 2xl:text-base rounded-lg bg-auth-button hover:bg-auth-button-hover text-zinc-100 font-medium disabled:opacity-50 transition-colors"
             >
               {submitting
                 ? "Please wait…"

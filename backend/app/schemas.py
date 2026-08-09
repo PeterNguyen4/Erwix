@@ -354,6 +354,16 @@ class DebriefMessageOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DebriefSessionOut(BaseModel):
+    id: int
+    title: str
+    created_at: datetime
+
+
+class DebriefSessionRenameIn(BaseModel):
+    title: str
+
+
 # ---- User Preferences ----
 class UserPreferenceOut(BaseModel):
     last_symbol: str = "AAPL"

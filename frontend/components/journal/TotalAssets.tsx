@@ -118,14 +118,24 @@ export default function TotalAssets({ positions, loading }: { positions: Positio
                     {p.qty} share{p.qty === 1 ? "" : "s"}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="tabular-nums text-fg">
-                    {p.current_price != null ? fmtUsd(p.current_price) : "—"}
+                <div className="flex items-center gap-2.5">
+                  <div className="text-right">
+                    <div className="tabular-nums text-fg">
+                      {p.current_price != null ? fmtUsd(p.current_price) : "—"}
+                    </div>
+                    <div className={`mt-0.5 text-xs tabular-nums ${up ? "text-up" : "text-down"}`}>
+                      {up ? "+" : ""}
+                      {fmtUsd(p.unrealized_pl)}
+                    </div>
                   </div>
-                  <div className={`text-xs tabular-nums ${up ? "text-up" : "text-down"}`}>
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-1.5 text-xs font-medium tabular-nums ${
+                      up ? "bg-up/15 text-up" : "bg-down/15 text-down"
+                    }`}
+                  >
                     {up ? "+" : ""}
                     {plPct.toFixed(2)}%
-                  </div>
+                  </span>
                 </div>
               </button>
             );
