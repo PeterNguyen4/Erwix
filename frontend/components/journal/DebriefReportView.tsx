@@ -141,7 +141,7 @@ export default function DebriefReportView({ report, onClose, onSpotlight, varian
     return (
       <div className="flex h-full flex-col overflow-hidden">
         {navHeader}
-        <div className="grid flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:overflow-hidden">
+        <div className="grid flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-2 lg:overflow-hidden">
           <div className="flex min-h-[420px] flex-col overflow-hidden rounded-lg border border-border bg-panel lg:min-h-0">
             {report.status === "ready" ? (
               <DebriefChat reportId={report.id} />

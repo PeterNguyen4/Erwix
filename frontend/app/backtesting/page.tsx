@@ -286,8 +286,8 @@ export default function BacktestingPage() {
         </div>
       )}
 
-      <div className="grid flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:overflow-hidden">
-        <div className="flex flex-col gap-4 lg:min-h-0 lg:overflow-hidden">
+      <div className="grid flex-1 grid-cols-1 gap-3 p-3 lg:grid-cols-2 lg:overflow-hidden">
+        <div className="flex flex-col gap-3 lg:min-h-0 lg:overflow-hidden">
           <div className="flex min-h-[420px] flex-1 flex-col rounded-lg border border-border bg-panel lg:min-h-0 lg:overflow-hidden">
             <div className="flex-1 lg:min-h-0">
               <BacktestChat

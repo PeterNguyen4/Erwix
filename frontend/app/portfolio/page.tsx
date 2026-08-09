@@ -177,7 +177,7 @@ export default function PortfolioPage() {
         </div>
       </header>
 
-      <div className="flex-1 p-4 space-y-4">
+      <div className="flex-1 p-3 space-y-3">
         {error && (
           <div className="rounded-lg border border-down/40 bg-down/10 px-4 py-2 text-sm text-down">
             {error}
@@ -185,7 +185,7 @@ export default function PortfolioPage() {
         )}
 
         {/* Portfolio value graph (2/3) + total assets (1/3) */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <PortfolioChart
               points={history?.points ?? []}
@@ -200,10 +200,10 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
           <RecentTransactions onDebriefTrade={setDebriefRequest} />
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {pnlLoading || !chips
                 ? Array.from({ length: 4 }).map((_, i) => (
@@ -214,7 +214,7 @@ export default function PortfolioPage() {
                   ))
                 : chips.map((c) => <StatChip key={c.key} chip={c} />)}
             </div>
-            <div className="grid grid-cols-2 items-start gap-4">
+            <div className="grid grid-cols-2 items-start gap-3">
               <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
               <Watchlist />
             </div>

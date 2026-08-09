@@ -857,17 +857,17 @@ function CategoryCard({
   return (
     <div
       onClick={isEmpty ? onClickEmpty : undefined}
-      className={`min-w-0 rounded-lg border px-3 py-2.5 transition-colors ${
+      className={`min-w-0 rounded-lg border px-2.5 py-2 transition-colors 2xl:px-3 2xl:py-2.5 ${
         isEmpty
           ? `border-dashed border-border/50 bg-panel/20 text-muted ${onClickEmpty ? "cursor-pointer hover:border-border hover:bg-panel/40" : ""}`
           : "border-border/60 bg-panel/50"
       } ${className ?? ""}`}
     >
-      <div className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wide ${isEmpty ? "text-muted" : accentClass}`}>
-        <Icon size={16} strokeWidth={2.2} />
+      <div className={`mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold tracking-wide 2xl:mb-2 2xl:text-xs ${isEmpty ? "text-muted" : accentClass}`}>
+        <Icon size={14} strokeWidth={2.2} />
         {label}
       </div>
-      {isEmpty ? <div className="text-xs leading-snug text-muted">{emptyHint}</div> : <div className="space-y-1.5">{children}</div>}
+      {isEmpty ? <div className="text-[11px] leading-snug text-muted 2xl:text-xs">{emptyHint}</div> : <div className="space-y-1 2xl:space-y-1.5">{children}</div>}
     </div>
   );
 }
@@ -983,17 +983,17 @@ function ConfigSummaryCard({
   const hasRisk = Boolean(config.stop_loss || config.take_profit);
 
   return (
-    <div className="w-full rounded-2xl border border-violet-400/30 bg-violet-500/5 px-3 py-2.5 text-sm">
-      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+    <div className="w-full rounded-2xl border border-violet-400/30 bg-violet-500/5 px-2.5 py-2 text-xs 2xl:px-3 2xl:py-2.5 2xl:text-sm">
+      <div className="mb-1.5 flex items-center justify-between gap-2 px-1 2xl:mb-2">
         <input
           type="text"
           value={config.name}
           onChange={(e) => onRename(e.target.value)}
           placeholder="Plan"
-          className="min-w-0 flex-1 truncate rounded bg-transparent text-sm font-semibold text-fg outline-none placeholder:text-muted hover:bg-panel/60 focus:bg-panel/60 focus:px-1 focus:-mx-1"
+          className="min-w-0 flex-1 truncate rounded bg-transparent text-xs font-semibold text-fg outline-none placeholder:text-muted hover:bg-panel/60 focus:bg-panel/60 focus:px-1 focus:-mx-1 2xl:text-sm"
         />
         <div className="flex shrink-0 items-center gap-1.5">
-          <span className="rounded-full bg-border/60 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-muted">
+          <span className="rounded-full bg-border/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted 2xl:text-xs">
             {config.direction}
           </span>
           <button
@@ -1001,15 +1001,15 @@ function ConfigSummaryCard({
             onClick={onRun}
             disabled={running || !canRun}
             aria-label="Run backtest"
-            className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50"
+            className="flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[10px] font-semibold text-on-accent transition-colors hover:bg-accent/80 disabled:opacity-50 2xl:text-xs"
           >
-            {running ? <Loader2 size={14} strokeWidth={2.5} className="animate-spin" /> : <Play size={14} strokeWidth={2.5} />}
+            {running ? <Loader2 size={12} strokeWidth={2.5} className="animate-spin" /> : <Play size={12} strokeWidth={2.5} />}
             {running ? "Running…" : "Run"}
           </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-1.5 2xl:gap-2">
         <CategoryCard
           icon={EntryIcon}
           label="Entry"
