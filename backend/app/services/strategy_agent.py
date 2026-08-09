@@ -6,16 +6,18 @@ Reuses agent_graph._base_model() rather than re-deriving provider selection
 (Anthropic/Ollama) here — that branching is meant to stay in one place.
 """
 
+import json
 from typing import Literal
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas import Candle
 from app.schemas_strategy import StrategyRuleSet
 from app.services.agent_graph import _base_model
 from app.services.rule_engine import evaluate_rule
-from app.services.strategy import archetype_name
+from app.services.strategy import archetype_name, get_active_strategy, render_playbook
 
 STRATEGIST_SYSTEM_PROMPT = (
     "You are a trading strategist. A trader has chosen an archetype and described their "
@@ -39,6 +41,47 @@ class StrategyPlaybook(BaseModel):
     risk_rules: list[str] = Field(description="1-3 short bullets on position sizing/stop rules")
     timeframe: list[str] = Field(description="1-3 short bullets on typical holding period")
     avoid: list[str] = Field(description="1-3 short bullets on what to avoid")
+
+
+async def get_strategy_context(db: AsyncSession, user_id: int) -> tuple[str, str] | None:
+    """The trader's active strategy as (archetype_label, rendered_playbook), or
+    None if they haven't stated one. Shared by every prompt that references the
+    trader's strategy — do not re-fetch/re-render this inline elsewhere."""
+    strategy = await get_active_strategy(db, user_id)
+    if not strategy or not strategy.structured_summary:
+        return None
+    try:
+        rendered = render_playbook(json.loads(strategy.structured_summary))
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        rendered = strategy.structured_summary  # legacy plain-text summary, pre-JSON playbooks
+    label = archetype_name(strategy.archetype) or "Custom"
+    return label, rendered
+
+
+ANSWER_QUESTION_SYSTEM_PROMPT = (
+    "You are a trading strategist answering a question about the trader's own stated "
+    "strategy/playbook. Be concrete and reference their actual rules — don't give generic "
+    "trading advice divorced from what they told you. If they haven't stated a strategy, say "
+    "so plainly rather than inventing one. Answer in 2-4 sentences, plain text, no markdown."
+)
+
+
+async def answer_strategy_question(db: AsyncSession, user_id: int, question: str) -> str:
+    """Answer user questions about their strategy."""
+    ctx = await get_strategy_context(db, user_id)
+    if ctx:
+        label, rendered = ctx
+        strategy_block = f"The trader's stated strategy ({label}):\n{rendered}"
+    else:
+        strategy_block = "The trader has not stated a strategy yet."
+    model = _base_model(num_predict=300)
+    response = await model.ainvoke(
+        [SystemMessage(ANSWER_QUESTION_SYSTEM_PROMPT), HumanMessage(f"{strategy_block}\n\nQuestion: {question}")]
+    )
+    text = response.content
+    if isinstance(text, list):
+        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
+    return text.strip().strip('"“”')
 
 
 async def asummarize_strategy(archetype: str | None, body: str) -> dict:

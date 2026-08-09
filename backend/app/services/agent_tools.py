@@ -8,7 +8,6 @@ LangChain tool args must be model-controllable and can't include an AsyncSession
 """
 
 import asyncio
-import json
 from datetime import datetime
 
 from langchain_core.tools import BaseTool, tool
@@ -16,23 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.embeddings import build_trade_text
 from app.services.news import fetch_news
-from app.services.strategy import archetype_name, get_active_strategy, render_playbook
 from app.services.trade_retrieval import compute_pnl_summary_pair, get_trades_window, semantic_search
 
 
 async def get_strategy_context(db: AsyncSession, user_id: int) -> tuple[str, str] | None:
-    """The trader's active strategy as (archetype_label, rendered_playbook), or
-    None if they haven't stated one. Shared by every prompt that references the
-    trader's strategy — do not re-fetch/re-render this inline elsewhere."""
-    strategy = await get_active_strategy(db, user_id)
-    if not strategy or not strategy.structured_summary:
-        return None
-    try:
-        rendered = render_playbook(json.loads(strategy.structured_summary))
-    except (json.JSONDecodeError, TypeError, AttributeError):
-        rendered = strategy.structured_summary  # legacy plain-text summary, pre-JSON playbooks
-    label = archetype_name(strategy.archetype) or "Custom"
-    return label, rendered
+    """Thin re-export — strategy_agent.py owns this capability (like news_agent owns
+    build_market_insight). Lazy import to avoid a circular import: agent_graph imports this
+    module, and strategy_agent imports agent_graph._base_model."""
+    from app.services.strategy_agent import get_strategy_context as _get_strategy_context
+
+    return await _get_strategy_context(db, user_id)
 
 
 def _parse_iso(value: str) -> datetime:
@@ -53,6 +45,21 @@ def make_strategy_context_tool(db: AsyncSession, user_id: int, lock: asyncio.Loc
         return f"The trader's stated strategy ({label}):\n{rendered}"
 
     return strategy_context
+
+
+def make_strategy_advice_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
+    @tool
+    async def strategy_advice(question: str) -> str:
+        """Ask the strategy specialist a judgment-call question about the trader's own stated
+        strategy (e.g. 'does this trade fit my strategy', 'what's my risk rule again') — prefer
+        this over strategy_context when the question needs interpretation/reasoning, not just
+        the raw playbook text."""
+        from app.services.strategy_agent import answer_strategy_question
+
+        async with lock:
+            return await answer_strategy_question(db, user_id, question)
+
+    return strategy_advice
 
 
 def make_compare_trade_windows_tool(db: AsyncSession, user_id: int, lock: asyncio.Lock) -> BaseTool:
@@ -180,6 +187,7 @@ def build_retrieval_tools(db: AsyncSession, user_id: int) -> list[BaseTool]:
     lock = asyncio.Lock()
     return [
         make_strategy_context_tool(db, user_id, lock),
+        make_strategy_advice_tool(db, user_id, lock),
         make_compare_trade_windows_tool(db, user_id, lock),
         make_fetch_trades_window_tool(db, user_id, lock),
         make_search_trades_tool(db, user_id, lock),

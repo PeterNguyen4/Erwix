@@ -301,6 +301,7 @@ export default function BacktestingPage() {
                 onUpdateWindowStart={setWindowStart}
                 onUpdateWindowEnd={setWindowEnd}
                 hasResult={result !== null}
+                lastResult={result}
                 chartSymbol={chartSymbol}
                 chartTimeframe={chartTimeframe}
               />

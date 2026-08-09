@@ -28,7 +28,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models import Trade
-from app.services.agent_tools import build_retrieval_tools, get_strategy_context
+from app.services.agent_tools import build_retrieval_tools
+
+# Lazy import inside functions, not here: strategy_agent imports _base_model from this module.
 from app.services.embeddings import build_trade_text
 from app.services.trade_retrieval import get_trades_window, primary_symbol, semantic_search
 
@@ -231,6 +233,8 @@ async def _system_prompt(db: AsyncSession, user_id: int) -> str:
     """Base analyst system prompt, plus the trader's own stated strategy
     (Strategy tab) when one exists, so the review can reference whether the
     trader is following their own rules."""
+    from app.services.strategy_agent import get_strategy_context
+
     ctx = await get_strategy_context(db, user_id)
     if ctx:
         label, rendered = ctx
@@ -467,6 +471,8 @@ async def exit_guidance(
     take_profit_price: float | None,
 ) -> str:
     """Narrates stop-loss/take-profit just-breached for the live rule-watch loop."""
+    from app.services.strategy_agent import get_strategy_context
+
     ctx = await get_strategy_context(db, user_id)
     strategy_line = ""
     if ctx:
@@ -567,8 +573,10 @@ ROUTER_SYSTEM_PROMPT = (
     "semantically search their full trade history, fetch raw news headlines for symbols they "
     "traded, and market_insight — a news specialist that judges sentiment and gives "
     "strategy-conditioned advice from those same headlines, so prefer it over fetch_symbol_news "
-    "whenever the question needs a read on the news, not just the headline list. Call whichever "
-    "combination of tools actually answers the question — e.g. 'what went wrong this week' "
+    "whenever the question needs a read on the news, not just the headline list. Likewise prefer "
+    "strategy_advice over strategy_context whenever the question needs judgment/interpretation "
+    "of the trader's strategy (e.g. whether a trade fits it), not just the raw playbook text. "
+    "Call whichever combination of tools actually answers the question — e.g. 'what went wrong this week' "
     "likely needs this week's trades, a comparison to last week, and market_insight for the "
     "symbols involved; a question about one trade may need none of the comparison/news tools at "
     "all. You may call several tools in one turn. Once you have enough information, answer "

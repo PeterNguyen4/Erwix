@@ -1,18 +1,17 @@
-"""Config-chat agent: turns plain text into a BacktestConfig patch.
-"""
-
 import re
 from datetime import date
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.tools import BaseTool, tool
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.schemas_backtest import BacktestConfig
+from app.schemas_backtest import BacktestConfig, BacktestResult
 from app.services.agent_graph import ANALYST_MODEL
 
 
@@ -150,6 +149,76 @@ def _changed_card(
     return None
 
 
+DELEGATE_SYSTEM_PROMPT = (
+    "You are uWick, helping a trader build a backtest config. Most messages are instructions "
+    "to edit the config, but if the trader is instead asking a question about their stated "
+    "strategy, asking for a market/news read, or asking about the results of a backtest they "
+    "already ran, call the matching tool instead of trying to force it into a config edit. Only "
+    "call a tool when the message is clearly that kind of question — otherwise call nothing."
+)
+
+
+def _make_ask_strategy_tool(db: AsyncSession, user_id: int) -> BaseTool:
+    @tool
+    async def ask_strategy(question: str) -> str:
+        """The trader is asking a judgment-call question about their own stated strategy —
+        e.g. 'does this fit my strategy', 'what's my risk rule again' — not asking to edit
+        the config."""
+        from app.services.strategy_agent import answer_strategy_question
+
+        return await answer_strategy_question(db, user_id, question)
+
+    return ask_strategy
+
+
+def _make_ask_news_tool(db: AsyncSession, user_id: int, default_symbol: str) -> BaseTool:
+    @tool
+    async def ask_news(symbol: str | None = None) -> str:
+        """The trader is asking for a news/market read, not a config edit. symbol defaults to
+        the backtest's own symbol if not given."""
+        from app.services.news import fetch_news
+        from app.services.news_agent import build_market_insight
+
+        sym = (symbol or default_symbol).upper()
+        articles = await fetch_news([sym], limit_per_symbol=6)
+        if not articles:
+            return f"No recent headlines found for {sym}."
+        insight = await build_market_insight(db, user_id, articles)
+        lines = [f"Sentiment: {insight.sentiment}", f"Advice: {insight.advice}"]
+        if insight.rationale:
+            lines.append("Rationale: " + "; ".join(insight.rationale))
+        return "\n".join(lines)
+
+    return ask_news
+
+
+def _make_ask_report_tool(result: BacktestResult | None) -> BaseTool:
+    @tool
+    async def ask_report(question: str) -> str:
+        """The trader is asking about the results of a backtest they already ran (win rate,
+        drawdown, a specific trade, the equity curve) — not a config edit."""
+        if result is None:
+            return "No backtest has been run yet in this session — nothing to report on."
+        stats_block = "\n".join(f"{k}: {v}" for k, v in result.stats.items())
+        prompt = (
+            f"Backtest stats:\n{stats_block}\n\n{len(result.trades)} trades total.\n\n"
+            f"Question: {question}"
+        )
+        model = _base_model()
+        response = await model.ainvoke(
+            [
+                SystemMessage(
+                    "You are a backtest analyst. Answer concisely (2-3 sentences) using only the "
+                    "stats given — don't invent numbers not present."
+                ),
+                HumanMessage(prompt),
+            ]
+        )
+        return _content_text(response)
+
+    return ask_report
+
+
 def _content_text(response) -> str:
     content = response.content
     if isinstance(content, list):
@@ -158,11 +227,32 @@ def _content_text(response) -> str:
 
 
 async def astream_config_chat(
+    db: AsyncSession,
+    user_id: int,
     current_config: BacktestConfig,
     message: str,
     window_start: str | None = None,
     window_end: str | None = None,
+    last_result: BacktestResult | None = None,
 ):
+    delegate_tools = [
+        _make_ask_strategy_tool(db, user_id),
+        _make_ask_news_tool(db, user_id, current_config.symbol),
+        _make_ask_report_tool(last_result),
+    ]
+    tools_by_name = {t.name: t for t in delegate_tools}
+    delegate_model = _base_model().bind_tools(delegate_tools)
+    delegate_response = await delegate_model.ainvoke(
+        [SystemMessage(DELEGATE_SYSTEM_PROMPT), HumanMessage(message)]
+    )
+    delegate_calls = getattr(delegate_response, "tool_calls", None) or []
+    if delegate_calls:
+        call = delegate_calls[0]
+        answer = await tools_by_name[call["name"]].ainvoke(call["args"])
+        yield {"type": "token", "text": str(answer)}
+        yield {"type": "done"}
+        return
+
     verb = "Build" if _is_blank_config(current_config) else "Edit"
     prompt = (
         f"Today's date: {date.today().isoformat()}\n"

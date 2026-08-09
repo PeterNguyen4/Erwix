@@ -10,6 +10,7 @@ import {
   BacktestChatEvent,
   BacktestChatSessionSummary,
   BacktestConfig,
+  BacktestResult,
   BacktestRisk,
   BacktestRule,
   BacktestSizing,
@@ -1209,6 +1210,7 @@ interface BacktestChatProps {
   onUpdateWindowStart: (v: string | null) => void;
   onUpdateWindowEnd: (v: string | null) => void;
   hasResult: boolean;
+  lastResult?: BacktestResult | null;
   chartSymbol: string;
   chartTimeframe: string;
 }
@@ -1224,6 +1226,7 @@ export default function BacktestChat({
   onUpdateWindowStart,
   onUpdateWindowEnd,
   hasResult,
+  lastResult,
   chartSymbol,
   chartTimeframe,
 }: BacktestChatProps) {
@@ -1577,7 +1580,7 @@ export default function BacktestChat({
     setWaiting(true);
     let assistantId: number | null = null;
 
-    const url = await api.backtestChatStreamUrl(configRef.current, message, windowStart, windowEnd);
+    const url = await api.backtestChatStreamUrl(configRef.current, message, windowStart, windowEnd, lastResult);
     const ws = new WebSocket(url);
     ws.onmessage = (ev) => {
       const msg: BacktestChatEvent = JSON.parse(ev.data);
