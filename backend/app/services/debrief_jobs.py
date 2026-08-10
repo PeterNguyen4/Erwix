@@ -28,7 +28,7 @@ from app.services.trade_retrieval import (
     primary_symbol,
 )
 
-logger = logging.getLogger("entro.debrief_jobs")
+logger = logging.getLogger("erwix.debrief_jobs")
 
 DEFAULT_WINDOW = timedelta(days=30)
 

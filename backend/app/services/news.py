@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 
 from app.services.yahoo_finance import yahoo_search
 
-logger = logging.getLogger("entro.news")
+logger = logging.getLogger("erwix.news")
 
 # Broad index proxies used to pull market-wide (not single-ticker) headlines —
 # S&P 500, Dow, Nasdaq, and the VIX (volatility/risk-sentiment stories).

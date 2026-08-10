@@ -11,7 +11,7 @@ from app.error_handling import alpaca_errors
 from app.schemas import Candle, Quote
 from app.services import live_feed
 
-logger = logging.getLogger("entro.market")
+logger = logging.getLogger("erwix.market")
 router = APIRouter(prefix="/api/market", tags=["market"])
 
 _read_rate_limit = rate_limit("market-reads", limit=300, window_ms=60_000, fail_open=True)

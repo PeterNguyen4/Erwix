@@ -1,30 +1,30 @@
 services:
   db:
     image: pgvector/pgvector:pg16
-    container_name: entro-db
+    container_name: erwix-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: entro
-      POSTGRES_PASSWORD: entro
-      POSTGRES_DB: entro
+      POSTGRES_USER: erwix
+      POSTGRES_PASSWORD: erwix
+      POSTGRES_DB: erwix
     ports:
       - "5432:5432"
     volumes:
-      - entro_pgdata:/var/lib/postgresql/data
+      - erwix_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U entro -d entro"]
+      test: ["CMD-SHELL", "pg_isready -U erwix -d erwix"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7-alpine
-    container_name: entro-redis
+    container_name: erwix-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
-      - entro_redisdata:/data
+      - erwix_redisdata:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -32,5 +32,5 @@ services:
       retries: 10
 
 volumes:
-  entro_pgdata:
-  entro_redisdata:
+  erwix_pgdata:
+  erwix_redisdata:

@@ -40,7 +40,7 @@ from app.services.strategy_agent import (
     asummarize_strategy,
 )
 
-logger = logging.getLogger("entro.strategy")
+logger = logging.getLogger("erwix.strategy")
 
 router = APIRouter(
     prefix="/api/strategy",

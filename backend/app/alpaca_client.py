@@ -6,7 +6,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 # Suppress all Alpaca websocket noise — auth failures and retries are handled by
-# _guarded_start_ws and surfaced once through entro.market instead.
+# _guarded_start_ws and surfaced once through erwix.market instead.
 logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
 
 from alpaca.data.historical import StockHistoricalDataClient  # noqa: E402
@@ -150,7 +150,7 @@ def get_quote(symbol: str) -> Quote:
     )
 
 
-# `client_order_id` is how we attribute an Alpaca fill back to the Entro user
+# `client_order_id` is how we attribute an Alpaca fill back to the Erwix user
 # who placed it, since all users currently share one Alpaca account. Format:
 # "<user_id>:<uuid4>" — parsed by `user_id_from_client_order_id` below.
 _CLIENT_ORDER_ID_SEP = ":"
@@ -370,7 +370,7 @@ def get_data_stream() -> StockDataStream:
             except ValueError as e:
                 stream._should_run = False
                 _stream_permanently_failed = True
-                logging.getLogger("entro.market").warning(
+                logging.getLogger("erwix.market").warning(
                     "Alpaca stream auth failed (%s) — live bars unavailable for this session",
                     e,
                 )

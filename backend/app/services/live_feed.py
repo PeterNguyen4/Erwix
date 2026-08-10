@@ -15,7 +15,7 @@ from collections.abc import Awaitable, Callable
 
 from app import alpaca_client
 
-logger = logging.getLogger("entro.live_feed")
+logger = logging.getLogger("erwix.live_feed")
 
 BarHandler = Callable[[object], Awaitable[None]]
 QuoteHandler = Callable[[object], Awaitable[None]]

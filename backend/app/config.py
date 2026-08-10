@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     token_encryption_key: SecretStr = SecretStr("")
 
     resend_api_key: str = ""
-    resend_from_email: str = "Entro <onboarding@resend.dev>"
+    resend_from_email: str = "Erwix <onboarding@resend.dev>"
     password_reset_token_expire_minutes: int = 30
 
     # Embeddings for RAG

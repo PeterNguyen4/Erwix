@@ -16,7 +16,7 @@ from .models import User
 password_hash = PasswordHash.recommended()
 settings = get_settings()
 
-logger = logging.getLogger("entro.auth")
+logger = logging.getLogger("erwix.auth")
 
 COOKIE_NAME = "token"
 REFRESH_COOKIE_NAME = "refresh_token"

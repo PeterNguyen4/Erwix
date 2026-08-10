@@ -31,7 +31,7 @@ from app.services.execution_logger import reconcile_recent_fills, run_execution_
 from app.services.rate_limiter import close_rate_limiter
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("entro")
+logger = logging.getLogger("erwix")
 
 settings = get_settings()
 

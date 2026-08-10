@@ -6,7 +6,7 @@ from app.auth import get_current_user_id
 from app.config import get_settings
 from app.services.rate_limiter import get_rate_limiter
 
-logger = logging.getLogger("entro.rate_limiter")
+logger = logging.getLogger("erwix.rate_limiter")
 
 
 async def _check(

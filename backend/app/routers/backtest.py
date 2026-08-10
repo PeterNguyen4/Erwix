@@ -34,7 +34,7 @@ from app.services.backtest_agent import astream_config_chat
 from app.services.backtest_engine import run_backtest
 from app.services.guardrails import scan_output
 
-logger = logging.getLogger("entro.backtest")
+logger = logging.getLogger("erwix.backtest")
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
