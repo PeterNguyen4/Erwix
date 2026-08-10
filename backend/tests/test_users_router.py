@@ -105,16 +105,12 @@ async def test_refresh_issues_new_tokens_and_revokes_old_one(client, db_session)
     )
     old_refresh_cookie = login.cookies["refresh_token"]
 
-    resp = client.post(
-        "/api/users/refresh", cookies={"refresh_token": old_refresh_cookie}
-    )
+    resp = client.post("/api/users/refresh", cookies={"refresh_token": old_refresh_cookie})
     assert resp.status_code == 200
     assert resp.cookies["refresh_token"] != old_refresh_cookie
 
     # the old refresh token must now be revoked, so reusing it fails
-    reuse = client.post(
-        "/api/users/refresh", cookies={"refresh_token": old_refresh_cookie}
-    )
+    reuse = client.post("/api/users/refresh", cookies={"refresh_token": old_refresh_cookie})
     assert reuse.status_code == 401
 
 
@@ -127,9 +123,7 @@ def test_refresh_without_cookie_rejected(client):
 async def test_refresh_with_expired_token_rejected(client, db_session):
     from app.auth import hash_refresh_token
 
-    user = await _create_login_ready_user(
-        db_session, "trader@example.com", "correcthorse123"
-    )
+    user = await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
     raw_token = "expired-raw-refresh-token"
     db_session.add(
         RefreshToken(
@@ -161,9 +155,7 @@ async def test_logout_revokes_refresh_token_and_clears_cookies(client, db_sessio
 
 
 @pytest.mark.asyncio
-async def test_logout_all_bumps_token_version_and_revokes_refresh_tokens(
-    client, db_session
-):
+async def test_logout_all_bumps_token_version_and_revokes_refresh_tokens(client, db_session):
     from tests.conftest import TEST_USER_ID
 
     db_session.add(
@@ -183,11 +175,7 @@ async def test_logout_all_bumps_token_version_and_revokes_refresh_tokens(
     assert user.token_version == 1
 
     stored = (
-        (
-            await db_session.execute(
-                select(RefreshToken).where(RefreshToken.user_id == TEST_USER_ID)
-            )
-        )
+        (await db_session.execute(select(RefreshToken).where(RefreshToken.user_id == TEST_USER_ID)))
         .scalars()
         .first()
     )
@@ -196,12 +184,8 @@ async def test_logout_all_bumps_token_version_and_revokes_refresh_tokens(
 
 @pytest.mark.asyncio
 async def test_forgot_password_always_returns_success_for_unknown_email(client):
-    with patch(
-        "app.routers.users.send_password_reset_email", new_callable=AsyncMock
-    ) as mock_send:
-        resp = client.post(
-            "/api/users/forgot-password", json={"email": "ghost@example.com"}
-        )
+    with patch("app.routers.users.send_password_reset_email", new_callable=AsyncMock) as mock_send:
+        resp = client.post("/api/users/forgot-password", json={"email": "ghost@example.com"})
     assert resp.status_code == 200
     assert resp.json() == {"success": True}
     mock_send.assert_not_called()
@@ -211,26 +195,18 @@ async def test_forgot_password_always_returns_success_for_unknown_email(client):
 async def test_forgot_password_sends_email_for_known_user(client, db_session):
     await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
 
-    with patch(
-        "app.routers.users.send_password_reset_email", new_callable=AsyncMock
-    ) as mock_send:
-        resp = client.post(
-            "/api/users/forgot-password", json={"email": "trader@example.com"}
-        )
+    with patch("app.routers.users.send_password_reset_email", new_callable=AsyncMock) as mock_send:
+        resp = client.post("/api/users/forgot-password", json={"email": "trader@example.com"})
     assert resp.status_code == 200
     mock_send.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_reset_password_with_valid_token_changes_password(client, db_session):
-    user = await _create_login_ready_user(
-        db_session, "trader@example.com", "correcthorse123"
-    )
+    user = await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
     raw_token, token_hash, expires_at = generate_password_reset_token()
     db_session.add(
-        PasswordResetToken(
-            user_id=user.id, token_hash=token_hash, expires_at=expires_at
-        )
+        PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at)
     )
     await db_session.commit()
 
@@ -249,9 +225,7 @@ async def test_reset_password_with_valid_token_changes_password(client, db_sessi
 
 @pytest.mark.asyncio
 async def test_reset_password_rejects_already_used_token(client, db_session):
-    user = await _create_login_ready_user(
-        db_session, "trader@example.com", "correcthorse123"
-    )
+    user = await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
     raw_token, token_hash, expires_at = generate_password_reset_token()
     db_session.add(
         PasswordResetToken(
@@ -292,9 +266,7 @@ def test_update_me_changes_username(client):
 
 @pytest.mark.asyncio
 async def test_update_me_rejects_username_already_taken(client, db_session):
-    db_session.add(
-        User(username="taken", email="taken@example.com", hashed_password="x")
-    )
+    db_session.add(User(username="taken", email="taken@example.com", hashed_password="x"))
     await db_session.commit()
 
     resp = client.patch("/api/users/me", json={"username": "taken"})
@@ -323,9 +295,7 @@ async def test_admin_can_list_and_update_roles(client, db_session):
 
     admin = await db_session.get(User, TEST_USER_ID)
     admin.role = "admin"
-    other = User(
-        username="promoteme", email="promoteme@example.com", hashed_password="x"
-    )
+    other = User(username="promoteme", email="promoteme@example.com", hashed_password="x")
     db_session.add(other)
     await db_session.commit()
     await db_session.refresh(other)
@@ -334,9 +304,7 @@ async def test_admin_can_list_and_update_roles(client, db_session):
     assert listing.status_code == 200
     assert any(u["username"] == "promoteme" for u in listing.json())
 
-    promote = client.patch(
-        f"/api/users/admin/users/{other.id}/role", json={"role": "admin"}
-    )
+    promote = client.patch(f"/api/users/admin/users/{other.id}/role", json={"role": "admin"})
     assert promote.status_code == 200
     assert promote.json()["role"] == "admin"
 
@@ -349,7 +317,5 @@ async def test_admin_cannot_remove_own_admin_access(client, db_session):
     admin.role = "admin"
     await db_session.commit()
 
-    resp = client.patch(
-        f"/api/users/admin/users/{TEST_USER_ID}/role", json={"role": "user"}
-    )
+    resp = client.patch(f"/api/users/admin/users/{TEST_USER_ID}/role", json={"role": "user"})
     assert resp.status_code == 400

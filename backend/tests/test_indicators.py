@@ -79,9 +79,7 @@ def test_macd_line_none_before_slow_ema_is_defined():
 
 
 def test_macd_signal_none_when_too_few_macd_points():
-    closes = [
-        100.0
-    ] * 20  # slow ema(26) never seeds -> macd all None -> signal all None
+    closes = [100.0] * 20  # slow ema(26) never seeds -> macd all None -> signal all None
     assert macd_signal(closes) == [None] * 20
 
 

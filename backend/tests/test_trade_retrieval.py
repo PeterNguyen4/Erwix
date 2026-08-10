@@ -54,9 +54,7 @@ async def test_compute_pnl_summary_pair_splits_by_arbitrary_window():
         _closed(100.0, now - timedelta(days=3)),  # falls in window A
         _closed(-50.0, now - timedelta(days=10)),  # falls in window B
     ]
-    with patch.object(
-        trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)
-    ):
+    with patch.object(trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)):
         a, b = await compute_pnl_summary_pair(
             db=None,
             user_id=1,
@@ -74,9 +72,7 @@ async def test_compute_pnl_summary_pair_splits_by_arbitrary_window():
 async def test_compute_pnl_weekly_comparison_delegates_to_pair():
     now = datetime.now(UTC)
     closed = [_closed(100.0, now - timedelta(days=1))]
-    with patch.object(
-        trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)
-    ):
+    with patch.object(trade_retrieval, "_fifo_match_all", AsyncMock(return_value=closed)):
         current, previous = await compute_pnl_weekly_comparison(db=None, user_id=1)
 
     assert current.total_pnl == pytest.approx(100.0)

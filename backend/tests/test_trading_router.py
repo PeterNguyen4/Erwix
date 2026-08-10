@@ -81,18 +81,14 @@ def test_positions_returns_alpaca_positions(client):
         market_value=1050.0,
         unrealized_pl=50.0,
     )
-    with patch(
-        "app.routers.trading.alpaca_client.get_positions", return_value=[position]
-    ):
+    with patch("app.routers.trading.alpaca_client.get_positions", return_value=[position]):
         resp = client.get("/api/trading/positions")
     assert resp.status_code == 200
     assert resp.json()[0]["symbol"] == "AAPL"
 
 
 def test_account_returns_alpaca_account(client):
-    account = Account(
-        buying_power=1000.0, cash=1000.0, portfolio_value=5000.0, equity=5000.0
-    )
+    account = Account(buying_power=1000.0, cash=1000.0, portfolio_value=5000.0, equity=5000.0)
     with patch("app.routers.trading.alpaca_client.get_account", return_value=account):
         resp = client.get("/api/trading/account")
     assert resp.status_code == 200
@@ -113,9 +109,7 @@ def test_portfolio_history_returns_points(client):
         base_value=100_000.0,
         points=[PortfolioPoint(time=1, equity=101_000.0, profit_loss=1000.0)],
     )
-    with patch(
-        "app.routers.trading.alpaca_client.get_portfolio_history", return_value=history
-    ):
+    with patch("app.routers.trading.alpaca_client.get_portfolio_history", return_value=history):
         resp = client.get("/api/trading/portfolio/history?period=1M")
     assert resp.status_code == 200
     assert resp.json()["points"][0]["equity"] == 101_000.0

@@ -11,9 +11,7 @@ class _FakeBars:
 
 def test_get_candles_maps_bars(monkeypatch):
     ts = datetime(2026, 1, 2, tzinfo=UTC)
-    bar = SimpleNamespace(
-        timestamp=ts, open=1.0, high=2.0, low=0.5, close=1.5, volume=1000
-    )
+    bar = SimpleNamespace(timestamp=ts, open=1.0, high=2.0, low=0.5, close=1.5, volume=1000)
 
     class FakeClient:
         def get_stock_bars(self, req):

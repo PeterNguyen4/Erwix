@@ -17,9 +17,7 @@ def _use_test_db(monkeypatch, _pg_engine):
     """log_order_intent/_handle_trade_update/reconcile_recent_fills all open their
     own session via app.db.SessionLocal (bound to the real prod engine) rather than
     the get_db-overridden one — point that at the test Postgres container instead."""
-    TestSessionLocal = async_sessionmaker(
-        bind=_pg_engine, autoflush=False, expire_on_commit=False
-    )
+    TestSessionLocal = async_sessionmaker(bind=_pg_engine, autoflush=False, expire_on_commit=False)
     monkeypatch.setattr(execution_logger, "SessionLocal", TestSessionLocal)
 
 
@@ -42,20 +40,14 @@ async def test_log_order_intent_writes_simple_order(_use_test_db, db_session):
 
     await execution_logger.log_order_intent(response, request, user_id=1)
 
-    trades = (
-        (await db_session.execute(select(Trade).where(Trade.user_id == 1)))
-        .scalars()
-        .all()
-    )
+    trades = (await db_session.execute(select(Trade).where(Trade.user_id == 1))).scalars().all()
     assert len(trades) == 1
     assert trades[0].broker_order_id == "broker-1"
     assert trades[0].status == "accepted"
 
 
 @pytest.mark.asyncio
-async def test_log_order_intent_writes_bracket_legs_with_correct_leg_type(
-    _use_test_db, db_session
-):
+async def test_log_order_intent_writes_bracket_legs_with_correct_leg_type(_use_test_db, db_session):
     db_session.add(make_user(1))
     await db_session.commit()
 
@@ -100,9 +92,7 @@ async def test_log_order_intent_writes_bracket_legs_with_correct_leg_type(
 
     trades = {
         t.broker_order_id: t
-        for t in (await db_session.execute(select(Trade).where(Trade.user_id == 1)))
-        .scalars()
-        .all()
+        for t in (await db_session.execute(select(Trade).where(Trade.user_id == 1))).scalars().all()
     }
     assert len(trades) == 3
     assert trades["leg-tp"].leg == "take_profit"
@@ -111,9 +101,7 @@ async def test_log_order_intent_writes_bracket_legs_with_correct_leg_type(
 
 
 @pytest.mark.asyncio
-async def test_log_order_intent_swallows_errors_instead_of_raising(
-    _use_test_db, db_session
-):
+async def test_log_order_intent_swallows_errors_instead_of_raising(_use_test_db, db_session):
     # user_id=999 has no matching users row -> FK violation on insert; must not propagate.
     response = OrderResponse(
         id="broker-1",
@@ -127,9 +115,7 @@ async def test_log_order_intent_swallows_errors_instead_of_raising(
     )
     request = OrderRequest(symbol="AAPL", qty=10, side="buy", type="market")
 
-    await execution_logger.log_order_intent(
-        response, request, user_id=999
-    )  # must not raise
+    await execution_logger.log_order_intent(response, request, user_id=999)  # must not raise
 
 
 def _fake_order_event(
@@ -148,26 +134,18 @@ def _fake_order_event(
         symbol=symbol,
         side=SimpleNamespace(value=side),
         order_type=SimpleNamespace(value="market"),
-        status=SimpleNamespace(
-            value="filled" if event in ("fill", "partial_fill") else event
-        ),
+        status=SimpleNamespace(value="filled" if event in ("fill", "partial_fill") else event),
         filled_at=datetime.now(UTC),
         filled_qty=filled_qty,
         filled_avg_price=filled_avg_price,
     )
-    return SimpleNamespace(
-        event=event, order=order, price=filled_avg_price, qty=filled_qty
-    )
+    return SimpleNamespace(event=event, order=order, price=filled_avg_price, qty=filled_qty)
 
 
 @pytest.mark.asyncio
 async def test_handle_trade_update_ignores_irrelevant_events(_use_test_db, db_session):
-    data = SimpleNamespace(
-        event="order_replace_rejected", order=SimpleNamespace(id="x")
-    )
-    await execution_logger._handle_trade_update(
-        data
-    )  # must not raise or write anything
+    data = SimpleNamespace(event="order_replace_rejected", order=SimpleNamespace(id="x"))
+    await execution_logger._handle_trade_update(data)  # must not raise or write anything
 
 
 @pytest.mark.asyncio
@@ -181,11 +159,7 @@ async def test_handle_trade_update_creates_fill_only_trade_when_no_intent_row_ex
         await execution_logger._handle_trade_update(_fake_order_event("fill"))
 
     trades = (
-        (
-            await db_session.execute(
-                select(Trade).where(Trade.broker_order_id == "broker-1")
-            )
-        )
+        (await db_session.execute(select(Trade).where(Trade.broker_order_id == "broker-1")))
         .scalars()
         .all()
     )
@@ -195,9 +169,7 @@ async def test_handle_trade_update_creates_fill_only_trade_when_no_intent_row_ex
 
 
 @pytest.mark.asyncio
-async def test_handle_trade_update_updates_existing_intent_row_on_fill(
-    _use_test_db, db_session
-):
+async def test_handle_trade_update_updates_existing_intent_row_on_fill(_use_test_db, db_session):
     db_session.add(make_user(1))
     await db_session.commit()
     db_session.add(
@@ -215,17 +187,13 @@ async def test_handle_trade_update_updates_existing_intent_row_on_fill(
     )
     await db_session.commit()
 
-    with patch.object(
-        execution_logger, "embed_trade_best_effort", new=AsyncMock()
-    ) as mock_embed:
+    with patch.object(execution_logger, "embed_trade_best_effort", new=AsyncMock()) as mock_embed:
         await execution_logger._handle_trade_update(
             _fake_order_event("fill", filled_avg_price=105.5)
         )
 
     trade = (
-        await db_session.execute(
-            select(Trade).where(Trade.broker_order_id == "broker-1")
-        )
+        await db_session.execute(select(Trade).where(Trade.broker_order_id == "broker-1"))
     ).scalar_one()
     assert trade.status == "filled"
     assert trade.fill_price == 105.5
@@ -242,11 +210,7 @@ async def test_handle_trade_update_skips_non_fill_event_with_no_intent_row(
     await execution_logger._handle_trade_update(_fake_order_event("new"))
 
     trades = (
-        (
-            await db_session.execute(
-                select(Trade).where(Trade.broker_order_id == "broker-1")
-            )
-        )
+        (await db_session.execute(select(Trade).where(Trade.broker_order_id == "broker-1")))
         .scalars()
         .all()
     )
@@ -268,24 +232,18 @@ async def test_reconcile_recent_fills_adds_unlogged_fills(_use_test_db, db_sessi
         filled_avg_price=200.0,
         filled_at=datetime.now(UTC),
     )
-    with patch.object(
-        execution_logger, "get_recent_filled_orders", return_value=[fake_order]
-    ):
+    with patch.object(execution_logger, "get_recent_filled_orders", return_value=[fake_order]):
         await execution_logger.reconcile_recent_fills()
 
     trade = (
-        await db_session.execute(
-            select(Trade).where(Trade.broker_order_id == "broker-99")
-        )
+        await db_session.execute(select(Trade).where(Trade.broker_order_id == "broker-99"))
     ).scalar_one()
     assert trade.status == "filled"
     assert trade.fill_price == 200.0
 
 
 @pytest.mark.asyncio
-async def test_reconcile_recent_fills_updates_stale_intent_row(
-    _use_test_db, db_session
-):
+async def test_reconcile_recent_fills_updates_stale_intent_row(_use_test_db, db_session):
     db_session.add(make_user(1))
     await db_session.commit()
     db_session.add(
@@ -313,23 +271,17 @@ async def test_reconcile_recent_fills_updates_stale_intent_row(
         filled_avg_price=200.0,
         filled_at=datetime.now(UTC),
     )
-    with patch.object(
-        execution_logger, "get_recent_filled_orders", return_value=[fake_order]
-    ):
+    with patch.object(execution_logger, "get_recent_filled_orders", return_value=[fake_order]):
         await execution_logger.reconcile_recent_fills()
 
     trade = (
-        await db_session.execute(
-            select(Trade).where(Trade.broker_order_id == "broker-99")
-        )
+        await db_session.execute(select(Trade).where(Trade.broker_order_id == "broker-99"))
     ).scalar_one()
     assert trade.status == "filled"
     assert trade.fill_price == 200.0
 
 
 @pytest.mark.asyncio
-async def test_reconcile_recent_fills_noop_when_nothing_returned(
-    _use_test_db, db_session
-):
+async def test_reconcile_recent_fills_noop_when_nothing_returned(_use_test_db, db_session):
     with patch.object(execution_logger, "get_recent_filled_orders", return_value=[]):
         await execution_logger.reconcile_recent_fills()  # must not raise

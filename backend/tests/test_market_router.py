@@ -41,17 +41,13 @@ def test_candles_maps_value_error_to_400(client):
 
 
 def test_candles_maps_unexpected_error_to_502(client):
-    with patch(
-        "app.routers.market.alpaca_client.get_candles", side_effect=Exception("boom")
-    ):
+    with patch("app.routers.market.alpaca_client.get_candles", side_effect=Exception("boom")):
         resp = client.get("/api/market/candles?symbol=AAPL")
     assert resp.status_code == 502
 
 
 def test_quote_returns_alpaca_quote(client):
-    quote = Quote(
-        symbol="AAPL", bid=100.0, ask=100.5, price=100.25, timestamp=datetime.now(UTC)
-    )
+    quote = Quote(symbol="AAPL", bid=100.0, ask=100.5, price=100.25, timestamp=datetime.now(UTC))
     with patch("app.routers.market.alpaca_client.get_quote", return_value=quote):
         resp = client.get("/api/market/quote?symbol=AAPL")
     assert resp.status_code == 200

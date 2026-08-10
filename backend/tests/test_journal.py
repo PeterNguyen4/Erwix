@@ -22,9 +22,7 @@ def _make_trade(symbol: str, days_ago: int, side: str = "buy") -> Trade:
 
 @pytest.mark.asyncio
 async def test_trades_window_filters_by_date(client, db_session):
-    db_session.add_all(
-        [_make_trade("AAPL", 1), _make_trade("AAPL", 10), _make_trade("MSFT", 2)]
-    )
+    db_session.add_all([_make_trade("AAPL", 1), _make_trade("AAPL", 10), _make_trade("MSFT", 2)])
     await db_session.commit()
 
     since = (datetime.now(UTC) - timedelta(days=7)).isoformat()
