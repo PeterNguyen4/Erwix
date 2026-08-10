@@ -115,11 +115,6 @@ def test_portfolio_history_returns_points(client):
     assert resp.json()["points"][0]["equity"] == 101_000.0
 
 
-def test_trading_routes_require_auth(db_session):
-    from fastapi.testclient import TestClient
-
-    from app.main import app
-
-    with TestClient(app) as unauthenticated_client:
-        resp = unauthenticated_client.get("/api/trading/account")
+def test_trading_routes_require_auth(unauthenticated_client):
+    resp = unauthenticated_client.get("/api/trading/account")
     assert resp.status_code == 401

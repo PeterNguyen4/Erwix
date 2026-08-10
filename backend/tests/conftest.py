@@ -113,3 +113,29 @@ async def client(db_session, monkeypatch):
     with TestClient(main.app) as c:
         yield c
     main.app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture()
+async def unauthenticated_client(db_session, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app import main
+    from app.db import get_db
+
+    async def _noop(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(main, "reconcile_recent_fills", _noop)
+    monkeypatch.setattr(main, "run_execution_logger", _noop)
+    monkeypatch.setattr(main, "fail_orphaned_reports", _noop)
+
+    fake_limiter = _AlwaysAllowRateLimiter()
+    monkeypatch.setattr("app.dependencies.rate_limit.get_rate_limiter", lambda: fake_limiter)
+
+    async def override_get_db():
+        yield db_session
+
+    main.app.dependency_overrides[get_db] = override_get_db
+    with TestClient(main.app) as c:
+        yield c
+    main.app.dependency_overrides.clear()

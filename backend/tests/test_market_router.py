@@ -54,11 +54,6 @@ def test_quote_returns_alpaca_quote(client):
     assert resp.json()["symbol"] == "AAPL"
 
 
-def test_market_routes_require_auth(db_session):
-    from fastapi.testclient import TestClient
-
-    from app.main import app
-
-    with TestClient(app) as unauthenticated_client:
-        resp = unauthenticated_client.get("/api/market/quote?symbol=AAPL")
+def test_market_routes_require_auth(unauthenticated_client):
+    resp = unauthenticated_client.get("/api/market/quote?symbol=AAPL")
     assert resp.status_code == 401
