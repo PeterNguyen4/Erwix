@@ -1,8 +1,8 @@
 import hashlib
 import logging
 import secrets
-from typing import Annotated
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import jwt
 from fastapi import Cookie, Depends, HTTPException, status
@@ -41,9 +41,7 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         )
     raw_data.update({"exp": expire})
     encoded_jwt = jwt.encode(
-        raw_data,
-        settings.secret_key.get_secret_value(),
-        algorithm=settings.algorithm
+        raw_data, settings.secret_key.get_secret_value(), algorithm=settings.algorithm
     )
     return encoded_jwt
 
@@ -54,7 +52,7 @@ def verify_access_token(token: str) -> tuple[str, int] | None:
             token,
             settings.secret_key.get_secret_value(),
             algorithms=[settings.algorithm],
-            options={"require": ["exp", "sub", "tv"]}
+            options={"require": ["exp", "sub", "tv"]},
         )
     except jwt.InvalidTokenError:
         return None

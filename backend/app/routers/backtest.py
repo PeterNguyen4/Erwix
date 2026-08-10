@@ -3,7 +3,14 @@ import json
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +18,6 @@ from app import alpaca_client
 from app.auth import get_current_user_id
 from app.db import get_db
 from app.dependencies.guardrails import check_ws_guardrail_input
-from app.services.guardrails import scan_output
 from app.dependencies.rate_limit import check_ws_rate_limit, rate_limit
 from app.error_handling import alpaca_errors
 from app.models import BacktestChatSession as BacktestChatSessionModel
@@ -26,6 +32,7 @@ from app.schemas_backtest import (
 )
 from app.services.backtest_agent import astream_config_chat
 from app.services.backtest_engine import run_backtest
+from app.services.guardrails import scan_output
 
 logger = logging.getLogger("entro.backtest")
 
@@ -50,7 +57,13 @@ def _chat_session_out(row: BacktestChatSessionModel) -> BacktestChatSessionOut:
 
 
 def _config_out(row: BacktestConfigModel) -> BacktestConfig:
-    return BacktestConfig(id=row.id, name=row.name, symbol=row.symbol, timeframe=row.timeframe, **row.config)
+    return BacktestConfig(
+        id=row.id,
+        name=row.name,
+        symbol=row.symbol,
+        timeframe=row.timeframe,
+        **row.config,
+    )
 
 
 def _run_out(row: BacktestRunModel) -> dict:
@@ -84,7 +97,11 @@ async def create_config(
 ) -> BacktestConfig:
     payload = body.model_dump(exclude={"id", "name", "symbol", "timeframe"})
     row = BacktestConfigModel(
-        user_id=user_id, name=body.name, symbol=body.symbol, timeframe=body.timeframe, config=payload
+        user_id=user_id,
+        name=body.name,
+        symbol=body.symbol,
+        timeframe=body.timeframe,
+        config=payload,
     )
     db.add(row)
     await db.commit()
@@ -125,7 +142,9 @@ async def run_config(
         raise HTTPException(status_code=404, detail="config not found")
 
     config = _config_out(row)
-    candles = await asyncio.to_thread(alpaca_client.get_candles, config.symbol, config.timeframe, start, end)
+    candles = await asyncio.to_thread(
+        alpaca_client.get_candles, config.symbol, config.timeframe, start, end
+    )
 
     run_row = BacktestRunModel(
         user_id=user_id, config_id=config_id, status="running", start=start, end=end
@@ -136,7 +155,7 @@ async def run_config(
 
     try:
         result: BacktestResult = run_backtest(candles, config)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         run_row.status = "error"
         run_row.error_detail = str(exc)
         await db.commit()
@@ -173,7 +192,9 @@ async def list_chat_sessions(
             .order_by(BacktestChatSessionModel.updated_at.desc())
         )
     ).all()
-    return [BacktestChatSessionSummary(id=r.id, title=r.title, updated_at=r.updated_at) for r in rows]
+    return [
+        BacktestChatSessionSummary(id=r.id, title=r.title, updated_at=r.updated_at) for r in rows
+    ]
 
 
 @router.post("/chat-sessions")
@@ -258,7 +279,9 @@ async def backtest_chat(
     """Stream the config-chat agent's reply: token deltas, then a final config/done event."""
     await websocket.accept()
 
-    rate_limit_error = await check_ws_rate_limit(user_id, "backtest-chat", limit=10, window_ms=60_000, fail_open=False)
+    rate_limit_error = await check_ws_rate_limit(
+        user_id, "backtest-chat", limit=10, window_ms=60_000, fail_open=False
+    )
     if rate_limit_error:
         await websocket.send_json({"type": "error", "detail": rate_limit_error})
         await websocket.close(code=1008)
@@ -273,10 +296,19 @@ async def backtest_chat(
     try:
         current_config = BacktestConfig.model_validate_json(config)
         last_result = BacktestResult.model_validate_json(result) if result else None
-        chat_history: list[tuple[str, str]] = [tuple(pair) for pair in json.loads(history)] if history else []
+        chat_history: list[tuple[str, str]] = (
+            [tuple(pair) for pair in json.loads(history)] if history else []
+        )
         reply_parts: list[str] = []
         async for event in astream_config_chat(
-            db, user_id, current_config, message, window_start, window_end, last_result, chat_history
+            db,
+            user_id,
+            current_config,
+            message,
+            window_start,
+            window_end,
+            last_result,
+            chat_history,
         ):
             if event.get("type") == "token":
                 reply_parts.append(event["text"])
@@ -284,12 +316,16 @@ async def backtest_chat(
 
         output_violation = scan_output("".join(reply_parts))
         if output_violation:
-            logger.warning("output guardrail triggered in backtest chat for user %s: %s", user_id, output_violation)
+            logger.warning(
+                "output guardrail triggered in backtest chat for user %s: %s",
+                user_id,
+                output_violation,
+            )
     except RuntimeError as exc:
         await websocket.send_json({"type": "error", "detail": str(exc)})
     except WebSocketDisconnect:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("backtest chat stream failed for user %s", user_id)
         try:
             await websocket.send_json({"type": "error", "detail": "chat failed"})

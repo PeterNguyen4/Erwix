@@ -69,7 +69,7 @@ export default function NotificationBell() {
             Notifications
           </div>
           {items.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-muted text-center">You're all caught up.</div>
+            <div className="px-4 py-6 text-sm text-muted text-center">You&apos;re all caught up.</div>
           ) : (
             <ul className="max-h-96 overflow-y-auto">
               {items.map((item) => (

@@ -74,9 +74,15 @@ def pattern_holds(rule: PatternRule, candles: list[Candle], i: int) -> bool:
             return False
         if step.min_body_ratio is not None and (bodies[idx] or 0) < step.min_body_ratio:
             return False
-        if step.max_upper_wick_ratio is not None and (upper_wicks[idx] or 0) > step.max_upper_wick_ratio:
+        if (
+            step.max_upper_wick_ratio is not None
+            and (upper_wicks[idx] or 0) > step.max_upper_wick_ratio
+        ):
             return False
-        if step.max_lower_wick_ratio is not None and (lower_wicks[idx] or 0) > step.max_lower_wick_ratio:
+        if (
+            step.max_lower_wick_ratio is not None
+            and (lower_wicks[idx] or 0) > step.max_lower_wick_ratio
+        ):
             return False
     return True
 
@@ -102,7 +108,7 @@ def evaluate_rules(candles: list[Candle], rules: list) -> list[bool]:
 
 
 def rules_just_fired(prev: list[bool], curr: list[bool]) -> list[int]:
-    return [i for i, (p, c) in enumerate(zip(prev, curr)) if not p and c]
+    return [i for i, (p, c) in enumerate(zip(prev, curr, strict=True)) if not p and c]
 
 
 def signal_price_level(
@@ -115,11 +121,17 @@ def signal_price_level(
         return None
 
     if stop_loss_price is not None:
-        breached = price <= stop_loss_price if stop_loss_price <= entry_price else price >= stop_loss_price
+        breached = (
+            price <= stop_loss_price if stop_loss_price <= entry_price else price >= stop_loss_price
+        )
         if breached:
             return "stop_loss"
     if take_profit_price is not None:
-        breached = price >= take_profit_price if take_profit_price >= entry_price else price <= take_profit_price
+        breached = (
+            price >= take_profit_price
+            if take_profit_price >= entry_price
+            else price <= take_profit_price
+        )
         if breached:
             return "take_profit"
     return None

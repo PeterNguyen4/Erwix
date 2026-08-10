@@ -11,7 +11,7 @@ on the same symbol/channel all receive every tick.
 
 import logging
 from collections import defaultdict
-from typing import Awaitable, Callable
+from collections.abc import Awaitable, Callable
 
 from app import alpaca_client
 
@@ -29,7 +29,7 @@ async def _dispatch_bar(bar) -> None:
     for handler in list(_bar_subs.get(symbol, ())):
         try:
             await handler(bar)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("live_feed bar handler failed for %s", symbol)
 
 
@@ -38,7 +38,7 @@ async def _dispatch_quote(quote) -> None:
     for handler in list(_quote_subs.get(symbol, ())):
         try:
             await handler(quote)
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("live_feed quote handler failed for %s", symbol)
 
 

@@ -59,7 +59,7 @@ def macd_line(closes: list[float]) -> list[float | None]:
     slow = ema(closes, 26)
     return [
         (f - s) if f is not None and s is not None else None
-        for f, s in zip(fast, slow)
+        for f, s in zip(fast, slow, strict=True)
     ]
 
 
@@ -92,7 +92,9 @@ def stochastic_k(candles: list[Candle], period: int = 14) -> list[float | None]:
     return out
 
 
-def stochastic_d(candles: list[Candle], k_period: int = 14, d_period: int = 3) -> list[float | None]:
+def stochastic_d(
+    candles: list[Candle], k_period: int = 14, d_period: int = 3
+) -> list[float | None]:
     k = stochastic_k(candles, k_period)
     return _rolling_avg_optional(k, d_period)
 
@@ -134,8 +136,12 @@ def adx(candles: list[Candle], period: int = 14) -> list[float | None]:
     plus_dm = [0.0] * n
     minus_dm = [0.0] * n
     for i in range(1, n):
-        high, low, close = candles[i].high, candles[i].low, candles[i].close
-        prev_high, prev_low, prev_close = candles[i - 1].high, candles[i - 1].low, candles[i - 1].close
+        high, low = candles[i].high, candles[i].low
+        prev_high, prev_low, prev_close = (
+            candles[i - 1].high,
+            candles[i - 1].low,
+            candles[i - 1].close,
+        )
         tr[i] = max(high - low, abs(high - prev_close), abs(low - prev_close))
         up_move = high - prev_high
         down_move = prev_low - low
@@ -198,14 +204,23 @@ def heikin_ashi(candles: list[Candle]) -> list[Candle]:
         ha_open = c.open if prev_open is None else (prev_open + prev_close) / 2
         ha_high = max(c.high, ha_open, ha_close)
         ha_low = min(c.low, ha_open, ha_close)
-        out.append(Candle(time=c.time, open=ha_open, high=ha_high, low=ha_low, close=ha_close, volume=c.volume))
+        out.append(
+            Candle(
+                time=c.time,
+                open=ha_open,
+                high=ha_high,
+                low=ha_low,
+                close=ha_close,
+                volume=c.volume,
+            )
+        )
         prev_open, prev_close = ha_open, ha_close
     return out
 
 
 def indicator_series(candles: list[Candle], name: str) -> list[float | None]:
     if name.startswith("ha_"):
-        return _series(heikin_ashi(candles), name[len("ha_"):])
+        return _series(heikin_ashi(candles), name[len("ha_") :])
     return _series(candles, name)
 
 

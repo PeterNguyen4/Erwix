@@ -8,15 +8,17 @@ Revision ID: 0012_backtest
 Revises: 0011_order_intent_bracket_orders
 Create Date: 2026-07-14
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0012_backtest"
-down_revision: Union[str, None] = "0011_order_intent_bracket_orders"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0011_order_intent_bracket_orders"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -37,7 +39,12 @@ def upgrade() -> None:
         "backtest_runs",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.String(length=128), nullable=False),
-        sa.Column("config_id", sa.Integer(), sa.ForeignKey("backtest_configs.id"), nullable=False),
+        sa.Column(
+            "config_id",
+            sa.Integer(),
+            sa.ForeignKey("backtest_configs.id"),
+            nullable=False,
+        ),
         sa.Column("status", sa.String(length=16), nullable=False, server_default="pending"),
         sa.Column("start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("end", sa.DateTime(timezone=True), nullable=False),

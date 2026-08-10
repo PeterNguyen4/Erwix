@@ -13,5 +13,7 @@ EXIT_COLOR = "#ef5350"
 
 
 async def load_rule_set(db: AsyncSession, user_id: int) -> StrategyRuleSet | None:
-    row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == user_id))
+    row = await db.scalar(
+        select(StrategyRuleSetModel).where(StrategyRuleSetModel.user_id == user_id)
+    )
     return StrategyRuleSet(**row.rules) if row else None

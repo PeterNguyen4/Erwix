@@ -2,14 +2,27 @@ from app.schemas import Candle
 from app.schemas_strategy import CandleStep, GatedRule, PatternRule, StrategyRule
 from app.services.rule_engine import (
     evaluate_rules,
-    signal_price_level,
     rules_just_fired,
+    signal_price_level,
 )
 
 
-def _candle(i: int, close: float, open_: float | None = None, high: float | None = None, low: float | None = None) -> Candle:
+def _candle(
+    i: int,
+    close: float,
+    open_: float | None = None,
+    high: float | None = None,
+    low: float | None = None,
+) -> Candle:
     o = open_ if open_ is not None else close
-    return Candle(time=i, open=o, high=high or max(o, close), low=low or min(o, close), close=close, volume=1.0)
+    return Candle(
+        time=i,
+        open=o,
+        high=high or max(o, close),
+        low=low or min(o, close),
+        close=close,
+        volume=1.0,
+    )
 
 
 def _candles(closes: list[float]) -> list[Candle]:
@@ -29,27 +42,47 @@ def test_comparison_rule_rejects_on_invalid_latest_candle_condition():
 
 
 def test_crosses_above_rule_requires_prior_candle_below_threshold():
-    rule = StrategyRule(left="close", comparator="crosses_above", right="100", description="crosses above 100")
+    rule = StrategyRule(
+        left="close",
+        comparator="crosses_above",
+        right="100",
+        description="crosses above 100",
+    )
     # prior close (95) <= 100, current close (105) > 100 -> True
     candles = _candles([90, 95, 105])
     assert evaluate_rules(candles, [rule]) == [True]
 
 
 def test_crosses_above_rule_rejects_when_already_above_threshold():
-    rule = StrategyRule(left="close", comparator="crosses_above", right="100", description="crosses above 100")
+    rule = StrategyRule(
+        left="close",
+        comparator="crosses_above",
+        right="100",
+        description="crosses above 100",
+    )
     # prior close (105) already above 100 -> not a fresh cross
     candles = _candles([90, 105, 110])
     assert evaluate_rules(candles, [rule]) == [False]
 
 
 def test_crosses_above_rule_rejects_on_first_candle():
-    rule = StrategyRule(left="close", comparator="crosses_above", right="100", description="crosses above 100")
+    rule = StrategyRule(
+        left="close",
+        comparator="crosses_above",
+        right="100",
+        description="crosses above 100",
+    )
     candles = _candles([105])
     assert evaluate_rules(candles, [rule]) == [False]
 
 
 def test_crosses_below_rule():
-    rule = StrategyRule(left="close", comparator="crosses_below", right="100", description="crosses below 100")
+    rule = StrategyRule(
+        left="close",
+        comparator="crosses_below",
+        right="100",
+        description="crosses below 100",
+    )
     candles = _candles([110, 105, 95])
     assert evaluate_rules(candles, [rule]) == [True]
 
@@ -120,30 +153,51 @@ def test_rules_just_fired_no_fires_when_nothing_changes():
 
 def test_signal_price_level_long_stop_loss_breach():
     # long position: stop below entry, breached when price drops to/through it
-    assert signal_price_level(price=94, entry_price=100, stop_loss_price=95, take_profit_price=110) == "stop_loss"
+    assert (
+        signal_price_level(price=94, entry_price=100, stop_loss_price=95, take_profit_price=110)
+        == "stop_loss"
+    )
 
 
 def test_signal_price_level_long_take_profit_breach():
-    assert signal_price_level(price=111, entry_price=100, stop_loss_price=95, take_profit_price=110) == "take_profit"
+    assert (
+        signal_price_level(price=111, entry_price=100, stop_loss_price=95, take_profit_price=110)
+        == "take_profit"
+    )
 
 
 def test_signal_price_level_long_no_breach():
-    assert signal_price_level(price=105, entry_price=100, stop_loss_price=95, take_profit_price=110) is None
+    assert (
+        signal_price_level(price=105, entry_price=100, stop_loss_price=95, take_profit_price=110)
+        is None
+    )
 
 
 def test_signal_price_level_short_stop_loss_breach():
     # short position: stop above entry, breached when price rises to/through it
-    assert signal_price_level(price=106, entry_price=100, stop_loss_price=105, take_profit_price=90) == "stop_loss"
+    assert (
+        signal_price_level(price=106, entry_price=100, stop_loss_price=105, take_profit_price=90)
+        == "stop_loss"
+    )
 
 
 def test_signal_price_level_short_take_profit_breach():
     # short position: target below entry, breached when price falls to/through it
-    assert signal_price_level(price=89, entry_price=100, stop_loss_price=105, take_profit_price=90) == "take_profit"
+    assert (
+        signal_price_level(price=89, entry_price=100, stop_loss_price=105, take_profit_price=90)
+        == "take_profit"
+    )
 
 
 def test_signal_price_level_none_when_no_entry_price():
-    assert signal_price_level(price=100, entry_price=None, stop_loss_price=95, take_profit_price=110) is None
+    assert (
+        signal_price_level(price=100, entry_price=None, stop_loss_price=95, take_profit_price=110)
+        is None
+    )
 
 
 def test_signal_price_level_none_when_levels_unset():
-    assert signal_price_level(price=100, entry_price=100, stop_loss_price=None, take_profit_price=None) is None
+    assert (
+        signal_price_level(price=100, entry_price=100, stop_loss_price=None, take_profit_price=None)
+        is None
+    )

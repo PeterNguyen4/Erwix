@@ -11,10 +11,10 @@ from app.routers import (
     agent,
     alpaca_oauth,
     analysis,
-    news,
     backtest,
     journal,
     market,
+    news,
     notifications,
     strategy,
     trading,
@@ -22,7 +22,11 @@ from app.routers import (
     watchlist,
 )
 from app.routers.market import cancel_stream_task
-from app.services.debrief_jobs import fail_orphaned_reports, start_scheduler, stop_scheduler
+from app.services.debrief_jobs import (
+    fail_orphaned_reports,
+    start_scheduler,
+    stop_scheduler,
+)
 from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
 from app.services.rate_limiter import close_rate_limiter
 

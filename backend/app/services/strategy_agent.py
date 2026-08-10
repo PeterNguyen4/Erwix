@@ -67,20 +67,23 @@ ANSWER_QUESTION_SYSTEM_PROMPT = (
 
 
 class _AnswerCritique(BaseModel):
-    valid: bool = Field(description="True if the answer is grounded in the trader's actual stated strategy")
+    valid: bool = Field(
+        description="True if the answer is grounded in the trader's actual stated strategy"
+    )
     correction: str = Field(
-        description="If not valid, one short sentence on what's wrong (e.g. the answer invents a rule the "
-        "trader never stated, contradicts the playbook, or gives generic advice instead of referencing "
-        "their actual rules). Empty string if valid."
+        description="If not valid, one short sentence on what's wrong (e.g. the answer invents a "
+        "rule the trader never stated, contradicts the playbook, or gives generic advice instead "
+        "of referencing their actual rules). Empty string if valid."
     )
 
 
 VALIDATE_ANSWER_SYSTEM_PROMPT = (
     "You are reviewing another strategist's answer to a trader's question about their own stated "
-    "strategy, before it's shown to them. Check: does the answer actually reference rules from the "
-    "trader's stated strategy given below, rather than inventing ones or giving generic advice? If the "
-    "trader has no stated strategy, does the answer say so plainly instead of pretending one exists? "
-    "Judge harshly but fairly — minor stylistic issues are not grounds for rejection."
+    "strategy, before it's shown to them. Check: does the answer actually reference rules from "
+    "the trader's stated strategy given below, rather than inventing ones or giving generic "
+    "advice? If the trader has no stated strategy, does the answer say so plainly instead of "
+    "pretending one exists? Judge harshly but fairly — minor stylistic issues are not grounds "
+    "for rejection."
 )
 
 
@@ -89,14 +92,20 @@ async def _validate_answer(question: str, answer: str, strategy_block: str) -> s
     else a short correction note to feed back into a regeneration attempt."""
     prompt = f"{strategy_block}\n\nQuestion: {question}\n\nAnswer given: {answer}"
     model = _base_model(num_predict=150).with_structured_output(_AnswerCritique)
-    critique = await model.ainvoke([SystemMessage(VALIDATE_ANSWER_SYSTEM_PROMPT), HumanMessage(prompt)])
-    return critique.correction.strip() if not critique.valid and critique.correction.strip() else None
+    critique = await model.ainvoke(
+        [SystemMessage(VALIDATE_ANSWER_SYSTEM_PROMPT), HumanMessage(prompt)]
+    )
+    return (
+        critique.correction.strip() if not critique.valid and critique.correction.strip() else None
+    )
 
 
 def _content_text(response) -> str:
     text = response.content
     if isinstance(text, list):
-        text = "".join(b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text")
+        text = "".join(
+            b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text"
+        )
     return text.strip().strip('"“”')
 
 
@@ -157,9 +166,12 @@ PREFERENCES_SYSTEM_PROMPT = (
 
 
 class TradingPreferences(BaseModel):
-    symbols: list[str] = Field(description="Tickers the trader explicitly says they trade, e.g. ['TSLA']")
+    symbols: list[str] = Field(
+        description="Tickers the trader explicitly says they trade, e.g. ['TSLA']"
+    )
     context_timeframe: _TIMEFRAMES | None = Field(
-        description="Higher timeframe checked for context/trend before entering, if the trader mentioned one"
+        description="Higher timeframe checked for context/trend before entering, if the trader "
+        "mentioned one"
     )
     entry_timeframe: _TIMEFRAMES | None = Field(
         description="The timeframe the trader actually places entries/exits on, if stated"
@@ -241,7 +253,10 @@ def _synthetic_candles() -> list[Candle]:
 def _validate_ruleset(rule_set: StrategyRuleSet) -> str | None:
     """Runs rules to check proper formatting."""
     candles = _synthetic_candles()
-    for section, rules in (("entry_rules", rule_set.entry_rules), ("exit_rules", rule_set.exit_rules)):
+    for section, rules in (
+        ("entry_rules", rule_set.entry_rules),
+        ("exit_rules", rule_set.exit_rules),
+    ):
         for rule in rules:
             try:
                 for i in range(len(candles)):

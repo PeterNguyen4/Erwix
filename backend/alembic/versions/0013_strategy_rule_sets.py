@@ -8,15 +8,17 @@ Revision ID: 0013_strategy_rule_sets
 Revises: 0012_backtest
 Create Date: 2026-07-20
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0013_strategy_rule_sets"
-down_revision: Union[str, None] = "0012_backtest"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0012_backtest"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:

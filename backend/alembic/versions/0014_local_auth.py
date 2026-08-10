@@ -10,15 +10,17 @@ Revision ID: 0014_local_auth
 Revises: 0013_strategy_rule_sets
 Create Date: 2026-07-25
 """
-from typing import Sequence, Union
+
+from collections.abc import Sequence
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision: str = "0014_local_auth"
-down_revision: Union[str, None] = "0013_strategy_rule_sets"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0013_strategy_rule_sets"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 # (table, old index name on user_id, was user_id the primary key)
@@ -55,7 +57,10 @@ def upgrade() -> None:
             # surrogate id and repoint user_id at the new users table.
             op.drop_constraint("user_preferences_pkey", "user_preferences", type_="primary")
             op.drop_column(table, "user_id")
-            op.add_column(table, sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True))
+            op.add_column(
+                table,
+                sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+            )
             op.add_column(
                 table,
                 sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
@@ -78,13 +83,9 @@ def downgrade() -> None:
 
         if was_pk:
             op.drop_column(table, "id")
-            op.add_column(
-                table, sa.Column("user_id", sa.String(length=128), primary_key=True)
-            )
+            op.add_column(table, sa.Column("user_id", sa.String(length=128), primary_key=True))
         else:
-            op.add_column(
-                table, sa.Column("user_id", sa.String(length=128), nullable=True)
-            )
+            op.add_column(table, sa.Column("user_id", sa.String(length=128), nullable=True))
             if old_index:
                 op.create_index(old_index, table, ["user_id"])
 

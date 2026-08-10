@@ -7,7 +7,11 @@ from sqlalchemy import select
 from app.auth import generate_password_reset_token, hash_password
 from app.models import PasswordResetToken, RefreshToken, User
 
-REGISTER_PAYLOAD = {"username": "newtrader", "email": "newtrader@example.com", "password": "correcthorse123"}
+REGISTER_PAYLOAD = {
+    "username": "newtrader",
+    "email": "newtrader@example.com",
+    "password": "correcthorse123",
+}
 
 
 def test_register_creates_user(client):
@@ -24,7 +28,11 @@ def test_register_rejects_duplicate_username_case_insensitive(client):
     client.post("/api/users/register", json=REGISTER_PAYLOAD)
     resp = client.post(
         "/api/users/register",
-        json={**REGISTER_PAYLOAD, "username": "NEWTRADER", "email": "other@example.com"},
+        json={
+            **REGISTER_PAYLOAD,
+            "username": "NEWTRADER",
+            "email": "other@example.com",
+        },
     )
     assert resp.status_code == 400
     assert "Username" in resp.json()["detail"]
@@ -34,14 +42,22 @@ def test_register_rejects_duplicate_email_case_insensitive(client):
     client.post("/api/users/register", json=REGISTER_PAYLOAD)
     resp = client.post(
         "/api/users/register",
-        json={**REGISTER_PAYLOAD, "username": "othername", "email": "NEWTRADER@example.com"},
+        json={
+            **REGISTER_PAYLOAD,
+            "username": "othername",
+            "email": "NEWTRADER@example.com",
+        },
     )
     assert resp.status_code == 400
     assert "Email" in resp.json()["detail"]
 
 
 async def _create_login_ready_user(db_session, email: str, password: str) -> User:
-    user = User(username=email.split("@")[0], email=email, hashed_password=hash_password(password))
+    user = User(
+        username=email.split("@")[0],
+        email=email,
+        hashed_password=hash_password(password),
+    )
     db_session.add(user)
     await db_session.commit()
     await db_session.refresh(user)
@@ -53,7 +69,8 @@ async def test_login_success_sets_cookies_and_returns_user(client, db_session):
     await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
 
     resp = client.post(
-        "/api/users/token", data={"username": "trader@example.com", "password": "correcthorse123"}
+        "/api/users/token",
+        data={"username": "trader@example.com", "password": "correcthorse123"},
     )
     assert resp.status_code == 200
     assert resp.json()["email"] == "trader@example.com"
@@ -65,12 +82,17 @@ async def test_login_success_sets_cookies_and_returns_user(client, db_session):
 async def test_login_wrong_password_rejected(client, db_session):
     await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
 
-    resp = client.post("/api/users/token", data={"username": "trader@example.com", "password": "wrong"})
+    resp = client.post(
+        "/api/users/token", data={"username": "trader@example.com", "password": "wrong"}
+    )
     assert resp.status_code == 401
 
 
 def test_login_unknown_email_rejected(client):
-    resp = client.post("/api/users/token", data={"username": "ghost@example.com", "password": "whatever1"})
+    resp = client.post(
+        "/api/users/token",
+        data={"username": "ghost@example.com", "password": "whatever1"},
+    )
     assert resp.status_code == 401
 
 
@@ -78,7 +100,8 @@ def test_login_unknown_email_rejected(client):
 async def test_refresh_issues_new_tokens_and_revokes_old_one(client, db_session):
     await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
     login = client.post(
-        "/api/users/token", data={"username": "trader@example.com", "password": "correcthorse123"}
+        "/api/users/token",
+        data={"username": "trader@example.com", "password": "correcthorse123"},
     )
     old_refresh_cookie = login.cookies["refresh_token"]
 
@@ -119,7 +142,8 @@ async def test_refresh_with_expired_token_rejected(client, db_session):
 async def test_logout_revokes_refresh_token_and_clears_cookies(client, db_session):
     await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
     login = client.post(
-        "/api/users/token", data={"username": "trader@example.com", "password": "correcthorse123"}
+        "/api/users/token",
+        data={"username": "trader@example.com", "password": "correcthorse123"},
     )
     refresh_cookie = login.cookies["refresh_token"]
 
@@ -151,8 +175,10 @@ async def test_logout_all_bumps_token_version_and_revokes_refresh_tokens(client,
     assert user.token_version == 1
 
     stored = (
-        await db_session.execute(select(RefreshToken).where(RefreshToken.user_id == TEST_USER_ID))
-    ).scalars().first()
+        (await db_session.execute(select(RefreshToken).where(RefreshToken.user_id == TEST_USER_ID)))
+        .scalars()
+        .first()
+    )
     assert stored.revoked_at is not None
 
 
@@ -179,16 +205,20 @@ async def test_forgot_password_sends_email_for_known_user(client, db_session):
 async def test_reset_password_with_valid_token_changes_password(client, db_session):
     user = await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
     raw_token, token_hash, expires_at = generate_password_reset_token()
-    db_session.add(PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at))
+    db_session.add(
+        PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at)
+    )
     await db_session.commit()
 
     resp = client.post(
-        "/api/users/reset-password", json={"token": raw_token, "new_password": "newpassword123"}
+        "/api/users/reset-password",
+        json={"token": raw_token, "new_password": "newpassword123"},
     )
     assert resp.status_code == 200
 
     login = client.post(
-        "/api/users/token", data={"username": "trader@example.com", "password": "newpassword123"}
+        "/api/users/token",
+        data={"username": "trader@example.com", "password": "newpassword123"},
     )
     assert login.status_code == 200
 
@@ -198,19 +228,26 @@ async def test_reset_password_rejects_already_used_token(client, db_session):
     user = await _create_login_ready_user(db_session, "trader@example.com", "correcthorse123")
     raw_token, token_hash, expires_at = generate_password_reset_token()
     db_session.add(
-        PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at, used_at=datetime.now(UTC))
+        PasswordResetToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=expires_at,
+            used_at=datetime.now(UTC),
+        )
     )
     await db_session.commit()
 
     resp = client.post(
-        "/api/users/reset-password", json={"token": raw_token, "new_password": "newpassword123"}
+        "/api/users/reset-password",
+        json={"token": raw_token, "new_password": "newpassword123"},
     )
     assert resp.status_code == 400
 
 
 def test_reset_password_rejects_unknown_token(client):
     resp = client.post(
-        "/api/users/reset-password", json={"token": "not-a-real-token", "new_password": "newpassword123"}
+        "/api/users/reset-password",
+        json={"token": "not-a-real-token", "new_password": "newpassword123"},
     )
     assert resp.status_code == 400
 

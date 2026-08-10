@@ -30,7 +30,9 @@ def cancel_stream_task() -> None:
 
 @router.get("/search", dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
-async def search(q: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)) -> list[dict]:
+async def search(
+    q: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)
+) -> list[dict]:
     return await alpaca_client.search_assets(q)
 
 
@@ -48,12 +50,16 @@ def candles(
 
 @router.get("/quote", response_model=Quote, dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
-def quote(symbol: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)) -> Quote:
+def quote(
+    symbol: str = Query(..., min_length=1), _uid: int = Depends(get_current_user_id)
+) -> Quote:
     return alpaca_client.get_quote(symbol)
 
 
 @router.websocket("/stream/{symbol}")
-async def stream(websocket: WebSocket, symbol: str, _uid: int = Depends(get_current_user_id)) -> None:
+async def stream(
+    websocket: WebSocket, symbol: str, _uid: int = Depends(get_current_user_id)
+) -> None:
     """Relay live bar updates for `symbol` from Alpaca to the browser."""
     await websocket.accept()
     symbol = symbol.upper()
@@ -128,7 +134,7 @@ async def stream(websocket: WebSocket, symbol: str, _uid: int = Depends(get_curr
                 break
     except WebSocketDisconnect:
         pass
-    except Exception:  # noqa: BLE001
+    except Exception:
         logger.exception("stream error for %s", symbol)
     finally:
         await asyncio.to_thread(live_feed.unsubscribe_bars, symbol, on_bar)

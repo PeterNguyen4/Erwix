@@ -18,14 +18,20 @@ from app.models import BacktestConfig as BacktestConfigModel
 from app.models import BacktestRun as BacktestRunModel
 from app.services.embeddings import build_trade_text
 from app.services.news import fetch_news
-from app.services.trade_retrieval import compute_pnl_summary_pair, get_trades_window, semantic_search
+from app.services.trade_retrieval import (
+    compute_pnl_summary_pair,
+    get_trades_window,
+    semantic_search,
+)
 
 
 async def get_strategy_context(db: AsyncSession, user_id: int) -> tuple[str, str] | None:
     """Thin re-export — strategy_agent.py owns this capability (like news_agent owns
     build_market_insight). Lazy import to avoid a circular import: agent_graph imports this
     module, and strategy_agent imports agent_graph._base_model."""
-    from app.services.strategy_agent import get_strategy_context as _get_strategy_context
+    from app.services.strategy_agent import (
+        get_strategy_context as _get_strategy_context,
+    )
 
     return await _get_strategy_context(db, user_id)
 
@@ -148,7 +154,9 @@ def make_fetch_symbol_news_tool(db: AsyncSession, user_id: int, lock: asyncio.Lo
             return "No recent headlines found for these symbols."
         by_symbol: dict[str, list[str]] = {}
         for a in articles:
-            by_symbol.setdefault(a.symbol, []).append(f"  - [{a.publisher}] {a.title} ({a.published_at:%Y-%m-%d})")
+            by_symbol.setdefault(a.symbol, []).append(
+                f"  - [{a.publisher}] {a.title} ({a.published_at:%Y-%m-%d})"
+            )
         lines = []
         for sym, headlines in by_symbol.items():
             lines.append(f"{sym}:")
@@ -198,8 +206,14 @@ def make_backtest_results_tool(db: AsyncSession, user_id: int, lock: asyncio.Loc
             rows = (
                 await db.execute(
                     select(BacktestRunModel, BacktestConfigModel)
-                    .join(BacktestConfigModel, BacktestRunModel.config_id == BacktestConfigModel.id)
-                    .where(BacktestRunModel.user_id == user_id, BacktestRunModel.status == "ready")
+                    .join(
+                        BacktestConfigModel,
+                        BacktestRunModel.config_id == BacktestConfigModel.id,
+                    )
+                    .where(
+                        BacktestRunModel.user_id == user_id,
+                        BacktestRunModel.status == "ready",
+                    )
                     .order_by(BacktestRunModel.created_at.desc())
                     .limit(10)
                 )

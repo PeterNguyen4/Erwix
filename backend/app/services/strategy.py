@@ -10,12 +10,32 @@ from app.models import StrategyNote
 from app.models import StrategyRuleSet as StrategyRuleSetModel
 
 ARCHETYPES = [
-    {"id": "trend_rider", "name": "Trend Rider", "tagline": "Rides momentum until it breaks"},
-    {"id": "swing_sniper", "name": "Swing Sniper", "tagline": "Multi-day setups, patient entries"},
+    {
+        "id": "trend_rider",
+        "name": "Trend Rider",
+        "tagline": "Rides momentum until it breaks",
+    },
+    {
+        "id": "swing_sniper",
+        "name": "Swing Sniper",
+        "tagline": "Multi-day setups, patient entries",
+    },
     {"id": "scalper", "name": "Scalper", "tagline": "Fast in, fast out, tight risk"},
-    {"id": "breakout", "name": "Breakout Hunter", "tagline": "Buys strength through key levels"},
-    {"id": "value", "name": "Value Investor", "tagline": "Buys quality when it's cheap, holds"},
-    {"id": "guardian", "name": "Risk Guardian", "tagline": "Capital preservation above all"},
+    {
+        "id": "breakout",
+        "name": "Breakout Hunter",
+        "tagline": "Buys strength through key levels",
+    },
+    {
+        "id": "value",
+        "name": "Value Investor",
+        "tagline": "Buys quality when it's cheap, holds",
+    },
+    {
+        "id": "guardian",
+        "name": "Risk Guardian",
+        "tagline": "Capital preservation above all",
+    },
     {"id": "freeform", "name": "Freeform", "tagline": "Describe it your own way"},
 ]
 
@@ -25,14 +45,26 @@ _ARCHETYPE_NAMES = {a["id"]: a["name"] for a in ARCHETYPES}
 # "freeform" has none — it uses StrategyNote.body directly.
 QUESTIONS: dict[str, list[dict]] = {
     "trend_rider": [
-        {"id": "signal", "prompt": "What tells you a trend is starting (and still intact)?"},
-        {"id": "exit", "prompt": "What makes you exit — trend weakening, or a hard stop?"},
-        {"id": "timeframe", "prompt": "What timeframe do you typically ride a trend on?"},
+        {
+            "id": "signal",
+            "prompt": "What tells you a trend is starting (and still intact)?",
+        },
+        {
+            "id": "exit",
+            "prompt": "What makes you exit — trend weakening, or a hard stop?",
+        },
+        {
+            "id": "timeframe",
+            "prompt": "What timeframe do you typically ride a trend on?",
+        },
     ],
     "swing_sniper": [
         {"id": "setup", "prompt": "What setup are you waiting for before you enter?"},
         {"id": "hold", "prompt": "How many days do you typically hold a position?"},
-        {"id": "exit", "prompt": "What's your rule for taking profit vs. cutting a loser?"},
+        {
+            "id": "exit",
+            "prompt": "What's your rule for taking profit vs. cutting a loser?",
+        },
     ],
     "scalper": [
         {"id": "hold", "prompt": "What's your typical holding time per trade?"},
@@ -41,8 +73,14 @@ QUESTIONS: dict[str, list[dict]] = {
     ],
     "breakout": [
         {"id": "level", "prompt": "What level or pattern are you waiting to break?"},
-        {"id": "confirm", "prompt": "How do you confirm it's a real breakout vs. a fakeout?"},
-        {"id": "stop", "prompt": "Where do you place your stop relative to the breakout level?"},
+        {
+            "id": "confirm",
+            "prompt": "How do you confirm it's a real breakout vs. a fakeout?",
+        },
+        {
+            "id": "stop",
+            "prompt": "Where do you place your stop relative to the breakout level?",
+        },
     ],
     "value": [
         {"id": "cheap", "prompt": "What makes a company or asset 'cheap' to you?"},
@@ -50,7 +88,10 @@ QUESTIONS: dict[str, list[dict]] = {
         {"id": "sell", "prompt": "What would make you sell a position?"},
     ],
     "guardian": [
-        {"id": "risk", "prompt": "What's the max % of your account you'll risk on a single trade?"},
+        {
+            "id": "risk",
+            "prompt": "What's the max % of your account you'll risk on a single trade?",
+        },
         {"id": "cash", "prompt": "What market conditions make you sit in cash?"},
         {"id": "cut", "prompt": "What's your rule for cutting losses?"},
     ],
@@ -107,13 +148,17 @@ def compose_body(archetype: str | None, body: str | None, answers: dict[str, str
 
 async def get_active_strategy(db: AsyncSession, user_id: int) -> StrategyNote | None:
     return await db.scalar(
-        select(StrategyNote).where(StrategyNote.user_id == user_id, StrategyNote.is_active.is_(True))
+        select(StrategyNote).where(
+            StrategyNote.user_id == user_id, StrategyNote.is_active.is_(True)
+        )
     )
 
 
 async def list_strategies(db: AsyncSession, user_id: int) -> list[StrategyNote]:
     result = await db.scalars(
-        select(StrategyNote).where(StrategyNote.user_id == user_id).order_by(StrategyNote.updated_at.desc())
+        select(StrategyNote)
+        .where(StrategyNote.user_id == user_id)
+        .order_by(StrategyNote.updated_at.desc())
     )
     return list(result)
 
@@ -124,7 +169,9 @@ async def get_strategy_by_id(db: AsyncSession, user_id: int, note_id: int) -> St
     )
 
 
-async def create_strategy(db: AsyncSession, user_id: int, name: str, archetype: str | None) -> StrategyNote:
+async def create_strategy(
+    db: AsyncSession, user_id: int, name: str, archetype: str | None
+) -> StrategyNote:
     is_first = (await list_strategies(db, user_id)) == []
     note = StrategyNote(user_id=user_id, name=name, archetype=archetype, is_active=is_first)
     db.add(note)
@@ -163,7 +210,9 @@ async def set_active_strategy(db: AsyncSession, user_id: int, note_id: int) -> S
     if note is None:
         return None
     await db.execute(
-        StrategyNote.__table__.update().where(StrategyNote.user_id == user_id).values(is_active=False)
+        StrategyNote.__table__.update()
+        .where(StrategyNote.user_id == user_id)
+        .values(is_active=False)
     )
     note.is_active = True
     await db.commit()

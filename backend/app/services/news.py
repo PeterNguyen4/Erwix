@@ -9,7 +9,7 @@ publishers (Reuters, Barron's, MarketWatch, etc.) per ticker for free.
 import asyncio
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.services.yahoo_finance import yahoo_search
 
@@ -56,10 +56,12 @@ async def _fetch_symbol_news(symbol: str, limit: int) -> list[NewsArticle]:
                 title=title,
                 publisher=item.get("publisher", "Unknown"),
                 url=url,
-                published_at=datetime.fromtimestamp(publish_time, tz=timezone.utc),
+                published_at=datetime.fromtimestamp(publish_time, tz=UTC),
                 thumbnail_url=_get_thumbnail(item),
                 related_tickers=[
-                    t for t in item.get("relatedTickers", []) if not t.startswith("^") and "=" not in t
+                    t
+                    for t in item.get("relatedTickers", [])
+                    if not t.startswith("^") and "=" not in t
                 ],
             )
         )
@@ -74,7 +76,7 @@ async def fetch_news(symbols: list[str], limit_per_symbol: int = 6) -> list[News
         return_exceptions=True,
     )
     articles: list[NewsArticle] = []
-    for symbol, result in zip(symbols, results):
+    for symbol, result in zip(symbols, results, strict=True):
         if isinstance(result, Exception):
             logger.warning("news fetch failed for %s", symbol, exc_info=result)
             continue

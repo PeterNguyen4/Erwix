@@ -1,7 +1,7 @@
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -22,7 +22,6 @@ from app.schemas import (
     StrategyRename,
 )
 from app.schemas_strategy import StrategyRuleSet, StrategyRuleSetOut
-from app.services.strategy_agent import acompile_rules, aextract_preferences, asummarize_strategy
 from app.services.strategy import (
     archetypes_with_questions,
     create_strategy,
@@ -30,15 +29,24 @@ from app.services.strategy import (
     get_active_strategy,
     get_strategy_by_id,
     list_strategies,
-    render_playbook,
     rename_strategy,
+    render_playbook,
     set_active_strategy,
     update_strategy,
+)
+from app.services.strategy_agent import (
+    acompile_rules,
+    aextract_preferences,
+    asummarize_strategy,
 )
 
 logger = logging.getLogger("entro.strategy")
 
-router = APIRouter(prefix="/api/strategy", tags=["strategy"], dependencies=[Depends(get_current_user_id)])
+router = APIRouter(
+    prefix="/api/strategy",
+    tags=["strategy"],
+    dependencies=[Depends(get_current_user_id)],
+)
 
 _llm_rate_limit = rate_limit("strategy-llm", limit=10, window_ms=60_000, fail_open=False)
 
@@ -51,7 +59,7 @@ async def _regenerate_summary(db: AsyncSession, note: StrategyNote) -> None:
         sections = await asummarize_strategy(note.archetype, note.body)
         note.structured_summary = json.dumps(sections)
         note.summary_model = "strategy_agent.asummarize_strategy"
-        note.summarized_at = datetime.now(timezone.utc)
+        note.summarized_at = datetime.now(UTC)
         await db.commit()
     except Exception:
         logger.exception("strategy summarization failed for user %s", note.user_id)
@@ -70,7 +78,9 @@ async def _regenerate_rules(db: AsyncSession, note: StrategyNote) -> None:
         if rendered.strip():
             source_text = rendered
 
-    row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note.id))
+    row = await db.scalar(
+        select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note.id)
+    )
     if row is None:
         row = StrategyRuleSetModel(user_id=note.user_id, note_id=note.id)
         db.add(row)
@@ -79,7 +89,7 @@ async def _regenerate_rules(db: AsyncSession, note: StrategyNote) -> None:
         rule_set = await acompile_rules(note.archetype, source_text)
         row.rules = rule_set.model_dump()
         row.compiled_model = "strategy_agent.acompile_rules"
-        row.compiled_at = datetime.now(timezone.utc)
+        row.compiled_at = datetime.now(UTC)
         row.source_body_hash = hashlib.sha256(note.body.encode()).hexdigest()
         if not rule_set.entry_rules and not rule_set.exit_rules:
             # Not an exception — the model returned a well-formed but empty ruleset.
@@ -158,7 +168,11 @@ async def get_strategy(
     return await _owned_note(db, user_id, note_id)
 
 
-@router.put("/{note_id}", response_model=StrategyNoteOut, dependencies=[Depends(_llm_rate_limit)])
+@router.put(
+    "/{note_id}",
+    response_model=StrategyNoteOut,
+    dependencies=[Depends(_llm_rate_limit)],
+)
 async def save_strategy(
     note_id: int,
     body: StrategyNoteUpdate,
@@ -173,7 +187,11 @@ async def save_strategy(
     return note
 
 
-@router.post("/{note_id}/regenerate", response_model=StrategyNoteOut, dependencies=[Depends(_llm_rate_limit)])
+@router.post(
+    "/{note_id}/regenerate",
+    response_model=StrategyNoteOut,
+    dependencies=[Depends(_llm_rate_limit)],
+)
 async def regenerate_strategy(
     note_id: int,
     user_id: int = Depends(get_current_user_id),
@@ -227,7 +245,9 @@ async def get_rules(
     db: AsyncSession = Depends(get_db),
 ) -> StrategyRuleSetOut:
     note = await _owned_note(db, user_id, note_id)
-    row = await db.scalar(select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note_id))
+    row = await db.scalar(
+        select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note_id)
+    )
     if row is None:
         return StrategyRuleSetOut(rules=None, compiled_model=None, compiled_at=None, is_stale=False)
 
@@ -255,7 +275,7 @@ async def update_playbook(
     note = await _owned_note(db, user_id, note_id)
     note.structured_summary = json.dumps(body.sections)
     note.summary_model = "user-edited"
-    note.summarized_at = datetime.now(timezone.utc)
+    note.summarized_at = datetime.now(UTC)
     await db.commit()
     await db.refresh(note)
     return note

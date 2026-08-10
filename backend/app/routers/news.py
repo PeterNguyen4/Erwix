@@ -42,7 +42,11 @@ async def market_articles() -> list[NewsArticleOut]:
     ]
 
 
-@router.get("/market-insight", response_model=MarketInsightOut, dependencies=[Depends(_insight_rate_limit)])
+@router.get(
+    "/market-insight",
+    response_model=MarketInsightOut,
+    dependencies=[Depends(_insight_rate_limit)],
+)
 async def market_insight(
     refresh: bool = False,
     db: AsyncSession = Depends(get_db),
@@ -51,7 +55,9 @@ async def market_insight(
     if refresh:
         user = await db.get(User, user_id)
         if user is None or user.role != "admin":
-            raise HTTPException(status_code=403, detail="Admin access required to regenerate insights")
+            raise HTTPException(
+                status_code=403, detail="Admin access required to regenerate insights"
+            )
 
     try:
         articles = await fetch_market_news()

@@ -244,7 +244,7 @@ export default function StrategyPage() {
                         <NotebookPen size={26} strokeWidth={1.75} />
                       </span>
                       <div className="space-y-1.5">
-                        <div className="text-base font-normal text-fg">What's your trading strategy?</div>
+                        <div className="text-base font-normal text-fg">What&apos;s your trading strategy?</div>
                         <p className="max-w-xs text-sm text-muted">
                           Define the setups, entry/exit rules, signals, and indicators you use to trade.
                           This is your game plan.

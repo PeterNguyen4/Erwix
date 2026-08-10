@@ -3,7 +3,7 @@ see DebriefChat's `+`/`@` attach picker) into LLM-readable text, fetched fresh
 per request rather than snapshotted, so edits to the underlying row are always
 reflected."""
 
-from datetime import date, datetime, time, timezone
+from datetime import UTC, date, datetime, time
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,13 +61,15 @@ async def _resolve_day(db: AsyncSession, user_id: int, ref_id: str) -> str | Non
         day = date.fromisoformat(ref_id)
     except ValueError:
         return None
-    start = datetime.combine(day, time.min, tzinfo=timezone.utc)
-    end = datetime.combine(day, time.max, tzinfo=timezone.utc)
+    start = datetime.combine(day, time.min, tzinfo=UTC)
+    end = datetime.combine(day, time.max, tzinfo=UTC)
     trades = await get_trades_window(db, user_id, start, end)
     entries = list(
         (
             await db.scalars(
-                select(JournalEntry).where(JournalEntry.user_id == user_id, JournalEntry.entry_date == day)
+                select(JournalEntry).where(
+                    JournalEntry.user_id == user_id, JournalEntry.entry_date == day
+                )
             )
         ).all()
     )

@@ -3,28 +3,28 @@ Wrapper around alpaca-py for data, paper trading, and live streaming.
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 # Suppress all Alpaca websocket noise — auth failures and retries are handled by
 # _guarded_start_ws and surfaced once through entro.market instead.
 logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
 
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.live import StockDataStream
-from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
-from alpaca.trading.requests import (
+from alpaca.data.historical import StockHistoricalDataClient  # noqa: E402
+from alpaca.data.live import StockDataStream  # noqa: E402
+from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest  # noqa: E402
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit  # noqa: E402
+from alpaca.trading.client import TradingClient  # noqa: E402
+from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce  # noqa: E402
+from alpaca.trading.requests import (  # noqa: E402
     LimitOrderRequest,
     MarketOrderRequest,
     StopLossRequest,
     TakeProfitRequest,
 )
-from alpaca.trading.stream import TradingStream
+from alpaca.trading.stream import TradingStream  # noqa: E402
 
-from app.config import get_settings
-from app.schemas import (
+from app.config import get_settings  # noqa: E402
+from app.schemas import (  # noqa: E402
     Account,
     Candle,
     OrderLegOut,
@@ -53,16 +53,13 @@ _TIMEFRAMES: dict[str, TimeFrame] = {
 def _require_creds() -> None:
     if not _settings.has_alpaca_creds:
         raise RuntimeError(
-            "Alpaca credentials missing. Set ALPACA_API_KEY and "
-            "ALPACA_SECRET_KEY in backend/.env"
+            "Alpaca credentials missing. Set ALPACA_API_KEY and ALPACA_SECRET_KEY in backend/.env"
         )
 
 
 def _data_client() -> StockHistoricalDataClient:
     _require_creds()
-    return StockHistoricalDataClient(
-        _settings.alpaca_api_key, _settings.alpaca_secret_key
-    )
+    return StockHistoricalDataClient(_settings.alpaca_api_key, _settings.alpaca_secret_key)
 
 
 def _trading_client() -> TradingClient:
@@ -78,7 +75,9 @@ async def search_assets(q: str, limit: int = 10) -> list[dict]:
     """Search tickers via Yahoo Finance's public suggest API — no API key required."""
     from app.services.yahoo_finance import yahoo_search
 
-    data = await yahoo_search({"q": q, "quotesCount": limit, "newsCount": 0, "enableFuzzyQuery": "true"})
+    data = await yahoo_search(
+        {"q": q, "quotesCount": limit, "newsCount": 0, "enableFuzzyQuery": "true"}
+    )
     results = []
     for item in data.get("quotes", [])[:limit]:
         symbol = item.get("symbol", "")
@@ -97,15 +96,15 @@ def get_candles(
     tf = _TIMEFRAMES.get(timeframe, _TIMEFRAMES["1Day"])
     if start is None:
         _lookback = {
-            "1Min":  timedelta(days=3),
-            "5Min":  timedelta(days=7),
+            "1Min": timedelta(days=3),
+            "5Min": timedelta(days=7),
             "15Min": timedelta(days=14),
             "1Hour": timedelta(days=30),
-            "1Day":  timedelta(days=180),
+            "1Day": timedelta(days=180),
             "1Week": timedelta(days=730),
             "1Month": timedelta(days=1825),
         }
-        start = datetime.now(timezone.utc) - _lookback.get(timeframe, timedelta(days=180))
+        start = datetime.now(UTC) - _lookback.get(timeframe, timedelta(days=180))
     req = StockBarsRequest(
         symbol_or_symbols=symbol.upper(),
         timeframe=tf,
@@ -254,8 +253,8 @@ def get_positions() -> list[Position]:
 
 def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None] | None:
     """Entry price from the user's open position. None if no open position."""
-    from alpaca.trading.requests import GetOrdersRequest
     from alpaca.trading.enums import QueryOrderStatus
+    from alpaca.trading.requests import GetOrdersRequest
 
     client = _trading_client()
     symbol = symbol.upper()
@@ -286,8 +285,8 @@ def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None
 def get_recent_filled_orders(after: datetime) -> list:
     """Raw Alpaca orders with a fill, submitted after `after` (UTC). Used to
     reconcile the trades table against fills the live stream may have missed."""
-    from alpaca.trading.requests import GetOrdersRequest
     from alpaca.trading.enums import QueryOrderStatus
+    from alpaca.trading.requests import GetOrdersRequest
 
     client = _trading_client()
     req = GetOrdersRequest(status=QueryOrderStatus.CLOSED, after=after, limit=500, nested=False)
@@ -372,7 +371,8 @@ def get_data_stream() -> StockDataStream:
                 stream._should_run = False
                 _stream_permanently_failed = True
                 logging.getLogger("entro.market").warning(
-                    "Alpaca stream auth failed (%s) — live bars unavailable for this session", e
+                    "Alpaca stream auth failed (%s) — live bars unavailable for this session",
+                    e,
                 )
 
         stream._start_ws = _guarded_start_ws
@@ -395,6 +395,7 @@ def stop_data_stream() -> None:
         ws = getattr(_data_stream, "_ws", None)
         if ws is not None:
             import asyncio
+
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():

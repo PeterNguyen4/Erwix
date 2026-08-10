@@ -19,7 +19,11 @@ class _FakeSettings:
 
 @pytest.fixture(autouse=True)
 def _configured_encryption_key(monkeypatch):
-    monkeypatch.setattr(token_crypto, "get_settings", lambda: _FakeSettings(Fernet.generate_key().decode()))
+    monkeypatch.setattr(
+        token_crypto,
+        "get_settings",
+        lambda: _FakeSettings(Fernet.generate_key().decode()),
+    )
     token_crypto._fernet.cache_clear()
     yield
     token_crypto._fernet.cache_clear()
