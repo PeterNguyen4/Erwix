@@ -185,9 +185,7 @@ def _make_ask_strategy_tool(db: AsyncSession, user_id: int) -> BaseTool:
     return ask_strategy
 
 
-def _make_ask_news_tool(
-    db: AsyncSession, user_id: int, default_symbol: str
-) -> BaseTool:
+def _make_ask_news_tool(db: AsyncSession, user_id: int, default_symbol: str) -> BaseTool:
     @tool
     async def ask_news(symbol: str | None = None) -> str:
         """The trader is asking for a news/market read, not a config edit. symbol defaults to
@@ -214,9 +212,7 @@ def _make_ask_report_tool(result: BacktestResult | None) -> BaseTool:
         """The trader is asking about the results of a backtest they already ran (win rate,
         drawdown, a specific trade, the equity curve) — not a config edit."""
         if result is None:
-            return (
-                "No backtest has been run yet in this session — nothing to report on."
-            )
+            return "No backtest has been run yet in this session — nothing to report on."
         stats_block = "\n".join(f"{k}: {v}" for k, v in result.stats.items())
         prompt = (
             f"Backtest stats:\n{stats_block}\n\n{len(result.trades)} trades total.\n\n"
@@ -241,9 +237,7 @@ def _content_text(response) -> str:
     content = response.content
     if isinstance(content, list):
         content = "".join(
-            b.get("text", "")
-            for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
+            b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
         )
     return content.strip().strip('"“”')
 
@@ -280,10 +274,7 @@ async def astream_config_chat(
     delegate_calls = getattr(delegate_response, "tool_calls", None) or []
     if delegate_calls:
         answers = await asyncio.gather(
-            *(
-                _safe_tool_call(tools_by_name[call["name"]], call["args"])
-                for call in delegate_calls
-            )
+            *(_safe_tool_call(tools_by_name[call["name"]], call["args"]) for call in delegate_calls)
         )
         yield {"type": "token", "text": "\n\n".join(answers)}
         yield {"type": "done"}
@@ -323,8 +314,7 @@ async def astream_config_chat(
         explain_response = await model.ainvoke(
             [
                 SystemMessage(
-                    SYSTEM_PROMPT
-                    + " Nothing in the config actually changed for this instruction. "
+                    SYSTEM_PROMPT + " Nothing in the config actually changed for this instruction. "
                     "In one short sentence, explain why you couldn't apply it. Do not wrap your "
                     "reply in quotation marks."
                 ),
@@ -340,8 +330,7 @@ async def astream_config_chat(
     ack_response = await model.ainvoke(
         [
             SystemMessage(
-                SYSTEM_PROMPT
-                + " You already applied this change. In one short sentence, past "
+                SYSTEM_PROMPT + " You already applied this change. In one short sentence, past "
                 "tense, acknowledge what you changed. Do not wrap your reply in quotation marks."
             ),
             HumanMessage(

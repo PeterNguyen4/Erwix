@@ -88,9 +88,7 @@ def pattern_holds(rule: PatternRule, candles: list[Candle], i: int) -> bool:
 
 
 def gated_holds(rule: GatedRule, candles: list[Candle], i: int) -> bool:
-    return evaluate_rule(rule.condition, candles, i) and evaluate_rule(
-        rule.gate, candles, i
-    )
+    return evaluate_rule(rule.condition, candles, i) and evaluate_rule(rule.gate, candles, i)
 
 
 def evaluate_rule(rule, candles: list[Candle], i: int) -> bool:
@@ -110,7 +108,7 @@ def evaluate_rules(candles: list[Candle], rules: list) -> list[bool]:
 
 
 def rules_just_fired(prev: list[bool], curr: list[bool]) -> list[int]:
-    return [i for i, (p, c) in enumerate(zip(prev, curr)) if not p and c]
+    return [i for i, (p, c) in enumerate(zip(prev, curr, strict=True)) if not p and c]
 
 
 def signal_price_level(
@@ -124,9 +122,7 @@ def signal_price_level(
 
     if stop_loss_price is not None:
         breached = (
-            price <= stop_loss_price
-            if stop_loss_price <= entry_price
-            else price >= stop_loss_price
+            price <= stop_loss_price if stop_loss_price <= entry_price else price >= stop_loss_price
         )
         if breached:
             return "stop_loss"

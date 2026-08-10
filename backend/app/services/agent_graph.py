@@ -155,9 +155,7 @@ def _initial_state(
     }
 
 
-def _base_model(
-    num_predict: int = 400, temperature: float | None = None
-) -> BaseChatModel:
+def _base_model(num_predict: int = 400, temperature: float | None = None) -> BaseChatModel:
     settings = get_settings()
     if settings.llm_provider == "ollama":
         return ChatOllama(
@@ -243,9 +241,7 @@ def _extract_tool_events(response) -> list[dict]:
             text = call["args"].get("text")
             trade_id = call["args"].get("trade_id")
             if text and trade_id is not None:
-                events.append(
-                    {"type": "note_quote", "trade_id": trade_id, "text": text}
-                )
+                events.append({"type": "note_quote", "trade_id": trade_id, "text": text})
     return events
 
 
@@ -281,14 +277,12 @@ async def _retrieve(state: AgentState, db: AsyncSession) -> dict:
         found = await semantic_search(db, state["user_id"], state["query"])
         similar = [t for t in found if t.id not in {tr.id for tr in trades}]
         if similar:
-            context += "\n\nSimilar past trades (semantic match on: {!r}):\n".format(
-                state["query"]
-            )
-            context += "\n".join(
-                f"- (trade_id={t.id}) {build_trade_text(t)}" for t in similar
-            )
+            context += "\n\nSimilar past trades (semantic match on: {!r}):\n".format(state["query"])
+            context += "\n".join(f"- (trade_id={t.id}) {build_trade_text(t)}" for t in similar)
 
-    prompt = f"Trade window {state['window_start']:%Y-%m-%d} to {state['window_end']:%Y-%m-%d}:\n{context}"
+    window_start = state["window_start"]
+    window_end = state["window_end"]
+    prompt = f"Trade window {window_start:%Y-%m-%d} to {window_end:%Y-%m-%d}:\n{context}"
     return {
         "messages": [
             SystemMessage(await _system_prompt(db, state["user_id"])),
@@ -335,14 +329,10 @@ async def run_review(
 ) -> tuple[str, list[dict]]:
     """Run the analyst graph and return (narrative, annotations)."""
     app = build_graph(db)
-    result = await app.ainvoke(
-        _initial_state(user_id, window_start, window_end, symbol, query)
-    )
+    result = await app.ainvoke(_initial_state(user_id, window_start, window_end, symbol, query))
     narrative = result["messages"][-1].content
     if isinstance(narrative, list):
-        narrative = "".join(
-            block.get("text", "") for block in narrative if isinstance(block, dict)
-        )
+        narrative = "".join(block.get("text", "") for block in narrative if isinstance(block, dict))
     return narrative, result["annotations"]
 
 
@@ -471,9 +461,7 @@ async def agenerate_steps(
             price=trade.fill_price,
             filled_at=int(trade.filled_at.timestamp()),
         )
-        tool_response = await tool_model.ainvoke(
-            [*conversation, HumanMessage(tool_prompt)]
-        )
+        tool_response = await tool_model.ainvoke([*conversation, HumanMessage(tool_prompt)])
         events = _extract_tool_events(tool_response)
         yield _step_from_tool_events(trade, narrative, events)
 
@@ -493,15 +481,11 @@ async def summarize_report(narratives: list[str]) -> str:
         return ""
     model = _base_model(num_predict=120)
     joined = "\n".join(f"- {n}" for n in narratives)
-    response = await model.ainvoke(
-        [HumanMessage(f"{REPORT_SUMMARY_PROMPT}\n\n{joined}")]
-    )
+    response = await model.ainvoke([HumanMessage(f"{REPORT_SUMMARY_PROMPT}\n\n{joined}")])
     summary = response.content
     if isinstance(summary, list):
         summary = "".join(
-            b.get("text", "")
-            for b in summary
-            if isinstance(b, dict) and b.get("type") == "text"
+            b.get("text", "") for b in summary if isinstance(b, dict) and b.get("type") == "text"
         )
     return summary.strip().strip('"“”')
 
@@ -531,13 +515,16 @@ async def exit_guidance(
     strategy_line = ""
     if ctx:
         label, _ = ctx
-        strategy_line = f"\nTrader's stated strategy ({label}) — weigh this if it's relevant to the call."
+        strategy_line = (
+            f"\nTrader's stated strategy ({label}) — weigh this if it's relevant to the call."
+        )
 
     kind_label = "take-profit target" if level_hit == "take_profit" else "stop-loss"
+    sl_label = stop_loss_price if stop_loss_price is not None else "unset"
+    tp_label = take_profit_price if take_profit_price is not None else "unset"
     prompt = (
         f"{symbol}: {kind_label} just breached. Current price {price:.2f}, entry "
-        f"{entry_price:.2f}, stop-loss {stop_loss_price if stop_loss_price is not None else 'unset'}, "
-        f"take-profit {take_profit_price if take_profit_price is not None else 'unset'}."
+        f"{entry_price:.2f}, stop-loss {sl_label}, take-profit {tp_label}."
         f"{strategy_line}"
     )
     messages: list[AnyMessage] = [
@@ -548,9 +535,7 @@ async def exit_guidance(
     text = response.content
     if isinstance(text, list):
         text = "".join(
-            b.get("text", "")
-            for b in text
-            if isinstance(b, dict) and b.get("type") == "text"
+            b.get("text", "") for b in text if isinstance(b, dict) and b.get("type") == "text"
         )
     return text.strip().strip('"“”')
 
@@ -620,9 +605,7 @@ async def astream_review(
             price=trade.fill_price,
             filled_at=int(trade.filled_at.timestamp()),
         )
-        tool_response = await tool_model.ainvoke(
-            [*conversation, HumanMessage(tool_prompt)]
-        )
+        tool_response = await tool_model.ainvoke([*conversation, HumanMessage(tool_prompt)])
         for event in _extract_tool_events(tool_response):
             yield event
 
@@ -642,11 +625,11 @@ ROUTER_SYSTEM_PROMPT = (
     "You also have backtest_results, which reports on rule-based strategy tests the trader has "
     "already run from the Backtesting page — use it for questions like 'how did my RSI strategy "
     "backtest'. It only reports on runs that already finished; it cannot start a new backtest. "
-    "Call whichever combination of tools actually answers the question — e.g. 'what went wrong this week' "
-    "likely needs this week's trades, a comparison to last week, and market_insight for the "
-    "symbols involved; a question about one trade may need none of the comparison/news tools at "
-    "all. You may call several tools in one turn. Once you have enough information, answer "
-    "directly and specifically — don't pad with generic advice. "
+    "Call whichever combination of tools actually answers the question — e.g. 'what went wrong "
+    "this week' likely needs this week's trades, a comparison to last week, and market_insight "
+    "for the symbols involved; a question about one trade may need none of the comparison/news "
+    "tools at all. You may call several tools in one turn. Once you have enough information, "
+    "answer directly and specifically — don't pad with generic advice. "
     "You may also call draw_annotations/spotlight_day/spotlight_trade/zoom_to_range/quote_note "
     "if referencing the chart/journal/a note helps answer the question. Today's date and time "
     "is {now} UTC. If this conversation started as a debrief of a specific trade window (context "
@@ -725,9 +708,7 @@ def _message_text(message: AnyMessage) -> str:
         return content
     if isinstance(content, list):
         return "".join(
-            b.get("text", "")
-            for b in content
-            if isinstance(b, dict) and b.get("type") == "text"
+            b.get("text", "") for b in content if isinstance(b, dict) and b.get("type") == "text"
         )
     return ""
 
@@ -744,9 +725,7 @@ async def arun_ask(
     for role, content in history or []:
         messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
     if attached_context:
-        messages.append(
-            HumanMessage("Referenced context:\n" + "\n\n".join(attached_context))
-        )
+        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
     messages.append(HumanMessage(question))
 
     graph = build_router_graph(db, user_id)
@@ -787,9 +766,7 @@ async def astream_ask(
     for role, content in history or []:
         messages.append(HumanMessage(content) if role == "user" else AIMessage(content))
     if attached_context:
-        messages.append(
-            HumanMessage("Referenced context:\n" + "\n\n".join(attached_context))
-        )
+        messages.append(HumanMessage("Referenced context:\n" + "\n\n".join(attached_context)))
     messages.append(HumanMessage(question))
 
     tools = build_retrieval_tools(db, user_id) + CHART_TOOLS
@@ -829,17 +806,14 @@ async def astream_ask(
             yield {"type": "tool_call", "tool": call["name"], "args": call["args"]}
 
         results = await asyncio.gather(
-            *(
-                _safe_tool_call(tools_by_name[call["name"]], call["args"])
-                for call in tool_calls
-            )
+            *(_safe_tool_call(tools_by_name[call["name"]], call["args"]) for call in tool_calls)
         )
         messages = [
             *messages,
             accumulated,
             *(
                 ToolMessage(content=str(result), tool_call_id=call["id"])
-                for call, result in zip(tool_calls, results)
+                for call, result in zip(tool_calls, results, strict=True)
             ),
         ]
         tool_turns += 1

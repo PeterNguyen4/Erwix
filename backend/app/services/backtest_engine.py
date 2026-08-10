@@ -82,9 +82,7 @@ def run_backtest(candles: list[Candle], config: BacktestConfig) -> BacktestResul
                 else:
                     hit_target = price <= open_trade.entry_price * (1 - offset / 100)
 
-            should_exit = (
-                hit_stop or hit_target or _rules_hold(config.exit_rules, candles, i)
-            )
+            should_exit = hit_stop or hit_target or _rules_hold(config.exit_rules, candles, i)
             if should_exit:
                 direction_mult = 1 if open_side == "long" else -1
                 pnl = direction_mult * (price - open_trade.entry_price) * open_qty

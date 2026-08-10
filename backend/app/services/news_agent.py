@@ -43,14 +43,15 @@ MARKET_SYSTEM_PROMPT = (
 class MarketInsight(BaseModel):
     sentiment: str = Field(description="One of: bullish, bearish, neutral")
     advice: str = Field(
-        description="1-2 short, plain-language sentences of concrete advice for this trader, given the "
-        "market read — no jargon, no stacked clauses, say the one thing that matters most"
+        description="1-2 short, plain-language sentences of concrete advice for this trader, "
+        "given the market read — no jargon, no stacked clauses, say the one thing that matters most"
     )
     rationale: list[str] = Field(
         description="1-2 short bullets on what drove this read, each one plain sentence, no jargon"
     )
     highlighted_urls: list[str] = Field(
-        description="URLs (copied exactly from the given headlines) of the 3-6 most compelling/market-moving stories"
+        description="URLs (copied exactly from the given headlines) of the 3-6 most "
+        "compelling/market-moving stories"
     )
 
 
@@ -78,17 +79,19 @@ class _InsightCritique(BaseModel):
         description="True if the insight is internally consistent and well-supported"
     )
     correction: str = Field(
-        description="If not valid, one short sentence on what's wrong (e.g. sentiment contradicts advice, "
-        "rationale doesn't tie to the headlines, advice is generic boilerplate). Empty string if valid."
+        description="If not valid, one short sentence on what's wrong (e.g. sentiment contradicts "
+        "advice, rationale doesn't tie to the headlines, advice is generic boilerplate). Empty "
+        "string if valid."
     )
 
 
 VALIDATE_SYSTEM_PROMPT = (
-    "You are reviewing another analyst's market insight for internal consistency before it's shown "
-    "to a trader. Check: does the sentiment (bullish/bearish/neutral) actually match the advice given? "
-    "Does the rationale plausibly derive from the headlines provided, rather than being invented? Is "
-    "the advice concrete and specific rather than generic filler that could apply to any market? Judge "
-    "harshly but fairly — minor stylistic issues are not grounds for rejection."
+    "You are reviewing another analyst's market insight for internal consistency before it's "
+    "shown to a trader. Check: does the sentiment (bullish/bearish/neutral) actually match the "
+    "advice given? Does the rationale plausibly derive from the headlines provided, rather than "
+    "being invented? Is the advice concrete and specific rather than generic filler that could "
+    "apply to any market? Judge harshly but fairly — minor stylistic issues are not grounds for "
+    "rejection."
 )
 
 
@@ -103,13 +106,9 @@ async def _validate_insight(
         f"Rationale: {'; '.join(insight.rationale) if insight.rationale else '(none given)'}"
     )
     model = _base_model(num_predict=150).with_structured_output(_InsightCritique)
-    critique = await model.ainvoke(
-        [SystemMessage(VALIDATE_SYSTEM_PROMPT), HumanMessage(prompt)]
-    )
+    critique = await model.ainvoke([SystemMessage(VALIDATE_SYSTEM_PROMPT), HumanMessage(prompt)])
     return (
-        critique.correction.strip()
-        if not critique.valid and critique.correction.strip()
-        else None
+        critique.correction.strip() if not critique.valid and critique.correction.strip() else None
     )
 
 
@@ -123,9 +122,7 @@ async def build_market_insight(
 
     messages: list = [
         SystemMessage(MARKET_SYSTEM_PROMPT),
-        HumanMessage(
-            f"Recent market-wide headlines:\n{headlines_block}\n\n{strategy_block}"
-        ),
+        HumanMessage(f"Recent market-wide headlines:\n{headlines_block}\n\n{strategy_block}"),
     ]
 
     for attempt in range(2):
@@ -150,9 +147,7 @@ async def build_market_insight(
 
 
 def _articles_hash(articles: list[NewsArticle]) -> str:
-    return hashlib.sha256(
-        "\n".join(sorted(a.url for a in articles)).encode()
-    ).hexdigest()
+    return hashlib.sha256("\n".join(sorted(a.url for a in articles)).encode()).hexdigest()
 
 
 async def get_market_insight(
@@ -168,9 +163,7 @@ async def get_market_insight(
     today = datetime.now(UTC).date()
 
     cached = (
-        await db.execute(
-            select(MarketInsightCache).where(MarketInsightCache.user_id == user_id)
-        )
+        await db.execute(select(MarketInsightCache).where(MarketInsightCache.user_id == user_id))
     ).scalar_one_or_none()
 
     if cached and not force and cached.generated_at.date() == today:

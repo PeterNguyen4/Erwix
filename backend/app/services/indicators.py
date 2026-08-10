@@ -58,7 +58,8 @@ def macd_line(closes: list[float]) -> list[float | None]:
     fast = ema(closes, 12)
     slow = ema(closes, 26)
     return [
-        (f - s) if f is not None and s is not None else None for f, s in zip(fast, slow)
+        (f - s) if f is not None and s is not None else None
+        for f, s in zip(fast, slow, strict=True)
     ]
 
 
@@ -98,9 +99,7 @@ def stochastic_d(
     return _rolling_avg_optional(k, d_period)
 
 
-def _rolling_avg_optional(
-    values: list[float | None], period: int
-) -> list[float | None]:
+def _rolling_avg_optional(values: list[float | None], period: int) -> list[float | None]:
     out: list[float | None] = [None] * len(values)
     window: list[float] = []
     for i, v in enumerate(values):
@@ -137,7 +136,7 @@ def adx(candles: list[Candle], period: int = 14) -> list[float | None]:
     plus_dm = [0.0] * n
     minus_dm = [0.0] * n
     for i in range(1, n):
-        high, low, close = candles[i].high, candles[i].low, candles[i].close
+        high, low = candles[i].high, candles[i].low
         prev_high, prev_low, prev_close = (
             candles[i - 1].high,
             candles[i - 1].low,
@@ -168,9 +167,7 @@ def adx(candles: list[Candle], period: int = 14) -> list[float | None]:
 
 def trend_strength(candles: list[Candle], period: int = 14) -> list[float | None]:
     """Categorical: 1.0 = strong trend (ADX >= 25), 0.0 = weak/no trend."""
-    return [
-        None if v is None else (1.0 if v >= 25 else 0.0) for v in adx(candles, period)
-    ]
+    return [None if v is None else (1.0 if v >= 25 else 0.0) for v in adx(candles, period)]
 
 
 def candle_color(candles: list[Candle]) -> list[float | None]:
@@ -179,10 +176,7 @@ def candle_color(candles: list[Candle]) -> list[float | None]:
 
 
 def candle_body_ratio(candles: list[Candle]) -> list[float | None]:
-    return [
-        abs(c.close - c.open) / (c.high - c.low) if c.high > c.low else 0.0
-        for c in candles
-    ]
+    return [abs(c.close - c.open) / (c.high - c.low) if c.high > c.low else 0.0 for c in candles]
 
 
 def candle_upper_wick_ratio(candles: list[Candle]) -> list[float | None]:

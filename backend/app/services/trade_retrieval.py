@@ -130,9 +130,7 @@ async def _fifo_match_all(db: AsyncSession, user_id: int) -> list[ClosedTrade]:
     all_trades = list(
         (
             await db.scalars(
-                select(Trade).where(
-                    Trade.user_id == user_id, Trade.filled_at.isnot(None)
-                )
+                select(Trade).where(Trade.user_id == user_id, Trade.filled_at.isnot(None))
             )
         ).all()
     )
@@ -185,9 +183,7 @@ async def compute_pnl_weekly_comparison(
     now = datetime.now(UTC)
     week_ago = now - timedelta(days=7)
     two_weeks_ago = now - timedelta(days=14)
-    return await compute_pnl_summary_pair(
-        db, user_id, (week_ago, now), (two_weeks_ago, week_ago)
-    )
+    return await compute_pnl_summary_pair(db, user_id, (week_ago, now), (two_weeks_ago, week_ago))
 
 
 async def compute_pnl_daily_trend(
@@ -197,9 +193,7 @@ async def compute_pnl_daily_trend(
     closed = await _fifo_match_all(db, user_id)
     now = datetime.now(UTC)
     start = now - timedelta(days=days - 1)
-    closed = sorted(
-        (c for c in closed if c.closed_at >= start), key=lambda c: c.closed_at
-    )
+    closed = sorted((c for c in closed if c.closed_at >= start), key=lambda c: c.closed_at)
 
     win_rate: list[float | None] = []
     risk_reward: list[float | None] = []
@@ -223,12 +217,8 @@ async def compute_pnl_daily_trend(
         decided = len(running_wins) + len(running_losses)
         win_rate.append((len(running_wins) / decided) if decided else None)
         avg_win = (sum(running_wins) / len(running_wins)) if running_wins else None
-        avg_loss = (
-            (sum(running_losses) / len(running_losses)) if running_losses else None
-        )
-        risk_reward.append(
-            (avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None
-        )
+        avg_loss = (sum(running_losses) / len(running_losses)) if running_losses else None
+        risk_reward.append((avg_win / abs(avg_loss)) if avg_win is not None and avg_loss else None)
         total_pnl.append(running_total)
         win_loss_diff.append(len(running_wins) - len(running_losses))
 
@@ -254,14 +244,10 @@ async def count_trades_since(db: AsyncSession, user_id: int, since: datetime) ->
     )
 
 
-async def latest_fill_since(
-    db: AsyncSession, user_id: int, since: datetime
-) -> datetime | None:
+async def latest_fill_since(db: AsyncSession, user_id: int, since: datetime) -> datetime | None:
     """Most recent fill time after last."""
     return await db.scalar(
-        select(func.max(Trade.filled_at)).where(
-            Trade.user_id == user_id, Trade.filled_at > since
-        )
+        select(func.max(Trade.filled_at)).where(Trade.user_id == user_id, Trade.filled_at > since)
     )
 
 
@@ -283,9 +269,7 @@ async def get_trades_window(
     Phase-2 analyst agent reviews."""
     stmt = (
         select(Trade)
-        .where(
-            Trade.user_id == user_id, Trade.filled_at >= start, Trade.filled_at <= end
-        )
+        .where(Trade.user_id == user_id, Trade.filled_at >= start, Trade.filled_at <= end)
         .order_by(Trade.filled_at.asc())
     )
     return list((await db.scalars(stmt)).all())
@@ -310,9 +294,7 @@ async def embed_trade_best_effort(db: AsyncSession, trade: Trade) -> None:
         logger.warning("Failed to embed trade %s", trade.id, exc_info=True)
 
 
-async def backfill_embeddings(
-    db: AsyncSession, user_id: int, batch_size: int = 50
-) -> int:
+async def backfill_embeddings(db: AsyncSession, user_id: int, batch_size: int = 50) -> int:
     """Embed any of the user's trades that don't yet have one (new fills, or
     trades logged before this pipeline existed, or a stale embedding model).
     Returns the number embedded."""
@@ -327,7 +309,7 @@ async def backfill_embeddings(
         return 0
     vectors = embed_documents([build_trade_text(t) for t in trades])
     now = datetime.now(UTC)
-    for trade, vector in zip(trades, vectors):
+    for trade, vector in zip(trades, vectors, strict=True):
         trade.embedding = vector
         trade.embedding_model = EMBEDDING_MODEL
         trade.embedded_at = now

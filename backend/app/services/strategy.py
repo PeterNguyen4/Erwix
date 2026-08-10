@@ -130,9 +130,7 @@ def archetypes_with_questions() -> list[dict]:
     return [{**a, "questions": QUESTIONS.get(a["id"], [])} for a in ARCHETYPES]
 
 
-def compose_body(
-    archetype: str | None, body: str | None, answers: dict[str, str] | None
-) -> str:
+def compose_body(archetype: str | None, body: str | None, answers: dict[str, str] | None) -> str:
     """Renders either the freeform text or a question-driven archetype's answers
     into the plain-text description the strategist agent (asummarize_strategy)
     is given — keeps agent_graph unaware of the Q&A shape."""
@@ -165,13 +163,9 @@ async def list_strategies(db: AsyncSession, user_id: int) -> list[StrategyNote]:
     return list(result)
 
 
-async def get_strategy_by_id(
-    db: AsyncSession, user_id: int, note_id: int
-) -> StrategyNote | None:
+async def get_strategy_by_id(db: AsyncSession, user_id: int, note_id: int) -> StrategyNote | None:
     return await db.scalar(
-        select(StrategyNote).where(
-            StrategyNote.id == note_id, StrategyNote.user_id == user_id
-        )
+        select(StrategyNote).where(StrategyNote.id == note_id, StrategyNote.user_id == user_id)
     )
 
 
@@ -179,9 +173,7 @@ async def create_strategy(
     db: AsyncSession, user_id: int, name: str, archetype: str | None
 ) -> StrategyNote:
     is_first = (await list_strategies(db, user_id)) == []
-    note = StrategyNote(
-        user_id=user_id, name=name, archetype=archetype, is_active=is_first
-    )
+    note = StrategyNote(user_id=user_id, name=name, archetype=archetype, is_active=is_first)
     db.add(note)
     await db.commit()
     await db.refresh(note)
@@ -204,18 +196,14 @@ async def update_strategy(
     return note
 
 
-async def rename_strategy(
-    db: AsyncSession, note: StrategyNote, name: str
-) -> StrategyNote:
+async def rename_strategy(db: AsyncSession, note: StrategyNote, name: str) -> StrategyNote:
     note.name = name.strip() or "Untitled Strategy"
     await db.commit()
     await db.refresh(note)
     return note
 
 
-async def set_active_strategy(
-    db: AsyncSession, user_id: int, note_id: int
-) -> StrategyNote | None:
+async def set_active_strategy(db: AsyncSession, user_id: int, note_id: int) -> StrategyNote | None:
     """Only one strategy is ever active per user — matches the library's
     select-and-use-one-at-a-time model."""
     note = await get_strategy_by_id(db, user_id, note_id)
@@ -236,9 +224,7 @@ async def delete_strategy(db: AsyncSession, user_id: int, note_id: int) -> bool:
     note = await get_strategy_by_id(db, user_id, note_id)
     if note is None:
         return False
-    await db.execute(
-        delete(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note_id)
-    )
+    await db.execute(delete(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note_id))
     await db.delete(note)
     await db.commit()
     return True

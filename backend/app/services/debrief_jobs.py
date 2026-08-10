@@ -37,15 +37,11 @@ async def run_debrief_job(db: AsyncSession, report: DebriefReport) -> None:
     """Runs a pending DebriefReport to completion, persisting steps as they finish."""
     report.status = "running"
     report.started_at = datetime.now(UTC)
-    trades = await get_trades_window(
-        db, report.user_id, report.window_start, report.window_end
-    )
+    trades = await get_trades_window(db, report.user_id, report.window_start, report.window_end)
     if report.symbol:
         trades = [t for t in trades if t.symbol == report.symbol.upper()]
     else:
-        report.symbol = primary_symbol(
-            trades
-        )  # so the report viewer knows what chart to load
+        report.symbol = primary_symbol(trades)  # so the report viewer knows what chart to load
     report.total_steps = len(trades)
     await db.commit()
 
@@ -63,13 +59,9 @@ async def run_debrief_job(db: AsyncSession, report: DebriefReport) -> None:
             await db.commit()
 
         try:
-            report.summary = await summarize_report(
-                [s["narrative"] for s in report.steps]
-            )
+            report.summary = await summarize_report([s["narrative"] for s in report.steps])
         except Exception:
-            logger.exception(
-                "debrief summary generation failed for report %s", report.id
-            )
+            logger.exception("debrief summary generation failed for report %s", report.id)
 
         report.status = "ready"
         report.completed_at = datetime.now(UTC)
@@ -82,9 +74,7 @@ async def run_debrief_job(db: AsyncSession, report: DebriefReport) -> None:
         pref.last_debrief_at = report.completed_at
         await db.commit()
     except Exception as exc:
-        logger.exception(
-            "debrief job failed for user %s report %s", report.user_id, report.id
-        )
+        logger.exception("debrief job failed for user %s report %s", report.user_id, report.id)
         await db.rollback()
         report.status = "error"
         report.error_detail = str(exc)
@@ -104,9 +94,7 @@ async def create_pending_report(db: AsyncSession, user_id: int) -> DebriefReport
     if existing:
         return existing
     now = datetime.now(UTC)
-    pref = await db.scalar(
-        select(UserPreference).where(UserPreference.user_id == user_id)
-    )
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     window_start = (pref.last_debrief_at if pref else None) or (now - DEFAULT_WINDOW)
     report = DebriefReport(
         user_id=user_id,
@@ -130,9 +118,7 @@ async def fail_orphaned_reports() -> None:
     async with SessionLocal() as db:
         stuck = (
             await db.scalars(
-                select(DebriefReport).where(
-                    DebriefReport.status.in_(["pending", "running"])
-                )
+                select(DebriefReport).where(DebriefReport.status.in_(["pending", "running"]))
             )
         ).all()
         for report in stuck:
@@ -140,9 +126,7 @@ async def fail_orphaned_reports() -> None:
             report.error_detail = "Interrupted by a server restart"
         if stuck:
             await db.commit()
-            logger.warning(
-                "Marked %d orphaned debrief report(s) as errored on startup", len(stuck)
-            )
+            logger.warning("Marked %d orphaned debrief report(s) as errored on startup", len(stuck))
 
 
 async def run_debrief_job_by_id(report_id: int) -> None:
@@ -180,9 +164,7 @@ async def check_and_schedule_debriefs() -> None:
     now = datetime.now(UTC)
     async with SessionLocal() as db:
         prefs = (
-            await db.scalars(
-                select(UserPreference).where(UserPreference.debrief_enabled.is_(True))
-            )
+            await db.scalars(select(UserPreference).where(UserPreference.debrief_enabled.is_(True)))
         ).all()
         for pref in prefs:
             if not _slot_due(pref, now, interval):

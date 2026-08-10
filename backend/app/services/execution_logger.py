@@ -87,9 +87,7 @@ def _fill_only_trade(
     )
 
 
-async def log_order_intent(
-    response: OrderResponse, request: OrderRequest, user_id: int
-) -> None:
+async def log_order_intent(response: OrderResponse, request: OrderRequest, user_id: int) -> None:
     """Log an order the instant it's accepted by Alpaca, before any fill.
 
     Writes one row for the entry leg and, for bracket orders, one additional
@@ -185,9 +183,7 @@ async def _handle_trade_update(data) -> None:
                     # nothing filled yet — nothing worth persisting.
                     return
                 filled_at = getattr(order, "filled_at", None) or datetime.now(UTC)
-                price = getattr(data, "price", None) or getattr(
-                    order, "filled_avg_price", None
-                )
+                price = getattr(data, "price", None) or getattr(order, "filled_avg_price", None)
                 qty = getattr(data, "qty", None) or getattr(order, "filled_qty", None)
                 trade = _fill_only_trade(
                     broker_order_id=broker_order_id,
@@ -213,23 +209,15 @@ async def _handle_trade_update(data) -> None:
             else:
                 trade.status = status
                 if is_fill:
-                    trade.filled_at = getattr(order, "filled_at", None) or datetime.now(
-                        UTC
-                    )
-                    price = getattr(data, "price", None) or getattr(
-                        order, "filled_avg_price", None
-                    )
-                    qty = getattr(data, "qty", None) or getattr(
-                        order, "filled_qty", None
-                    )
+                    trade.filled_at = getattr(order, "filled_at", None) or datetime.now(UTC)
+                    price = getattr(data, "price", None) or getattr(order, "filled_avg_price", None)
+                    qty = getattr(data, "qty", None) or getattr(order, "filled_qty", None)
                     trade.fill_price = _to_float(price)
                     trade.qty = _to_float(qty, trade.qty)
                 trade.raw = json.dumps(data, default=str)
 
             await db.commit()
-            logger.info(
-                "Logged %s: %s %s %s", event, trade.side, trade.qty, trade.symbol
-            )
+            logger.info("Logged %s: %s %s %s", event, trade.side, trade.qty, trade.symbol)
             if is_fill:
                 await embed_trade_best_effort(db, trade)
         except Exception:
@@ -252,9 +240,7 @@ async def reconcile_recent_fills() -> None:
                 t.broker_order_id: t
                 for t in (
                     await db.scalars(
-                        select(Trade).where(
-                            Trade.broker_order_id.in_([str(o.id) for o in orders])
-                        )
+                        select(Trade).where(Trade.broker_order_id.in_([str(o.id) for o in orders]))
                     )
                 ).all()
             }

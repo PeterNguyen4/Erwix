@@ -56,7 +56,10 @@ def scan_input(text: str) -> str | None:
         or _PHONE_PATTERN.search(text)
         or _contains_credit_card(text)
     ):
-        return "message blocked: appears to contain personal identifying information (SSN, card number, email, or phone)"
+        return (
+            "message blocked: appears to contain personal identifying information "
+            "(SSN, card number, email, or phone)"
+        )
     return None
 
 

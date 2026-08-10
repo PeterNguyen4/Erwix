@@ -45,9 +45,7 @@ async def _resolve_trade(db: AsyncSession, user_id: int, ref_id: str) -> str | N
     return build_trade_text(trade)
 
 
-async def _resolve_journal_entry(
-    db: AsyncSession, user_id: int, ref_id: str
-) -> str | None:
+async def _resolve_journal_entry(db: AsyncSession, user_id: int, ref_id: str) -> str | None:
     try:
         entry_id = int(ref_id)
     except ValueError:

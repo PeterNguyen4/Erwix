@@ -68,9 +68,7 @@ async def _fetch_symbol_news(symbol: str, limit: int) -> list[NewsArticle]:
     return articles
 
 
-async def fetch_news(
-    symbols: list[str], limit_per_symbol: int = 6
-) -> list[NewsArticle]:
+async def fetch_news(symbols: list[str], limit_per_symbol: int = 6) -> list[NewsArticle]:
     """Fetch recent headlines for each symbol concurrently, newest first.
     Best-effort per symbol — one symbol's fetch failing doesn't fail the rest."""
     results = await asyncio.gather(
@@ -78,7 +76,7 @@ async def fetch_news(
         return_exceptions=True,
     )
     articles: list[NewsArticle] = []
-    for symbol, result in zip(symbols, results):
+    for symbol, result in zip(symbols, results, strict=True):
         if isinstance(result, Exception):
             logger.warning("news fetch failed for %s", symbol, exc_info=result)
             continue
