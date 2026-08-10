@@ -15,7 +15,7 @@ from app.models import AlpacaAccount
 from app.schemas import AlpacaConnectUrlOut, AlpacaStatusOut
 from app.services.token_crypto import encrypt_token
 
-logger = logging.getLogger("entro.alpaca_oauth")
+logger = logging.getLogger("erwix.alpaca_oauth")
 settings = get_settings()
 
 router = APIRouter(prefix="/api/alpaca", tags=["alpaca"])

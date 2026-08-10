@@ -1,4 +1,4 @@
-const PREFIX = "entro.debriefChatOverride.";
+const PREFIX = "erwix.debriefChatOverride.";
 
 /** Remembers which "ask" session a given entry-point report's chat panel should
  * open into, so /clear (which detaches from the original report) survives a

@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 type Theme = "dark" | "light";
 
-const STORAGE_KEY = "entro-theme";
+const STORAGE_KEY = "erwix-theme";
 
 const ThemeContext = createContext<{ theme: Theme; setTheme: (t: Theme) => void } | null>(null);
 

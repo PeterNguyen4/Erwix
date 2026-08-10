@@ -10,7 +10,7 @@ from app.error_handling import alpaca_errors
 from app.schemas import Account, OrderRequest, OrderResponse, PortfolioHistory, Position
 from app.services.execution_logger import log_order_intent
 
-logger = logging.getLogger("entro.trading")
+logger = logging.getLogger("erwix.trading")
 router = APIRouter(
     prefix="/api/trading", tags=["trading"], dependencies=[Depends(get_current_user_id)]
 )

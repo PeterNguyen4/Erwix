@@ -16,7 +16,7 @@ from app.config import get_settings
 from app.schemas_backtest import BacktestConfig, BacktestResult
 from app.services.agent_graph import ANALYST_MODEL
 
-logger = logging.getLogger("entro.backtest_agent")
+logger = logging.getLogger("erwix.backtest_agent")
 
 
 class _ChatEditResult(BaseModel):

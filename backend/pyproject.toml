@@ -1,7 +1,7 @@
 [project]
-name = "entro-backend"
+name = "erwix-backend"
 version = "0.1.0"
-description = "Entro multi-agent trading system — backend (Phase 1)"
+description = "Erwix multi-agent trading system — backend (Phase 1)"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

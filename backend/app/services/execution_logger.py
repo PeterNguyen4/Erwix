@@ -29,7 +29,7 @@ from app.models import Trade
 from app.schemas import OrderRequest, OrderResponse
 from app.services.trade_retrieval import embed_trade_best_effort
 
-logger = logging.getLogger("entro.execution_logger")
+logger = logging.getLogger("erwix.execution_logger")
 
 _FILL_EVENTS = {"fill", "partial_fill"}
 # Lifecycle events worth persisting a status update for. Anything else (e.g.

@@ -50,8 +50,8 @@ export default function LoginPage() {
         <div className="pointer-events-none absolute inset-0 bg-auth-panel-via/50" />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         <div className="relative z-10 flex items-center gap-2">
-          <Image src="/entro-white.svg" alt="Entro" width={30} height={30} />
-          <span className="text-2xl 2xl:text-3xl font-normal text-zinc-100 leading-tight">Entro</span>
+          <Image src="/erwix-white.svg" alt="Erwix" width={30} height={30} />
+          <span className="text-2xl 2xl:text-3xl font-normal text-zinc-100 leading-tight">Erwix</span>
         </div>
         <div className="relative z-10">
           <h2 className="text-3xl 2xl:text-4xl font-normal text-zinc-100 leading-tight">

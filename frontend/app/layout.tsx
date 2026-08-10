@@ -7,7 +7,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 const THEME_INIT_SCRIPT = `
 (function () {
   try {
-    var stored = localStorage.getItem("entro-theme");
+    var stored = localStorage.getItem("erwix-theme");
     var theme = stored === "dark" || stored === "light"
       ? stored
       : (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
@@ -17,11 +17,11 @@ const THEME_INIT_SCRIPT = `
 `;
 
 export const metadata: Metadata = {
-  title: "Entro",
+  title: "Erwix",
   description: "Multi-agent trading system",
   icons: {
-    icon: "/entro.svg",
-    shortcut: "/entro.svg",
+    icon: "/erwix.svg",
+    shortcut: "/erwix.svg",
   },
 };
 
@@ -33,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
-        <link rel="icon" href="/entro.svg" />
+        <link rel="icon" href="/erwix.svg" />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="flex h-screen" suppressHydrationWarning>

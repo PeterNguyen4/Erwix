@@ -8,7 +8,7 @@ from redis.exceptions import NoScriptError
 
 from app.config import get_settings
 
-logger = logging.getLogger("entro.rate_limiter")
+logger = logging.getLogger("erwix.rate_limiter")
 
 # Sliding-window Log using Lua scripts to prevent race conditions (atomic)
 _SLIDING_WINDOW_SCRIPT = """

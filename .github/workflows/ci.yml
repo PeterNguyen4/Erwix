@@ -16,7 +16,7 @@ jobs:
         working-directory: backend
     env:
       SECRET_KEY: ci-test-secret
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/entro
+      DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/erwix
       CORS_ORIGINS: '["http://localhost:3000"]'
     steps:
       - name: Checkout code

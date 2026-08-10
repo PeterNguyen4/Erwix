@@ -4,7 +4,7 @@ from fastapi import HTTPException
 
 from app.services.guardrails import scan_input, scan_output
 
-logger = logging.getLogger("entro.guardrails")
+logger = logging.getLogger("erwix.guardrails")
 
 
 def guardrail_input_or_raise(text: str) -> None:

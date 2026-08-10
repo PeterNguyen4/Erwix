@@ -151,7 +151,7 @@ function SettingsPageInner() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm font-medium text-fg">Theme</div>
-                <div className="text-xs text-muted">Choose how Entro looks on this device</div>
+                <div className="text-xs text-muted">Choose how Erwix looks on this device</div>
               </div>
               <div className="flex items-center gap-1 rounded-lg border border-border bg-field p-1">
                 <button

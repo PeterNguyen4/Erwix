@@ -54,7 +54,7 @@ from app.services.rule_engine import (
 from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
 
-logger = logging.getLogger("entro.agent")
+logger = logging.getLogger("erwix.agent")
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 

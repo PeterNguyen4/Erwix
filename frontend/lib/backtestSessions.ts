@@ -12,7 +12,7 @@ export interface BacktestSession {
   windowEnd: string | null;
 }
 
-const CURRENT_KEY = "entro.backtestSessions.current";
+const CURRENT_KEY = "erwix.backtestSessions.current";
 
 export function listBacktestSessions(): Promise<BacktestChatSessionSummary[]> {
   return api.listBacktestChatSessions();

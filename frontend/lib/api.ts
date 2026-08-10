@@ -1,4 +1,4 @@
-// Typed API client for the Entro backend.
+// Typed API client for the Erwix backend.
 
 const API = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 const WS = process.env.NEXT_PUBLIC_WS_BASE ?? "ws://localhost:8000";

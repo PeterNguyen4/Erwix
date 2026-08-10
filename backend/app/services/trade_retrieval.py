@@ -22,7 +22,7 @@ from app.services.embeddings import (
     embed_query,
 )
 
-logger = logging.getLogger("entro.trade_retrieval")
+logger = logging.getLogger("erwix.trade_retrieval")
 
 
 @dataclass

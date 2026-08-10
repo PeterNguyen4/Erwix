@@ -45,7 +45,7 @@ from app.services.trade_retrieval import (
     semantic_search,
 )
 
-logger = logging.getLogger("entro.agent_graph")
+logger = logging.getLogger("erwix.agent_graph")
 
 ANALYST_MODEL = "claude-opus-4-8"  # used when llm_provider == "anthropic"
 

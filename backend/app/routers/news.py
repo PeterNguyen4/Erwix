@@ -12,7 +12,7 @@ from app.schemas import MarketInsightOut, NewsArticleOut
 from app.services.news import fetch_market_news
 from app.services.news_agent import get_market_insight
 
-logger = logging.getLogger("entro.news")
+logger = logging.getLogger("erwix.news")
 
 router = APIRouter(prefix="/api/news", tags=["news"], dependencies=[Depends(get_current_user_id)])
 
