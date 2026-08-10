@@ -41,17 +41,6 @@ services:
       redis:
         condition: service_healthy
 
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        NEXT_PUBLIC_API_BASE: ${SITE_URL}
-        NEXT_PUBLIC_WS_BASE: ${SITE_WS_URL}
-    container_name: erwix-frontend
-    restart: always
-    depends_on:
-      - backend
-
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: erwix-cloudflared
@@ -61,7 +50,6 @@ services:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - backend
-      - frontend
 
 volumes:
   erwix_pgdata:
