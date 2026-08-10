@@ -41,9 +41,7 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("username", sa.String(length=128), nullable=False),
         sa.Column("hashed_password", sa.String(length=256), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_users_username", "users", ["username"], unique=True)
     op.create_index("ix_users_id", "users", ["id"])
@@ -57,9 +55,7 @@ def upgrade() -> None:
         if was_pk:
             # user_preferences: user_id was the sole primary key; swap to a
             # surrogate id and repoint user_id at the new users table.
-            op.drop_constraint(
-                "user_preferences_pkey", "user_preferences", type_="primary"
-            )
+            op.drop_constraint("user_preferences_pkey", "user_preferences", type_="primary")
             op.drop_column(table, "user_id")
             op.add_column(
                 table,
@@ -67,17 +63,13 @@ def upgrade() -> None:
             )
             op.add_column(
                 table,
-                sa.Column(
-                    "user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False
-                ),
+                sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
             )
         else:
             op.drop_column(table, "user_id")
             op.add_column(
                 table,
-                sa.Column(
-                    "user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False
-                ),
+                sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
             )
 
         op.create_index(f"ix_{table}_user_id", table, ["user_id"])
@@ -91,13 +83,9 @@ def downgrade() -> None:
 
         if was_pk:
             op.drop_column(table, "id")
-            op.add_column(
-                table, sa.Column("user_id", sa.String(length=128), primary_key=True)
-            )
+            op.add_column(table, sa.Column("user_id", sa.String(length=128), primary_key=True))
         else:
-            op.add_column(
-                table, sa.Column("user_id", sa.String(length=128), nullable=True)
-            )
+            op.add_column(table, sa.Column("user_id", sa.String(length=128), nullable=True))
             if old_index:
                 op.create_index(old_index, table, ["user_id"])
 

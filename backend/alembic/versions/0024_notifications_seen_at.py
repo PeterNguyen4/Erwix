@@ -25,12 +25,8 @@ def upgrade() -> None:
         sa.Column("notification_key", sa.String(length=160), index=True),
         sa.Column("read_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("dismissed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
-        sa.UniqueConstraint(
-            "user_id", "notification_key", name="uq_notification_dismissal"
-        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.UniqueConstraint("user_id", "notification_key", name="uq_notification_dismissal"),
     )
 
 

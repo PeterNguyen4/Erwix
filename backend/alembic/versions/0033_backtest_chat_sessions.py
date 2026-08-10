@@ -22,17 +22,13 @@ def upgrade() -> None:
         "backtest_chat_sessions",
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column(
-            "title", sa.String(length=120), nullable=False, server_default="New chat"
-        ),
+        sa.Column("title", sa.String(length=120), nullable=False, server_default="New chat"),
         sa.Column("config", sa.JSON(), nullable=False),
         sa.Column("messages", sa.JSON(), nullable=False),
         sa.Column("input", sa.Text(), nullable=False, server_default=""),
         sa.Column("window_start", sa.String(length=10), nullable=True),
         sa.Column("window_end", sa.String(length=10), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -40,13 +36,9 @@ def upgrade() -> None:
             onupdate=sa.func.now(),
         ),
     )
-    op.create_index(
-        "ix_backtest_chat_sessions_user_id", "backtest_chat_sessions", ["user_id"]
-    )
+    op.create_index("ix_backtest_chat_sessions_user_id", "backtest_chat_sessions", ["user_id"])
 
 
 def downgrade() -> None:
-    op.drop_index(
-        "ix_backtest_chat_sessions_user_id", table_name="backtest_chat_sessions"
-    )
+    op.drop_index("ix_backtest_chat_sessions_user_id", table_name="backtest_chat_sessions")
     op.drop_table("backtest_chat_sessions")

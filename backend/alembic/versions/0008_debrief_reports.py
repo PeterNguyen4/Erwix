@@ -26,17 +26,13 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "user_preferences",
-        sa.Column(
-            "debrief_enabled", sa.Boolean(), nullable=False, server_default=sa.true()
-        ),
+        sa.Column("debrief_enabled", sa.Boolean(), nullable=False, server_default=sa.true()),
     )
     op.add_column(
         "user_preferences",
         sa.Column("debrief_day_of_week", sa.Integer(), nullable=True),
     )
-    op.add_column(
-        "user_preferences", sa.Column("debrief_time", sa.Time(), nullable=True)
-    )
+    op.add_column("user_preferences", sa.Column("debrief_time", sa.Time(), nullable=True))
 
     op.create_table(
         "debrief_reports",
@@ -46,9 +42,7 @@ def upgrade() -> None:
         sa.Column("window_end", sa.DateTime(timezone=True), nullable=False),
         sa.Column("symbol", sa.String(length=16), nullable=True),
         sa.Column("query", sa.Text(), nullable=True),
-        sa.Column(
-            "status", sa.String(length=16), nullable=False, server_default="pending"
-        ),
+        sa.Column("status", sa.String(length=16), nullable=False, server_default="pending"),
         sa.Column("scheduled_for", sa.DateTime(timezone=True), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -56,9 +50,7 @@ def upgrade() -> None:
         sa.Column("current_step", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("steps", sa.JSON(), nullable=False, server_default="[]"),
         sa.Column("error_detail", sa.Text(), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_debrief_reports_user_id", "debrief_reports", ["user_id"])
 
@@ -73,9 +65,7 @@ def upgrade() -> None:
         ),
         sa.Column("role", sa.String(length=16), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_debrief_messages_report_id", "debrief_messages", ["report_id"])
 

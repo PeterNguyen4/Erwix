@@ -41,9 +41,7 @@ def upgrade() -> None:
         existing_type=sa.DateTime(timezone=True),
         nullable=True,
     )
-    op.add_column(
-        "debrief_messages", sa.Column("tool_provenance", sa.JSON(), nullable=True)
-    )
+    op.add_column("debrief_messages", sa.Column("tool_provenance", sa.JSON(), nullable=True))
 
 
 def downgrade() -> None:

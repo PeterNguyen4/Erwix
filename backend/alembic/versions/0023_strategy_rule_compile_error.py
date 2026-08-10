@@ -22,13 +22,9 @@ def upgrade() -> None:
         "strategy_rule_sets",
         sa.Column("compile_error", sa.String(length=500), nullable=True),
     )
-    op.alter_column(
-        "strategy_rule_sets", "rules", existing_type=sa.JSON(), nullable=True
-    )
+    op.alter_column("strategy_rule_sets", "rules", existing_type=sa.JSON(), nullable=True)
 
 
 def downgrade() -> None:
-    op.alter_column(
-        "strategy_rule_sets", "rules", existing_type=sa.JSON(), nullable=False
-    )
+    op.alter_column("strategy_rule_sets", "rules", existing_type=sa.JSON(), nullable=False)
     op.drop_column("strategy_rule_sets", "compile_error")

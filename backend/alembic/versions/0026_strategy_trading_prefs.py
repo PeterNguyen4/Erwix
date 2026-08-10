@@ -19,9 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "strategy_notes", sa.Column("preferred_symbols", sa.JSON(), nullable=True)
-    )
+    op.add_column("strategy_notes", sa.Column("preferred_symbols", sa.JSON(), nullable=True))
     op.add_column(
         "strategy_notes",
         sa.Column("context_timeframe", sa.String(length=16), nullable=True),

@@ -19,9 +19,7 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "journal_entries", sa.Column("timeframe", sa.String(length=16), nullable=True)
-    )
+    op.add_column("journal_entries", sa.Column("timeframe", sa.String(length=16), nullable=True))
 
 
 def downgrade() -> None:

@@ -33,13 +33,9 @@ def upgrade() -> None:
         sa.Column("advice", sa.Text(), nullable=False),
         sa.Column("rationale", sa.JSON(), nullable=False),
         sa.Column("highlighted_urls", sa.JSON(), nullable=False),
-        sa.Column(
-            "generated_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("generated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
-    op.create_index(
-        "ix_market_insight_cache_user_id", "market_insight_cache", ["user_id"]
-    )
+    op.create_index("ix_market_insight_cache_user_id", "market_insight_cache", ["user_id"])
 
 
 def downgrade() -> None:

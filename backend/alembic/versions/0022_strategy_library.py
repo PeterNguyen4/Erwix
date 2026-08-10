@@ -20,9 +20,7 @@ depends_on: str | Sequence[str] | None = None
 def upgrade() -> None:
     op.add_column(
         "strategy_notes",
-        sa.Column(
-            "name", sa.String(length=80), nullable=False, server_default="My Strategy"
-        ),
+        sa.Column("name", sa.String(length=80), nullable=False, server_default="My Strategy"),
     )
     op.add_column(
         "strategy_notes",

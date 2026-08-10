@@ -24,8 +24,12 @@ def upgrade() -> None:
         """
         DO $$
         BEGIN
-            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_preferences') THEN
-                ALTER TABLE user_preferences ADD COLUMN IF NOT EXISTS last_symbol_name VARCHAR(128);
+            IF EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = 'user_preferences'
+            ) THEN
+                ALTER TABLE user_preferences
+                ADD COLUMN IF NOT EXISTS last_symbol_name VARCHAR(128);
             END IF;
         END $$;
         """

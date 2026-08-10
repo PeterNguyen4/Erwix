@@ -25,15 +25,9 @@ EMBEDDING_DIM = 512
 
 
 def upgrade() -> None:
-    op.add_column(
-        "trades", sa.Column("embedding", Vector(EMBEDDING_DIM), nullable=True)
-    )
-    op.add_column(
-        "trades", sa.Column("embedding_model", sa.String(length=64), nullable=True)
-    )
-    op.add_column(
-        "trades", sa.Column("embedded_at", sa.DateTime(timezone=True), nullable=True)
-    )
+    op.add_column("trades", sa.Column("embedding", Vector(EMBEDDING_DIM), nullable=True))
+    op.add_column("trades", sa.Column("embedding_model", sa.String(length=64), nullable=True))
+    op.add_column("trades", sa.Column("embedded_at", sa.DateTime(timezone=True), nullable=True))
     op.create_index(
         "ix_trades_embedding_cosine",
         "trades",

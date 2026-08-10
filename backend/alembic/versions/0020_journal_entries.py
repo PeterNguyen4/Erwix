@@ -31,12 +31,8 @@ def upgrade() -> None:
         sa.Column("exit_price", sa.Float(), nullable=True),
         sa.Column("order_amount", sa.Float(), nullable=True),
         sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
-        sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()
-        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_journal_entries_user_id", "journal_entries", ["user_id"])
     op.create_index("ix_journal_entries_entry_date", "journal_entries", ["entry_date"])

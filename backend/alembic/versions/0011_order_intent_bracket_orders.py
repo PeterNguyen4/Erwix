@@ -24,9 +24,7 @@ depends_on: str | Sequence[str] | None = None
 
 def upgrade() -> None:
     op.alter_column("trades", "fill_price", existing_type=sa.Float(), nullable=True)
-    op.alter_column(
-        "trades", "filled_at", existing_type=sa.DateTime(timezone=True), nullable=True
-    )
+    op.alter_column("trades", "filled_at", existing_type=sa.DateTime(timezone=True), nullable=True)
 
     op.add_column(
         "trades",
@@ -34,15 +32,11 @@ def upgrade() -> None:
     )
     op.add_column(
         "trades",
-        sa.Column(
-            "status", sa.String(length=16), nullable=False, server_default="filled"
-        ),
+        sa.Column("status", sa.String(length=16), nullable=False, server_default="filled"),
     )
     op.add_column(
         "trades",
-        sa.Column(
-            "order_class", sa.String(length=16), nullable=False, server_default="simple"
-        ),
+        sa.Column("order_class", sa.String(length=16), nullable=False, server_default="simple"),
     )
     op.add_column("trades", sa.Column("leg", sa.String(length=16), nullable=True))
     op.add_column("trades", sa.Column("limit_price", sa.Float(), nullable=True))
@@ -50,9 +44,7 @@ def upgrade() -> None:
     op.add_column("trades", sa.Column("take_profit_price", sa.Float(), nullable=True))
     op.add_column("trades", sa.Column("stop_loss_price", sa.Float(), nullable=True))
 
-    op.create_index(
-        "ix_trades_parent_client_order_id", "trades", ["parent_client_order_id"]
-    )
+    op.create_index("ix_trades_parent_client_order_id", "trades", ["parent_client_order_id"])
     op.create_index("ix_trades_status", "trades", ["status"])
 
     # New rows should default to "new" going forward; existing rows are all
@@ -72,7 +64,5 @@ def downgrade() -> None:
     op.drop_column("trades", "status")
     op.drop_column("trades", "parent_client_order_id")
 
-    op.alter_column(
-        "trades", "filled_at", existing_type=sa.DateTime(timezone=True), nullable=False
-    )
+    op.alter_column("trades", "filled_at", existing_type=sa.DateTime(timezone=True), nullable=False)
     op.alter_column("trades", "fill_price", existing_type=sa.Float(), nullable=False)
