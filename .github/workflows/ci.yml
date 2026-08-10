@@ -27,15 +27,15 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install backend dependencies
-        run: 
+      - name: Install dependencies
+        run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Lint backend
+      - name: Lint
         run: ruff check .
 
-      - name: Test backend
+      - name: Test
         run: pytest
 
   frontend:
@@ -54,14 +54,14 @@ jobs:
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install frontend dependencies
+      - name: Install dependencies
         run: npm ci
 
-      - name: Lint frontend
+      - name: Lint
         run: npm run lint
 
-      - name: Test frontend
+      - name: Test
         run: npm test
 
-      - name: Build frontend
+      - name: Build
         run: npm run build
