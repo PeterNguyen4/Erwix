@@ -38,9 +38,7 @@ logger = logging.getLogger("entro.backtest")
 
 router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
-_run_rate_limit = rate_limit(
-    "backtest-run", limit=20, window_ms=60_000, fail_open=False
-)
+_run_rate_limit = rate_limit("backtest-run", limit=20, window_ms=60_000, fail_open=False)
 
 _DEFAULT_CHAT_CONFIG = BacktestConfig(name="Plan", symbol="AAPL", timeframe="1Day")
 
@@ -86,9 +84,7 @@ async def list_configs(
     user_id: int = Depends(get_current_user_id),
 ) -> list[BacktestConfig]:
     rows = (
-        await db.scalars(
-            select(BacktestConfigModel).where(BacktestConfigModel.user_id == user_id)
-        )
+        await db.scalars(select(BacktestConfigModel).where(BacktestConfigModel.user_id == user_id))
     ).all()
     return [_config_out(r) for r in rows]
 
@@ -197,8 +193,7 @@ async def list_chat_sessions(
         )
     ).all()
     return [
-        BacktestChatSessionSummary(id=r.id, title=r.title, updated_at=r.updated_at)
-        for r in rows
+        BacktestChatSessionSummary(id=r.id, title=r.title, updated_at=r.updated_at) for r in rows
     ]
 
 

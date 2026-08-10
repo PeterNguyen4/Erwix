@@ -14,13 +14,9 @@ from app.services.news_agent import get_market_insight
 
 logger = logging.getLogger("entro.news")
 
-router = APIRouter(
-    prefix="/api/news", tags=["news"], dependencies=[Depends(get_current_user_id)]
-)
+router = APIRouter(prefix="/api/news", tags=["news"], dependencies=[Depends(get_current_user_id)])
 
-_insight_rate_limit = rate_limit(
-    "news-insight", limit=15, window_ms=60_000, fail_open=False
-)
+_insight_rate_limit = rate_limit("news-insight", limit=15, window_ms=60_000, fail_open=False)
 
 
 @router.get("/market-articles", response_model=list[NewsArticleOut])
@@ -31,9 +27,7 @@ async def market_articles() -> list[NewsArticleOut]:
     try:
         articles = await fetch_market_news()
     except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502, detail=f"News fetch failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"News fetch failed: {exc}") from exc
     return [
         NewsArticleOut(
             symbol=a.symbol,
@@ -68,9 +62,7 @@ async def market_insight(
     try:
         articles = await fetch_market_news()
     except httpx.HTTPError as exc:
-        raise HTTPException(
-            status_code=502, detail=f"News fetch failed: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=f"News fetch failed: {exc}") from exc
 
     try:
         insight = await get_market_insight(db, user_id, articles, force=refresh)

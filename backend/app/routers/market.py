@@ -14,9 +14,7 @@ from app.services import live_feed
 logger = logging.getLogger("entro.market")
 router = APIRouter(prefix="/api/market", tags=["market"])
 
-_read_rate_limit = rate_limit(
-    "market-reads", limit=300, window_ms=60_000, fail_open=True
-)
+_read_rate_limit = rate_limit("market-reads", limit=300, window_ms=60_000, fail_open=True)
 
 # Module-level reference so the lifespan can cancel the stream on shutdown.
 _stream_task: asyncio.Task | None = None
@@ -38,9 +36,7 @@ async def search(
     return await alpaca_client.search_assets(q)
 
 
-@router.get(
-    "/candles", response_model=list[Candle], dependencies=[Depends(_read_rate_limit)]
-)
+@router.get("/candles", response_model=list[Candle], dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
 def candles(
     symbol: str = Query(..., min_length=1),
@@ -70,9 +66,7 @@ async def stream(
     queue: asyncio.Queue = asyncio.Queue()
 
     if not alpaca_client.is_stream_available():
-        await websocket.send_json(
-            {"type": "error", "detail": "live stream unavailable"}
-        )
+        await websocket.send_json({"type": "error", "detail": "live stream unavailable"})
         await websocket.close()
         return
 

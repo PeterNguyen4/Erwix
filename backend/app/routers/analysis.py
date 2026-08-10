@@ -13,9 +13,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_user_id)],
 )
 
-_backfill_rate_limit = rate_limit(
-    "analysis-backfill", limit=5, window_ms=60_000, fail_open=False
-)
+_backfill_rate_limit = rate_limit("analysis-backfill", limit=5, window_ms=60_000, fail_open=False)
 
 
 @router.post("/backfill-embeddings", dependencies=[Depends(_backfill_rate_limit)])

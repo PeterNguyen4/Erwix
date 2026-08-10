@@ -17,14 +17,10 @@ router = APIRouter(
 
 
 _order_rate_limit = rate_limit("orders", limit=10, window_ms=60_000, fail_open=False)
-_read_rate_limit = rate_limit(
-    "trading-reads", limit=120, window_ms=60_000, fail_open=True
-)
+_read_rate_limit = rate_limit("trading-reads", limit=120, window_ms=60_000, fail_open=True)
 
 
-@router.post(
-    "/orders", response_model=OrderResponse, dependencies=[Depends(_order_rate_limit)]
-)
+@router.post("/orders", response_model=OrderResponse, dependencies=[Depends(_order_rate_limit)])
 @alpaca_errors(logger)
 async def create_order(
     order: OrderRequest, user_id: int = Depends(get_current_user_id)
@@ -44,9 +40,7 @@ def positions() -> list[Position]:
     return alpaca_client.get_positions()
 
 
-@router.get(
-    "/account", response_model=Account, dependencies=[Depends(_read_rate_limit)]
-)
+@router.get("/account", response_model=Account, dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
 def account() -> Account:
     return alpaca_client.get_account()

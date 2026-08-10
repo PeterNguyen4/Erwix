@@ -48,9 +48,7 @@ router = APIRouter(
     dependencies=[Depends(get_current_user_id)],
 )
 
-_llm_rate_limit = rate_limit(
-    "strategy-llm", limit=10, window_ms=60_000, fail_open=False
-)
+_llm_rate_limit = rate_limit("strategy-llm", limit=10, window_ms=60_000, fail_open=False)
 
 
 async def _regenerate_summary(db: AsyncSession, note: StrategyNote) -> None:
@@ -121,9 +119,7 @@ async def _regenerate_preferences(db: AsyncSession, note: StrategyNote) -> None:
         note.entry_timeframe = prefs.entry_timeframe
         await db.commit()
     except Exception:
-        logger.exception(
-            "strategy preference extraction failed for user %s", note.user_id
-        )
+        logger.exception("strategy preference extraction failed for user %s", note.user_id)
 
 
 async def _owned_note(db: AsyncSession, user_id: int, note_id: int) -> StrategyNote:
@@ -253,9 +249,7 @@ async def get_rules(
         select(StrategyRuleSetModel).where(StrategyRuleSetModel.note_id == note_id)
     )
     if row is None:
-        return StrategyRuleSetOut(
-            rules=None, compiled_model=None, compiled_at=None, is_stale=False
-        )
+        return StrategyRuleSetOut(rules=None, compiled_model=None, compiled_at=None, is_stale=False)
 
     current_hash = hashlib.sha256((note.body or "").encode()).hexdigest()
     is_stale = current_hash != row.source_body_hash

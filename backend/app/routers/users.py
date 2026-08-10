@@ -63,9 +63,7 @@ def _set_access_cookie(response: Response, user: models.User) -> None:
     )
 
 
-async def _issue_refresh_token(
-    response: Response, db: AsyncSession, user_id: int
-) -> None:
+async def _issue_refresh_token(response: Response, db: AsyncSession, user_id: int) -> None:
     raw_token, token_hash, expires_at = generate_refresh_token()
     db.add(RefreshToken(user_id=user_id, token_hash=token_hash, expires_at=expires_at))
     await db.commit()
@@ -118,9 +116,7 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)) -> mode
     return new_user
 
 
-@router.post(
-    "/token", response_model=UserPrivate, dependencies=[Depends(_auth_rate_limit)]
-)
+@router.post("/token", response_model=UserPrivate, dependencies=[Depends(_auth_rate_limit)])
 async def login_for_access_token(
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -149,9 +145,7 @@ async def login_for_access_token(
     return user
 
 
-@router.post(
-    "/refresh", response_model=UserPrivate, dependencies=[Depends(_auth_rate_limit)]
-)
+@router.post("/refresh", response_model=UserPrivate, dependencies=[Depends(_auth_rate_limit)])
 async def refresh_access_token(
     response: Response,
     db: AsyncSession = Depends(get_db),
@@ -164,20 +158,12 @@ async def refresh_access_token(
 
     token_hash = hash_refresh_token(refresh_token)
     stored = (
-        (
-            await db.execute(
-                select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-            )
-        )
+        (await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash)))
         .scalars()
         .first()
     )
 
-    if (
-        not stored
-        or stored.revoked_at is not None
-        or stored.expires_at < datetime.now(UTC)
-    ):
+    if not stored or stored.revoked_at is not None or stored.expires_at < datetime.now(UTC):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired refresh token",
@@ -207,11 +193,7 @@ async def logout(
     if refresh_token:
         token_hash = hash_refresh_token(refresh_token)
         stored = (
-            (
-                await db.execute(
-                    select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-                )
-            )
+            (await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash)))
             .scalars()
             .first()
         )
@@ -262,9 +244,7 @@ async def forgot_password(
     user = (
         (
             await db.execute(
-                select(models.User).where(
-                    func.lower(models.User.email) == body.email.lower()
-                )
+                select(models.User).where(func.lower(models.User.email) == body.email.lower())
             )
         )
         .scalars()
@@ -273,11 +253,7 @@ async def forgot_password(
 
     if user:
         raw_token, token_hash, expires_at = generate_password_reset_token()
-        db.add(
-            PasswordResetToken(
-                user_id=user.id, token_hash=token_hash, expires_at=expires_at
-            )
-        )
+        db.add(PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at))
         await db.commit()
         reset_url = f"{settings.frontend_base_url}/reset-password?token={raw_token}"
         await send_password_reset_email(user.email, reset_url)
@@ -294,20 +270,14 @@ async def reset_password(
     stored = (
         (
             await db.execute(
-                select(PasswordResetToken).where(
-                    PasswordResetToken.token_hash == token_hash
-                )
+                select(PasswordResetToken).where(PasswordResetToken.token_hash == token_hash)
             )
         )
         .scalars()
         .first()
     )
 
-    if (
-        not stored
-        or stored.used_at is not None
-        or stored.expires_at < datetime.now(UTC)
-    ):
+    if not stored or stored.used_at is not None or stored.expires_at < datetime.now(UTC):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token",
@@ -350,14 +320,9 @@ async def update_me(
 ) -> models.User:
     user = await db.get(models.User, user_id)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if (
-        user_update.username is not None
-        and user_update.username.lower() != user.username.lower()
-    ):
+    if user_update.username is not None and user_update.username.lower() != user.username.lower():
         existing = (
             (
                 await db.execute(
@@ -376,10 +341,7 @@ async def update_me(
             )
         user.username = user_update.username
 
-    if (
-        user_update.email is not None
-        and user_update.email.lower() != user.email.lower()
-    ):
+    if user_update.email is not None and user_update.email.lower() != user.email.lower():
         existing = (
             (
                 await db.execute(
@@ -409,11 +371,7 @@ async def update_me(
     dependencies=[Depends(require_admin)],
 )
 async def list_users(db: AsyncSession = Depends(get_db)) -> list[models.User]:
-    return (
-        (await db.execute(select(models.User).order_by(models.User.username)))
-        .scalars()
-        .all()
-    )
+    return (await db.execute(select(models.User).order_by(models.User.username))).scalars().all()
 
 
 @router.patch("/admin/users/{target_user_id}/role", response_model=UserPrivate)
@@ -431,9 +389,7 @@ async def update_user_role(
 
     target = await db.get(models.User, target_user_id)
     if not target:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     target.role = payload.role
     await db.commit()
@@ -443,11 +399,7 @@ async def update_user_role(
 
 async def _get_or_create_preferences(db: AsyncSession, user_id: int) -> UserPreference:
     pref = (
-        (
-            await db.execute(
-                select(UserPreference).where(UserPreference.user_id == user_id)
-            )
-        )
+        (await db.execute(select(UserPreference).where(UserPreference.user_id == user_id)))
         .scalars()
         .first()
     )

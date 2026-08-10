@@ -39,7 +39,7 @@ async def add_watchlist_item(
         await db.commit()
     except IntegrityError:
         await db.rollback()
-        raise HTTPException(status_code=409, detail="Symbol already on watchlist")
+        raise HTTPException(status_code=409, detail="Symbol already on watchlist") from None
     await db.refresh(item)
     return item
 

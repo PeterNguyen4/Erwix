@@ -25,14 +25,10 @@ PERSISTENT_TYPES = {"alpaca_disconnected", "strategy_missing"}
 DISMISS_EXPIRY = timedelta(days=2)
 
 
-async def _dismissal_map(
-    db: AsyncSession, user_id: int
-) -> dict[str, NotificationDismissal]:
+async def _dismissal_map(db: AsyncSession, user_id: int) -> dict[str, NotificationDismissal]:
     rows = (
         await db.scalars(
-            select(NotificationDismissal).where(
-                NotificationDismissal.user_id == user_id
-            )
+            select(NotificationDismissal).where(NotificationDismissal.user_id == user_id)
         )
     ).all()
     return {r.notification_key: r for r in rows}
@@ -56,9 +52,7 @@ async def _build_items(db: AsyncSession, user_id: int) -> list[NotificationOut]:
     dismissals = await _dismissal_map(db, user_id)
     items: list[NotificationOut] = []
 
-    pref = await db.scalar(
-        select(UserPreference).where(UserPreference.user_id == user_id)
-    )
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     last_debrief_at = pref.last_debrief_at if pref else None
     since = last_debrief_at or (datetime.now(UTC) - DEBRIEF_LOOKBACK)
     new_trade_count = await count_trades_since(db, user_id, since)
@@ -72,7 +66,10 @@ async def _build_items(db: AsyncSession, user_id: int) -> list[NotificationOut]:
                     id=key,
                     type="debrief_ready",
                     title="Debrief ready",
-                    body=f"{new_trade_count} new trade{'s' if new_trade_count != 1 else ''} since your last debrief.",
+                    body=(
+                        f"{new_trade_count} new trade{'s' if new_trade_count != 1 else ''} "
+                        "since your last debrief."
+                    ),
                     href="/portfolio",
                     created_at=fired_at,
                     unseen=state is None or state.read_at is None,
@@ -98,9 +95,7 @@ async def _build_items(db: AsyncSession, user_id: int) -> list[NotificationOut]:
                 )
             )
 
-    alpaca_account = await db.scalar(
-        select(AlpacaAccount).where(AlpacaAccount.user_id == user_id)
-    )
+    alpaca_account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
     if alpaca_account is None:
         key = "alpaca_disconnected"
         state = _state(dismissals, key, key)
@@ -144,9 +139,7 @@ def _out(items: list[NotificationOut]) -> NotificationsOut:
     return NotificationsOut(items=items, unseen_count=sum(1 for n in items if n.unseen))
 
 
-async def _get_or_create(
-    db: AsyncSession, user_id: int, key: str
-) -> NotificationDismissal:
+async def _get_or_create(db: AsyncSession, user_id: int, key: str) -> NotificationDismissal:
     row = await db.scalar(
         select(NotificationDismissal).where(
             NotificationDismissal.user_id == user_id,

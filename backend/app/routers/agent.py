@@ -116,9 +116,7 @@ async def debrief_status(
     user_id: int = Depends(get_current_user_id),
 ) -> DebriefStatus:
     """Whether the user has fills since their last debrief, for the sidebar badge."""
-    pref = await db.scalar(
-        select(UserPreference).where(UserPreference.user_id == user_id)
-    )
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     last_debrief_at = pref.last_debrief_at if pref else None
     since = last_debrief_at or (datetime.now(UTC) - DEFAULT_LOOKBACK)
     count = await count_trades_since(db, user_id, since)
@@ -134,9 +132,7 @@ async def reset_debrief(
 ) -> DebriefStatus:
     """Dev helper: clears last_debrief_at so a debrief can be rerun without waiting
     for new fills. Not linked from any production UI path."""
-    pref = await db.scalar(
-        select(UserPreference).where(UserPreference.user_id == user_id)
-    )
+    pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
     if pref:
         pref.last_debrief_at = None
         await db.commit()
@@ -172,14 +168,10 @@ async def debrief(
             return
 
     try:
-        async for event in astream_review(
-            db, user_id, from_, to, symbol=symbol, query=query
-        ):
+        async for event in astream_review(db, user_id, from_, to, symbol=symbol, query=query):
             await websocket.send_json(event)
 
-        pref = await db.scalar(
-            select(UserPreference).where(UserPreference.user_id == user_id)
-        )
+        pref = await db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
         if pref is None:
             pref = UserPreference(user_id=user_id)
             db.add(pref)
@@ -211,45 +203,18 @@ async def watch(
     user_id: int = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Real-time evaluation of the user's compiled strategy rules plus,
-    independently, stop-loss/take-profit awareness for whatever bracket the
-    client currently has active (pre-trade draft or an open position) — no LLM
-    call in the loop, just evaluate_rules()/signal_price_level() re-run on the
-    latest price.
-
-    Driven by Alpaca's live quote stream (via `live_feed`, which fans out a
-    single alpaca-py subscription per symbol so this doesn't collide with the
-    chart's own `WS /api/market/stream/{symbol}` subscription on the same
-    symbol) rather than REST polling: each quote tick updates the in-memory
-    candle series' latest close/high/low and re-evaluates immediately, so a
-    signal reaches the client within roughly one tick instead of waiting out a
-    poll interval. The historical candle series is still refetched via REST
-    every `refresh_seconds` as a correctness backstop (new bars land, indicator
-    windows stay accurate) — that timer no longer gates signal latency.
-
-    Emits a `signal` event only on a transition (rules_just_fired for
-    indicator crosses, edge-triggering on change for level breaches) so an
-    already-true condition at connect time doesn't immediately fire.
-
-    The client pushes/updates bracket levels by sending
-    `{"type": "set_levels", "entry_price", "stop_loss_price", "take_profit_price"}`
-    over the same socket at any time — in particular while the trader is
-    dragging the TP/SL lines on the chart — so evaluation always uses the
-    latest values without needing to reconnect."""
+    """Live quotes from Alpaca paired with rule evaluation."""
     symbol = symbol.upper()
     await websocket.accept()
 
     if not alpaca_client.is_stream_available():
-        await websocket.send_json(
-            {"type": "error", "detail": "live stream unavailable"}
-        )
+        await websocket.send_json({"type": "error", "detail": "live stream unavailable"})
         await websocket.close()
         return
 
     rule_set = await load_rule_set(db, user_id)
     rules = (
-        [(r, "entry") for r in rule_set.entry_rules]
-        + [(r, "exit") for r in rule_set.exit_rules]
+        [(r, "entry") for r in rule_set.entry_rules] + [(r, "exit") for r in rule_set.exit_rules]
         if rule_set is not None
         else []
     )
@@ -305,9 +270,7 @@ async def watch(
         while True:
             await asyncio.sleep(refresh_seconds)
             try:
-                fresh = await asyncio.to_thread(
-                    alpaca_client.get_candles, symbol, timeframe
-                )
+                fresh = await asyncio.to_thread(alpaca_client.get_candles, symbol, timeframe)
             except Exception:  # noqa: BLE001
                 continue
             if fresh:
@@ -398,9 +361,7 @@ async def watch(
     except WebSocketDisconnect:
         pass
     except Exception:
-        logger.exception(
-            "rule watch loop failed for user %s symbol %s", user_id, symbol
-        )
+        logger.exception("rule watch loop failed for user %s symbol %s", user_id, symbol)
         try:
             await websocket.send_json({"type": "error", "detail": "watch loop failed"})
         except Exception:  # noqa: BLE001
@@ -475,16 +436,12 @@ async def list_debrief_sessions(
         else:
             first_message = await db.scalar(
                 select(DebriefMessage.content)
-                .where(
-                    DebriefMessage.report_id == report.id, DebriefMessage.role == "user"
-                )
+                .where(DebriefMessage.report_id == report.id, DebriefMessage.role == "user")
                 .order_by(DebriefMessage.created_at.asc())
                 .limit(1)
             )
             title = (first_message or "New chat")[:80]
-        sessions.append(
-            {"id": report.id, "created_at": report.created_at, "title": title}
-        )
+        sessions.append({"id": report.id, "created_at": report.created_at, "title": title})
     return sessions
 
 
@@ -533,9 +490,7 @@ async def delete_debrief_session(
     report = await db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id or report.report_type != "ask":
         raise HTTPException(status_code=404, detail="session not found")
-    await db.execute(
-        delete(DebriefMessage).where(DebriefMessage.report_id == report_id)
-    )
+    await db.execute(delete(DebriefMessage).where(DebriefMessage.report_id == report_id))
     await db.delete(report)
     await db.commit()
 
@@ -601,9 +556,7 @@ async def clear_debrief_messages(
     report = await db.get(DebriefReport, report_id)
     if report is None or report.user_id != user_id:
         raise HTTPException(status_code=404, detail="report not found")
-    await db.execute(
-        delete(DebriefMessage).where(DebriefMessage.report_id == report_id)
-    )
+    await db.execute(delete(DebriefMessage).where(DebriefMessage.report_id == report_id))
     await db.commit()
 
 
@@ -672,9 +625,7 @@ async def ask_debrief(
 
     history = await _debrief_history(db, report.id)
 
-    user_message = DebriefMessage(
-        report_id=report.id, role="user", content=body.message
-    )
+    user_message = DebriefMessage(report_id=report.id, role="user", content=body.message)
     db.add(user_message)
     await db.commit()
 
@@ -695,9 +646,7 @@ async def ask_debrief(
 
     output_violation = scan_output(reply)
     if output_violation:
-        logger.warning(
-            "output guardrail triggered in ask_debrief: %s", output_violation
-        )
+        logger.warning("output guardrail triggered in ask_debrief: %s", output_violation)
         raise HTTPException(status_code=502, detail=output_violation)
 
     assistant_message = DebriefMessage(
@@ -750,9 +699,7 @@ async def ask_debrief_stream(
     await db.commit()
 
     try:
-        parsed_references = [
-            AttachedReferenceIn.model_validate(r) for r in json.loads(references)
-        ]
+        parsed_references = [AttachedReferenceIn.model_validate(r) for r in json.loads(references)]
     except (json.JSONDecodeError, ValueError):
         parsed_references = []
     attached_context = await resolve_references(db, user_id, parsed_references)
@@ -783,9 +730,7 @@ async def ask_debrief_stream(
         full_reply = "".join(reply_parts)
         output_violation = scan_output(full_reply)
         if output_violation:
-            logger.warning(
-                "output guardrail triggered in ask_debrief_stream: %s", output_violation
-            )
+            logger.warning("output guardrail triggered in ask_debrief_stream: %s", output_violation)
 
         assistant_message = DebriefMessage(
             report_id=report.id,
