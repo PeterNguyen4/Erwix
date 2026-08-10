@@ -13,9 +13,7 @@ class BacktestRule(BaseModel):
     value: str
 
 
-AnyBacktestRule = Annotated[
-    BacktestRule | PatternRule | GatedRule, Field(discriminator="type")
-]
+AnyBacktestRule = Annotated[BacktestRule | PatternRule | GatedRule, Field(discriminator="type")]
 
 
 class BacktestSizing(BaseModel):

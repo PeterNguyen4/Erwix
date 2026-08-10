@@ -20,9 +20,7 @@ async def _check(
         logger.exception("rate limiter unavailable for %s", key)
         if open_on_error:
             return
-        raise HTTPException(
-            status_code=503, detail="Rate limiter unavailable"
-        ) from None
+        raise HTTPException(status_code=503, detail="Rate limiter unavailable") from None
 
     request.state.rate_limit_remaining = result.remaining
     request.state.rate_limit_limit = result.limit
@@ -36,23 +34,17 @@ async def _check(
         )
 
 
-def rate_limit(
-    route_class: str, limit: int, window_ms: int, fail_open: bool | None = None
-):
+def rate_limit(route_class: str, limit: int, window_ms: int, fail_open: bool | None = None):
     """Per-user + per-route-class."""
 
-    async def dependency(
-        request: Request, user_id: int = Depends(get_current_user_id)
-    ) -> None:
+    async def dependency(request: Request, user_id: int = Depends(get_current_user_id)) -> None:
         key = f"ratelimit:{user_id}:{route_class}"
         await _check(request, key, limit, window_ms, fail_open)
 
     return dependency
 
 
-def rate_limit_by_ip(
-    route_class: str, limit: int, window_ms: int, fail_open: bool | None = None
-):
+def rate_limit_by_ip(route_class: str, limit: int, window_ms: int, fail_open: bool | None = None):
     """Per-client-IP + per-route-class for auth flow"""
 
     async def dependency(request: Request) -> None:

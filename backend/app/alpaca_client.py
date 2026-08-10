@@ -9,22 +9,22 @@ from datetime import UTC, datetime, timedelta
 # _guarded_start_ws and surfaced once through entro.market instead.
 logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
 
-from alpaca.data.historical import StockHistoricalDataClient
-from alpaca.data.live import StockDataStream
-from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
-from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce
-from alpaca.trading.requests import (
+from alpaca.data.historical import StockHistoricalDataClient  # noqa: E402
+from alpaca.data.live import StockDataStream  # noqa: E402
+from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest  # noqa: E402
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit  # noqa: E402
+from alpaca.trading.client import TradingClient  # noqa: E402
+from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce  # noqa: E402
+from alpaca.trading.requests import (  # noqa: E402
     LimitOrderRequest,
     MarketOrderRequest,
     StopLossRequest,
     TakeProfitRequest,
 )
-from alpaca.trading.stream import TradingStream
+from alpaca.trading.stream import TradingStream  # noqa: E402
 
-from app.config import get_settings
-from app.schemas import (
+from app.config import get_settings  # noqa: E402
+from app.schemas import (  # noqa: E402
     Account,
     Candle,
     OrderLegOut,
@@ -53,16 +53,13 @@ _TIMEFRAMES: dict[str, TimeFrame] = {
 def _require_creds() -> None:
     if not _settings.has_alpaca_creds:
         raise RuntimeError(
-            "Alpaca credentials missing. Set ALPACA_API_KEY and "
-            "ALPACA_SECRET_KEY in backend/.env"
+            "Alpaca credentials missing. Set ALPACA_API_KEY and ALPACA_SECRET_KEY in backend/.env"
         )
 
 
 def _data_client() -> StockHistoricalDataClient:
     _require_creds()
-    return StockHistoricalDataClient(
-        _settings.alpaca_api_key, _settings.alpaca_secret_key
-    )
+    return StockHistoricalDataClient(_settings.alpaca_api_key, _settings.alpaca_secret_key)
 
 
 def _trading_client() -> TradingClient:
@@ -217,9 +214,7 @@ def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
             id=str(leg.id),
             client_order_id=leg.client_order_id,
             side=leg.side.value if hasattr(leg.side, "value") else str(leg.side),
-            type=leg.order_type.value
-            if hasattr(leg.order_type, "value")
-            else str(leg.order_type),
+            type=leg.order_type.value if hasattr(leg.order_type, "value") else str(leg.order_type),
             limit_price=float(leg.limit_price) if leg.limit_price is not None else None,
             stop_price=float(leg.stop_price) if leg.stop_price is not None else None,
         )
@@ -231,9 +226,7 @@ def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
         symbol=o.symbol,
         qty=float(o.qty),
         side=o.side.value if hasattr(o.side, "value") else str(o.side),
-        type=o.order_type.value
-        if hasattr(o.order_type, "value")
-        else str(o.order_type),
+        type=o.order_type.value if hasattr(o.order_type, "value") else str(o.order_type),
         order_class=order.order_class,
         status=o.status.value if hasattr(o.status, "value") else str(o.status),
         submitted_at=o.submitted_at,
@@ -258,9 +251,7 @@ def get_positions() -> list[Position]:
     return out
 
 
-def get_open_bracket_levels(
-    symbol: str, user_id: int
-) -> dict[str, float | None] | None:
+def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None] | None:
     """Entry price from the user's open position. None if no open position."""
     from alpaca.trading.enums import QueryOrderStatus
     from alpaca.trading.requests import GetOrdersRequest
@@ -272,9 +263,7 @@ def get_open_bracket_levels(
     if position is None:
         return None
 
-    req = GetOrdersRequest(
-        status=QueryOrderStatus.OPEN, symbols=[symbol], nested=True, limit=500
-    )
+    req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[symbol], nested=True, limit=500)
     stop_loss_price: float | None = None
     take_profit_price: float | None = None
     for o in client.get_orders(req):
@@ -300,9 +289,7 @@ def get_recent_filled_orders(after: datetime) -> list:
     from alpaca.trading.requests import GetOrdersRequest
 
     client = _trading_client()
-    req = GetOrdersRequest(
-        status=QueryOrderStatus.CLOSED, after=after, limit=500, nested=False
-    )
+    req = GetOrdersRequest(status=QueryOrderStatus.CLOSED, after=after, limit=500, nested=False)
     return [o for o in client.get_orders(req) if o.filled_at is not None]
 
 
@@ -318,9 +305,7 @@ def get_account() -> Account:
     )
 
 
-def get_portfolio_history(
-    period: str = "1M", timeframe: str | None = None
-) -> PortfolioHistory:
+def get_portfolio_history(period: str = "1M", timeframe: str | None = None) -> PortfolioHistory:
     """Equity curve for the (shared paper) account over `period`.
 
     `timeframe` defaults to a resolution Alpaca picks for the period when None.
@@ -341,9 +326,7 @@ def get_portfolio_history(
             PortfolioPoint(
                 time=int(ts),
                 equity=float(eq),
-                profit_loss=float(pls[i])
-                if i < len(pls) and pls[i] is not None
-                else 0.0,
+                profit_loss=float(pls[i]) if i < len(pls) and pls[i] is not None else 0.0,
             )
         )
     return PortfolioHistory(base_value=float(h.base_value or 0.0), points=points)

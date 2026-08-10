@@ -74,9 +74,7 @@ def hash_refresh_token(raw_token: str) -> str:
 def generate_password_reset_token() -> tuple[str, str, datetime]:
     raw_token = secrets.token_urlsafe(48)
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    expires_at = datetime.now(UTC) + timedelta(
-        minutes=settings.password_reset_token_expire_minutes
-    )
+    expires_at = datetime.now(UTC) + timedelta(minutes=settings.password_reset_token_expire_minutes)
     return raw_token, token_hash, expires_at
 
 
@@ -141,7 +139,5 @@ async def require_admin(
 ) -> int:
     user = await db.get(User, user_id)
     if user is None or user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return user_id

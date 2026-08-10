@@ -32,9 +32,7 @@ class User(Base):
         String(16), default="user", server_default="user"
     )  # user | admin
     token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class RefreshToken(Base):
@@ -44,9 +42,7 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class PasswordResetToken(Base):
@@ -56,17 +52,13 @@ class PasswordResetToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class AlpacaAccount(Base):
     __tablename__ = "alpaca_accounts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), unique=True, index=True
-    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True)
     access_token: Mapped[str] = mapped_column(Text)
     env: Mapped[str] = mapped_column(String(16))  # "paper" | "live"
     alpaca_account_id: Mapped[str | None] = mapped_column(String(64))
@@ -80,9 +72,7 @@ class UserPreference(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     last_symbol: Mapped[str] = mapped_column(String(16), default="AAPL")
-    last_symbol_name: Mapped[str | None] = mapped_column(
-        String(128), default="Apple Inc."
-    )
+    last_symbol_name: Mapped[str | None] = mapped_column(String(128), default="Apple Inc.")
     last_timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
 
     # Last Agent analysis
@@ -101,17 +91,13 @@ class WatchlistItem(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
     symbol: Mapped[str] = mapped_column(String(16))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class NotificationDismissal(Base):
     __tablename__ = "notification_dismissals"
     __table_args__ = (
-        UniqueConstraint(
-            "user_id", "notification_key", name="uq_notification_dismissal"
-        ),
+        UniqueConstraint("user_id", "notification_key", name="uq_notification_dismissal"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -119,9 +105,7 @@ class NotificationDismissal(Base):
     notification_key: Mapped[str] = mapped_column(String(160), index=True)
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Trade(Base):
@@ -137,9 +121,7 @@ class Trade(Base):
 
     symbol: Mapped[str] = mapped_column(String(16), index=True)
     side: Mapped[str] = mapped_column(String(8))  # buy | sell
-    order_type: Mapped[str | None] = mapped_column(
-        String(16)
-    )  # market | limit | stop | stop_limit
+    order_type: Mapped[str | None] = mapped_column(String(16))  # market | limit | stop | stop_limit
     qty: Mapped[float] = mapped_column(Float)
     fill_price: Mapped[float | None] = mapped_column(Float)
     fees: Mapped[float] = mapped_column(Float, default=0.0)
@@ -162,12 +144,8 @@ class Trade(Base):
     # User's reflection on this trade
     notes: Mapped[str | None] = mapped_column(Text, default=None)
 
-    filled_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), index=True
-    )
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    filled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     raw: Mapped[str | None] = mapped_column(Text)  # original broker payload (JSON)
 
@@ -203,9 +181,7 @@ class JournalEntry(Base):
     order_amount: Mapped[float | None] = mapped_column(Float)
     notes: Mapped[str | None] = mapped_column(Text)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -241,9 +217,7 @@ class DebriefReport(Base):
     viewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     error_detail: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class DebriefMessage(Base):
@@ -256,9 +230,7 @@ class DebriefMessage(Base):
     content: Mapped[str] = mapped_column(Text)
     tool_provenance: Mapped[list | None] = mapped_column(JSON)
     parts: Mapped[list | None] = mapped_column(JSON)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class BacktestChatSession(Base):
@@ -272,9 +244,7 @@ class BacktestChatSession(Base):
     window_start: Mapped[str | None] = mapped_column(String(10))
     window_end: Mapped[str | None] = mapped_column(String(10))
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -306,9 +276,7 @@ class StrategyNote(Base):
     context_timeframe: Mapped[str | None] = mapped_column(String(16))
     entry_timeframe: Mapped[str | None] = mapped_column(String(16))
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -330,9 +298,7 @@ class StrategyRuleSet(Base):
     # set on a failed acompile_rules call, cleared on the next successful compile
     compile_error: Mapped[str | None] = mapped_column(String(500))
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -341,9 +307,7 @@ class StrategyRuleSet(Base):
 class MarketInsightCache(Base):
     __tablename__ = "market_insight_cache"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), unique=True, index=True
-    )
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), unique=True, index=True)
 
     # sha256 of the sorted article URLs used to generate this insight
     articles_hash: Mapped[str] = mapped_column(String(64))
@@ -367,9 +331,7 @@ class BacktestConfig(Base):
     timeframe: Mapped[str] = mapped_column(String(16), default="1Day")
     config: Mapped[dict] = mapped_column(JSON)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -381,9 +343,7 @@ class BacktestRun(Base):
     __tablename__ = "backtest_runs"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), index=True)
-    config_id: Mapped[int] = mapped_column(
-        ForeignKey("backtest_configs.id"), index=True
-    )
+    config_id: Mapped[int] = mapped_column(ForeignKey("backtest_configs.id"), index=True)
 
     status: Mapped[str] = mapped_column(
         String(16), default="pending"
@@ -393,6 +353,4 @@ class BacktestRun(Base):
     result: Mapped[dict | None] = mapped_column(JSON)
     error_detail: Mapped[str | None] = mapped_column(Text)
 
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
