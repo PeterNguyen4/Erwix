@@ -18,9 +18,12 @@ export default function SettingsPage() {
 
 function SettingsPageInner() {
   const { theme, setTheme } = useTheme();
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, logout, startOnboarding } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  const [replayingOnboarding, setReplayingOnboarding] = useState(false);
+  const [replayOnboardingError, setReplayOnboardingError] = useState<string | null>(null);
 
   const [alpaca, setAlpaca] = useState<AlpacaStatus | null>(null);
   const [alpacaBanner, setAlpacaBanner] = useState<"connected" | "error" | null>(null);
@@ -54,6 +57,19 @@ function SettingsPageInner() {
       setUsersError("Couldn't update that user's role.");
     } finally {
       setPendingUserId(null);
+    }
+  };
+
+  const handleReplayOnboarding = async () => {
+    setReplayingOnboarding(true);
+    setReplayOnboardingError(null);
+    try {
+      await api.resetOnboarding();
+      startOnboarding();
+    } catch {
+      setReplayOnboardingError("Couldn't reset onboarding. Please try again.");
+    } finally {
+      setReplayingOnboarding(false);
     }
   };
 
@@ -237,6 +253,34 @@ function SettingsPageInner() {
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="rounded-lg border border-border bg-panel p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <UserRoundCog size={16} strokeWidth={2} className="text-accent dark:text-violet-400" />
+                <h2 className="text-lg font-semibold text-fg">Developer tools</h2>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-fg">Replay onboarding</div>
+                  <div className="text-xs text-muted">
+                    Reset your account&apos;s onboarding status and replay the first-login trial run
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleReplayOnboarding}
+                  disabled={replayingOnboarding}
+                  className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-muted hover:text-fg disabled:opacity-50"
+                >
+                  {replayingOnboarding ? "Resetting..." : "Act as a new user"}
+                </button>
+              </div>
+              {replayOnboardingError && (
+                <div className="mt-2 text-xs text-red-500">{replayOnboardingError}</div>
               )}
             </div>
           )}
