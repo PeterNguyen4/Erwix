@@ -2,6 +2,7 @@ from app.schemas import Candle
 from app.schemas_strategy import CandleStep, GatedRule, PatternRule, StrategyRule
 from app.services.rule_engine import (
     evaluate_rules,
+    evaluate_rules_at,
     rules_just_fired,
     signal_price_level,
 )
@@ -201,3 +202,31 @@ def test_signal_price_level_none_when_levels_unset():
         signal_price_level(price=100, entry_price=100, stop_loss_price=None, take_profit_price=None)
         is None
     )
+
+
+def test_evaluate_rules_at_matches_evaluate_rules_at_latest_index():
+    rule = StrategyRule(left="close", comparator=">", right="100", description="close > 100")
+    candles = _candles([90, 95, 105])
+    assert evaluate_rules_at(candles, [rule], len(candles) - 1) == evaluate_rules(candles, [rule])
+
+
+def test_evaluate_rules_at_evaluates_arbitrary_earlier_index():
+    rule = StrategyRule(
+        left="close", comparator="crosses_above", right="100", description="crosses above 100"
+    )
+    candles = _candles([90, 95, 105, 106, 90])
+    # the cross happened at index 2, not at the latest index (4)
+    assert evaluate_rules_at(candles, [rule], 2) == [True]
+    assert evaluate_rules_at(candles, [rule], 4) == [False]
+
+
+def test_evaluate_rules_at_out_of_range_index_returns_all_false():
+    rule = StrategyRule(left="close", comparator=">", right="100", description="close > 100")
+    candles = _candles([90, 95, 105])
+    assert evaluate_rules_at(candles, [rule, rule], 99) == [False, False]
+    assert evaluate_rules_at(candles, [rule, rule], -1) == [False, False]
+
+
+def test_evaluate_rules_at_empty_candles_returns_all_false():
+    rule = StrategyRule(left="close", comparator=">", right="100", description="close > 100")
+    assert evaluate_rules_at([], [rule, rule], 0) == [False, False]
