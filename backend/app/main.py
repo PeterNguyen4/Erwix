@@ -16,6 +16,7 @@ from app.routers import (
     market,
     news,
     notifications,
+    onboarding,
     strategy,
     trading,
     users,
@@ -87,6 +88,7 @@ app.include_router(backtest.router)
 app.include_router(alpaca_oauth.router)
 app.include_router(notifications.router)
 app.include_router(watchlist.router)
+app.include_router(onboarding.router)
 
 
 @app.get("/api/health")
