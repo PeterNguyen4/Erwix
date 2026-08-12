@@ -61,6 +61,7 @@ interface ChartProps {
   onQuickOrder?: (side: "buy" | "sell") => void;
   infoOverlay?: boolean;
   requiredIndicators?: string[];
+  hideToolbar?: boolean;
 }
 
 interface HoveredCandle {
@@ -157,6 +158,7 @@ export default function Chart({
   onQuickOrder,
   infoOverlay = false,
   requiredIndicators,
+  hideToolbar = false,
 }: ChartProps) {
   const candles = useMemo(
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
@@ -1058,6 +1060,7 @@ export default function Chart({
   return (
     <div ref={wrapperRef} className="relative flex flex-col h-full w-full">
       {/* Info bar + toolbar (single horizontal row) */}
+      {!hideToolbar && (
       <div className="relative flex items-center gap-1 border-b border-border bg-panel px-4 py-1 z-30 shrink-0">
         {(symbolBlock || !showInfoOverlay) && (
           <div className="mr-3 flex items-baseline gap-2">
@@ -1126,6 +1129,7 @@ export default function Chart({
           </ToolbarButton>
         </div>
       </div>
+      )}
 
       {/* Chart area */}
       <div

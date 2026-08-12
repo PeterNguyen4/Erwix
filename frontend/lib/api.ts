@@ -505,9 +505,14 @@ export type RuleWatchEvent =
   | { type: "signal"; kind: "entry" | "exit"; description: string; annotation: ChartAnnotation }
   | { type: "error"; detail: string };
 
+export interface OnboardingStorySlide {
+  heading: string;
+  body: string;
+}
+
 export interface OnboardingPlaybook {
   title: string;
-  markdown: string;
+  story: OnboardingStorySlide[];
   checklist: string[];
 }
 
@@ -517,6 +522,7 @@ export interface OnboardingSignal {
   kind: "entry" | "exit";
   description: string;
   annotation: ChartAnnotation;
+  is_confirmation: boolean;
 }
 
 export interface OnboardingScenario {
@@ -525,6 +531,7 @@ export interface OnboardingScenario {
   candles: Candle[];
   playbook: OnboardingPlaybook;
   signals: OnboardingSignal[];
+  chart_indicators: string[];
 }
 
 export interface OnboardingTrade {
@@ -534,9 +541,15 @@ export interface OnboardingTrade {
   exit_price: number | null;
 }
 
+export interface OnboardingChecklistResult {
+  item: string;
+  status: "met" | "missed" | "not_attempted";
+}
+
 export interface OnboardingDebrief {
   debrief: DebriefReport;
   classification: "perfect" | "sat_out" | "mistimed";
+  checklist_results: OnboardingChecklistResult[];
 }
 
 export type DebriefEvent =

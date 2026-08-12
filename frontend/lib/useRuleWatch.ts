@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ChartAnnotation, RuleWatchEvent } from "./api";
 import type { BracketLevels } from "@/components/Chart";
 
@@ -73,7 +73,7 @@ export function useRuleWatch(symbol: string, timeframe: string, bracket: Bracket
     if (ws) sendLevels(ws, bracket);
   }, [bracket?.entryPrice, bracket?.stopLossPrice, bracket?.takeProfitPrice]);
 
-  const dismiss = (id: string) => setSignals((prev) => prev.filter((s) => s.id !== id));
+  const dismiss = useCallback((id: string) => setSignals((prev) => prev.filter((s) => s.id !== id)), []);
 
   return { signals, dismiss };
 }
