@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
@@ -19,7 +19,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { useAuth } from "@/components/AuthProvider";
-import { api, OnboardingChecklistResult, OnboardingDebrief, OnboardingScenario, OnboardingTrade } from "@/lib/api";
+import {
+  api,
+  ChartAnnotation,
+  OnboardingChecklistResult,
+  OnboardingDebrief,
+  OnboardingScenario,
+  OnboardingTrade,
+} from "@/lib/api";
 import RuleSignalToastStack from "@/components/RuleSignalToast";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import CoachMark from "@/components/onboarding/CoachMark";
@@ -42,12 +49,18 @@ type TradingStyle = "Ambitious" | "Balanced" | "Steady" | "Simple";
 
 const ENTER_SELECTOR = '[data-onboarding="enter-button"]';
 const EXIT_SELECTOR = '[data-onboarding="exit-button"]';
+const TRADE_ACTIONS_SELECTOR = '[data-onboarding="trade-actions"]';
 const CHART_SELECTOR = '[data-onboarding="chart"]';
 const CHECKLIST_SELECTOR = '[data-onboarding="checklist-toggle"]';
+const TOAST_SELECTOR = '[data-onboarding="signal-toast"]';
 const COUNTDOWN_START = 3;
 const COUNTDOWN_STEP_MS = 800;
+const RESUME_DELAY_MS = 1500;
+const RESUME_COUNTDOWN_START = 5;
 const TOAST_DISMISS_MS = 3000;
 const CONGRATS_MS = 3000;
+const HINT_DISMISS_MS = 4000;
+const CHECKLIST_STAGGER_MS = 1500;
 const TRIAL_AUTOPLAY_MS = 900;
 const GENERATING_MESSAGES = [
   "Reviewing your trial run...",
@@ -72,7 +85,7 @@ const STYLE_OPTIONS: { value: TradingStyle; blurb: string }[] = [
 const STYLE_AFFIRMATIONS: Record<TradingStyle, { headline: string; body: string }> = {
   Ambitious: {
     headline: "Fortune favors the bold.",
-    body: "Let's build a strategy that matches your appetite for risk and reward.",
+    body: "Let's build a strategy that matches your continous search for new opportunities.",
   },
   Balanced: {
     headline: "Balance is key.",
@@ -84,7 +97,7 @@ const STYLE_AFFIRMATIONS: Record<TradingStyle, { headline: string; body: string 
   },
   Simple: {
     headline: "Simple is best.",
-    body: "Let's get you set up with a strategy that's easy to learn and follow.",
+    body: "Let's set you up with a strategy that's easy to learn and follow.",
   },
 };
 
@@ -95,26 +108,40 @@ const WIZARD_STEPS: { stage: Stage; heading: string; subheading: string; icon: t
   { stage: "story", heading: "Playbook", subheading: "Start learning and using your plan", icon: ListChecks },
 ];
 
-const WALKTHROUGH_ITEMS: { selector: string; message: string }[] = [
+const MOCK_TOAST: RuleSignal = {
+  id: "mock-toast",
+  kind: "entry",
+  description: "EMA 20 crossed above EMA 50 — confluence stacked, good time to enter",
+  annotation: { type: "marker", time: 0, price: 0, label: "", color: "#26a69a" },
+};
+
+const WALKTHROUGH_ITEMS: { selector: string; message: string; mockToast?: boolean }[] = [
   {
     selector: CHART_SELECTOR,
-    message: "The chart plays out on its own, like a live market — you can't pause or rewind.",
+    message: "The chart will run on its own, like a live market. You can't pause or rewind.",
   },
   {
-    selector: CHART_SELECTOR,
-    message: "When a signal or confluence fires, a toast pops up and fades — that's your cue.",
+    selector: TOAST_SELECTOR,
+    message: "This is what a signal toast looks like. When one pops up, that's your cue to act.",
+    mockToast: true,
   },
   {
-    selector: ENTER_SELECTOR,
-    message: "Enter and exit are yours to call — the debrief reflects what you actually did.",
+    selector: TOAST_SELECTOR,
+    message: "Wait patiently for the signal to enter and exit at the right time",
+    mockToast: true,
+  },
+  {
+    selector: TRADE_ACTIONS_SELECTOR,
+    message: "Enter and exit are yours to call. Remember that the toast signals will be there to help",
+    mockToast: true,
   },
   {
     selector: CHECKLIST_SELECTOR,
-    message: "Open the checklist any time to double check the playbook.",
+    message: "The playbook is always available.",
   },
   {
     selector: CHART_SELECTOR,
-    message: "It's your turn. Wait for guidance to enter and exit the trade at the right time. Best of luck!",
+    message: "Now it's your turn. Be on the lookout for signals to enter and exit at the right time. Best of luck!",
   },
 ];
 
@@ -131,12 +158,13 @@ const CHECKLIST_COLOR: Record<OnboardingChecklistResult["status"], string> = {
 };
 
 const CONFETTI_COLORS = ["#f87171", "#fb923c", "#facc15", "#4ade80", "#38bdf8", "#a78bfa", "#f472b6"];
-const CONFETTI_PIECES = Array.from({ length: 28 }, (_, i) => ({
-  left: (i * 37) % 100,
+const CONFETTI_PIECES = Array.from({ length: 18 }, (_, i) => ({
+  left: (i * 61) % 100,
+  top: (i * 23) % 40,
   color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
   delay: (i % 7) * 0.08,
   duration: 1.1 + (i % 5) * 0.15,
-  rotate: (i * 53) % 360,
+  rotate: (i * 89) % 360,
   size: i % 3 === 0 ? 9 : 6,
 }));
 
@@ -157,8 +185,9 @@ export default function OnboardingPage() {
   const [toasts, setToasts] = useState<RuleSignal[]>([]);
   const [openTrade, setOpenTrade] = useState<{ time: number; price: number } | null>(null);
   const [trades, setTrades] = useState<OnboardingTrade[]>([]);
-  const [coach, setCoach] = useState<{ selector: string; message: string } | null>(null);
+  const [coach, setCoach] = useState<{ selector: string; message: string; spotlight?: boolean } | null>(null);
   const [awaitingAction, setAwaitingAction] = useState(false);
+  const [resumeCountdown, setResumeCountdown] = useState<number | null>(null);
   const [introStarted, setIntroStarted] = useState(false);
   const [introStep, setIntroStep] = useState(0);
   const [introDone, setIntroDone] = useState(false);
@@ -185,7 +214,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (stage !== "trial" || countdown !== null) return;
     if (!introStarted) {
-      setCoach({ selector: CHART_SELECTOR, message: "Ready to see how this works?" });
+      setCoach({ selector: CHART_SELECTOR, message: "Welcome to the trial! Ready to see how this works?" });
       return;
     }
     if (introStep >= WALKTHROUGH_ITEMS.length) return;
@@ -217,6 +246,15 @@ export default function OnboardingPage() {
     }
   };
 
+  // One-off reminder right as the tape starts moving for real — not part of the
+  // walkthrough, so it auto-dismisses instead of waiting on a click.
+  useEffect(() => {
+    if (!introDone) return;
+    setCoach({ selector: TRADE_ACTIONS_SELECTOR, message: "Remember to wait for the signal.", spotlight: false });
+    const t = setTimeout(() => setCoach(null), HINT_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [introDone]);
+
   useEffect(() => {
     if (stage !== "trial" || !scenario || !introDone || awaitingAction) return;
     const total = scenario.candles.length;
@@ -225,6 +263,27 @@ export default function OnboardingPage() {
     }, TRIAL_AUTOPLAY_MS);
     return () => clearInterval(interval);
   }, [stage, scenario, introDone, awaitingAction]);
+
+  useEffect(() => {
+    if (!awaitingAction) {
+      setResumeCountdown(null);
+      return;
+    }
+    const t = setTimeout(() => setResumeCountdown(RESUME_COUNTDOWN_START), RESUME_DELAY_MS);
+    return () => clearTimeout(t);
+  }, [awaitingAction]);
+
+  useEffect(() => {
+    if (resumeCountdown === null) return;
+    if (resumeCountdown <= 0) {
+      setResumeCountdown(null);
+      setAwaitingAction(false);
+      setCoach(null);
+      return;
+    }
+    const t = setTimeout(() => setResumeCountdown((c) => (c ?? 1) - 1), COUNTDOWN_STEP_MS);
+    return () => clearTimeout(t);
+  }, [resumeCountdown]);
 
   useEffect(() => {
     if (!scenario || stage !== "trial" || !introDone) return;
@@ -279,11 +338,11 @@ export default function OnboardingPage() {
     if (stage !== "generating") return;
     const t = setInterval(() => {
       setGeneratingMessageIndex((i) => (i + 1) % GENERATING_MESSAGES.length);
-    }, 2500);
+    }, 3000);
     return () => clearInterval(t);
   }, [stage]);
 
-  const dismissToast = (id: string) => setToasts((prev) => prev.filter((t) => t.id !== id));
+  const dismissToast = useCallback((id: string) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);
 
   const handleEnter = () => {
     if (!scenario || openTrade) return;
@@ -292,6 +351,7 @@ export default function OnboardingPage() {
     setOpenTrade({ time: candle.time, price: candle.close });
     setCoach(null);
     setAwaitingAction(false);
+    setResumeCountdown(null);
   };
 
   const handleExit = () => {
@@ -310,6 +370,7 @@ export default function OnboardingPage() {
     setOpenTrade(null);
     setCoach(null);
     setAwaitingAction(false);
+    setResumeCountdown(null);
   };
 
   const finishTrial = async () => {
@@ -358,6 +419,20 @@ export default function OnboardingPage() {
   const onChecklistStep = scenario ? storyIndex === scenario.playbook.story.length : false;
   const currentWizardIndex = WIZARD_STEPS.findIndex((s) => s.stage === stage);
   const showWizardSteps = currentWizardIndex !== -1;
+  const showingMockToast =
+    introStarted && !introDone && countdown === null && WALKTHROUGH_ITEMS[introStep]?.mockToast === true;
+
+  const tradeAnnotations: ChartAnnotation[] = [
+    ...trades.flatMap((t): ChartAnnotation[] => [
+      { type: "marker", time: t.enter_time, price: t.enter_price, label: "Buy", color: "#26a69a" },
+      ...(t.exit_time !== null && t.exit_price !== null
+        ? ([{ type: "marker", time: t.exit_time, price: t.exit_price, label: "Sell", color: "#ef5350" }] as ChartAnnotation[])
+        : []),
+    ]),
+    ...(openTrade
+      ? [{ type: "marker", time: openTrade.time, price: openTrade.price, label: "Buy", color: "#26a69a" } as ChartAnnotation]
+      : []),
+  ];
 
   return (
     <div className="flex h-screen w-full flex-col overflow-auto bg-bg">
@@ -437,7 +512,7 @@ export default function OnboardingPage() {
         )}
 
         {scenario && stage === "gameplan" && style && (
-          <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-4 text-center">
+          <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-4 text-center">
             <div className="text-xs font-semibold uppercase tracking-widest text-muted">The game plan</div>
             <h1 className="text-3xl font-normal leading-snug tracking-tight text-fg">
               <span className="text-accent dark:text-violet-400">
@@ -533,26 +608,27 @@ export default function OnboardingPage() {
         )}
 
         {scenario && stage === "trial" && (
-          <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col justify-center gap-3">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-3">
             <div className="flex gap-3">
-              <div data-onboarding="chart" className="relative h-[520px] flex-1 rounded-xl border border-border bg-bg">
+              <div data-onboarding="chart" className="relative h-[400px] flex-1 rounded-xl border border-border bg-bg">
                 <Chart
                   candles={scenario.candles}
                   cursorIndex={cursorIndex}
                   symbol={scenario.symbol}
                   requiredIndicators={scenario.chart_indicators}
+                  annotations={tradeAnnotations}
                   hideToolbar
                 />
                 <RuleSignalToastStack
-                  signals={toasts}
+                  signals={showingMockToast ? [MOCK_TOAST] : toasts}
                   onDismiss={dismissToast}
-                  autoDismissMs={TOAST_DISMISS_MS}
+                  autoDismissMs={showingMockToast ? Number.MAX_SAFE_INTEGER : TOAST_DISMISS_MS}
                   position="top-left"
                 />
 
                 {coach && (
                   <>
-                    <SpotlightOverlay targetSelector={coach.selector} />
+                    {coach.spotlight !== false && <SpotlightOverlay targetSelector={coach.selector} />}
                     <CoachMark
                       key={coach.message}
                       targetSelector={coach.selector}
@@ -567,6 +643,15 @@ export default function OnboardingPage() {
                       }
                     />
                   </>
+                )}
+
+                {resumeCountdown !== null && (
+                  <div
+                    key={resumeCountdown}
+                    className="pointer-events-none absolute bottom-4 right-4 z-40 flex animate-pop-in items-center gap-2 rounded-full border-2 border-accent bg-bg px-4 py-2 text-sm font-bold text-accent shadow-xl dark:border-violet-400 dark:text-violet-400"
+                  >
+                    Resuming in {resumeCountdown}...
+                  </div>
                 )}
 
                 {countdown !== null && (
@@ -614,12 +699,12 @@ export default function OnboardingPage() {
                       : "Watching for a signal..."}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div data-onboarding="trade-actions" className="flex items-center gap-2">
                 <button
                   data-onboarding="enter-button"
                   title="Open a simulated position at the current price"
                   onClick={handleEnter}
-                  disabled={!!openTrade}
+                  disabled={!!openTrade || !introDone}
                   className={`rounded-md bg-green-500/20 px-4 py-2 text-sm font-medium text-green-500 hover:bg-green-500/30 disabled:opacity-40 ${
                     awaitingAction && !openTrade
                       ? "animate-pulse ring-2 ring-green-400 ring-offset-2 ring-offset-bg"
@@ -632,7 +717,7 @@ export default function OnboardingPage() {
                   data-onboarding="exit-button"
                   title="Close your simulated position at the current price"
                   onClick={handleExit}
-                  disabled={!openTrade}
+                  disabled={!openTrade || !introDone}
                   className={`rounded-md bg-red-500/20 px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-500/30 disabled:opacity-40 ${
                     awaitingAction && openTrade
                       ? "animate-pulse ring-2 ring-red-400 ring-offset-2 ring-offset-bg"
@@ -676,9 +761,10 @@ export default function OnboardingPage() {
                   {CONFETTI_PIECES.map((p, i) => (
                     <span
                       key={i}
-                      className="absolute top-0 animate-confetti-fall rounded-sm"
+                      className="absolute animate-confetti-fall rounded-sm"
                       style={{
                         left: `${p.left}%`,
+                        top: `${p.top}%`,
                         width: p.size,
                         height: p.size * 2,
                         backgroundColor: p.color,
@@ -700,12 +786,13 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-2.5">
-              {debrief.checklist_results.map((r) => {
+              {debrief.checklist_results.map((r, i) => {
                 const Icon = CHECKLIST_ICON[r.status];
                 return (
                   <div
                     key={r.item}
-                    className="flex items-start gap-3 rounded-lg border border-border bg-bg p-4"
+                    className="flex animate-fade-in-up items-start gap-3 rounded-lg border border-border bg-bg p-4"
+                    style={{ animationDelay: `${i * CHECKLIST_STAGGER_MS}ms`, animationFillMode: "backwards" }}
                   >
                     <Icon size={18} strokeWidth={2} className={`mt-0.5 shrink-0 ${CHECKLIST_COLOR[r.status]}`} />
                     <span className="text-sm leading-snug text-fg">{r.item}</span>
@@ -714,16 +801,24 @@ export default function OnboardingPage() {
               })}
             </div>
 
-            <p className="text-center text-xs text-muted">
-              In real trading, this session would have been automatically saved to your journal for later review.
-            </p>
-            <button
-              onClick={finishOnboarding}
-              disabled={finishing}
-              className="mx-auto flex items-center justify-center gap-1.5 rounded-lg bg-accent px-8 py-3 text-sm font-medium text-on-accent hover:bg-accent/90 disabled:opacity-50"
+            <div
+              className="flex animate-fade-in-up flex-col items-center gap-6"
+              style={{
+                animationDelay: `${debrief.checklist_results.length * CHECKLIST_STAGGER_MS}ms`,
+                animationFillMode: "backwards",
+              }}
             >
-              {finishing ? "Getting started…" : "Get started"}
-            </button>
+              <p className="text-center text-xs text-muted">
+                In real trading, this session would have been automatically saved to your journal for later review.
+              </p>
+              <button
+                onClick={finishOnboarding}
+                disabled={finishing}
+                className="flex items-center justify-center gap-1.5 rounded-lg bg-accent px-8 py-3 text-sm font-medium text-on-accent hover:bg-accent/90 disabled:opacity-50"
+              >
+                {finishing ? "Getting started…" : "Get started"}
+              </button>
+            </div>
           </div>
         )}
         </div>

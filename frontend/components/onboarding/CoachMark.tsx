@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -64,12 +65,15 @@ export default function CoachMark({ targetSelector, message, onNext, nextLabel =
       <div className="rounded-xl border border-accent/40 bg-panel/95 px-3 py-2.5 text-left text-xs text-fg shadow-xl backdrop-blur-sm">
         <p>{message}</p>
         {onNext && (
-          <button
-            onClick={onNext}
-            className="pointer-events-auto mt-2 rounded-md bg-accent px-3 py-1 text-[11px] font-medium text-on-accent hover:bg-accent/90"
-          >
-            {nextLabel}
-          </button>
+          <div className="mt-2 flex justify-end">
+            <button
+              onClick={onNext}
+              className="pointer-events-auto flex items-center gap-1 rounded-md bg-accent px-3 py-1 text-[11px] font-medium text-on-accent hover:bg-accent/90"
+            >
+              {nextLabel}
+              <ChevronRight size={12} strokeWidth={2} />
+            </button>
+          </div>
         )}
       </div>
     </div>,

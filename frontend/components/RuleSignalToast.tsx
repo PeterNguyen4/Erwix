@@ -54,6 +54,7 @@ function ToastItem({
 
   return (
     <button
+      data-onboarding="signal-toast"
       onClick={handleDismiss}
       className="pointer-events-auto w-72 animate-fade-in-up rounded-xl border bg-panel/95 px-3 py-2.5 text-left text-xs shadow-xl backdrop-blur-sm"
       style={{ borderColor: signal.annotation.color ?? (isEntry ? "#26a69a" : "#ef5350") }}
