@@ -387,9 +387,14 @@ class UserPreferenceUpdate(BaseModel):
     onboarding_completed_at: datetime | None = None
 
 
+class OnboardingStorySlide(BaseModel):
+    heading: str
+    body: str
+
+
 class OnboardingPlaybook(BaseModel):
     title: str
-    markdown: str
+    story: list[OnboardingStorySlide]
     checklist: list[str]
 
 
@@ -399,6 +404,7 @@ class OnboardingSignal(BaseModel):
     kind: Literal["entry", "exit"]
     description: str
     annotation: ChartAnnotation
+    is_confirmation: bool = False
 
 
 class OnboardingScenarioOut(BaseModel):
@@ -407,6 +413,7 @@ class OnboardingScenarioOut(BaseModel):
     candles: list[Candle]
     playbook: OnboardingPlaybook
     signals: list[OnboardingSignal]
+    chart_indicators: list[str]
 
 
 class OnboardingTradeIn(BaseModel):
@@ -420,9 +427,15 @@ class OnboardingDebriefIn(BaseModel):
     trades: list[OnboardingTradeIn] = Field(default_factory=list)
 
 
+class OnboardingChecklistResult(BaseModel):
+    item: str
+    status: Literal["met", "missed", "not_attempted"]
+
+
 class OnboardingDebriefOut(BaseModel):
     debrief: DebriefReportOut
     classification: Literal["perfect", "sat_out", "mistimed"]
+    checklist_results: list[OnboardingChecklistResult]
 
 
 # ---- News agent ----
