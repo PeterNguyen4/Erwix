@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import {
@@ -127,12 +128,12 @@ const WALKTHROUGH_ITEMS: { selector: string; message: string; mockToast?: boolea
   },
   {
     selector: TOAST_SELECTOR,
-    message: "Wait patiently for the signal to enter and exit at the right time",
+    message: "Wait patiently for the signal to enter and exit at the right time.",
     mockToast: true,
   },
   {
     selector: TRADE_ACTIONS_SELECTOR,
-    message: "Enter and exit are yours to call. Remember that the toast signals will be there to help",
+    message: "Enter and exit are yours to call. Remember that the toast signals will be there to help.",
     mockToast: true,
   },
   {
@@ -141,7 +142,7 @@ const WALKTHROUGH_ITEMS: { selector: string; message: string; mockToast?: boolea
   },
   {
     selector: CHART_SELECTOR,
-    message: "Now it's your turn. Be on the lookout for signals to enter and exit at the right time. Best of luck!",
+    message: "Now it's your turn. Wait for the signals to enter and exit at the right time. Best of luck!",
   },
 ];
 
@@ -250,8 +251,11 @@ export default function OnboardingPage() {
   // walkthrough, so it auto-dismisses instead of waiting on a click.
   useEffect(() => {
     if (!introDone) return;
-    setCoach({ selector: TRADE_ACTIONS_SELECTOR, message: "Remember to wait for the signal.", spotlight: false });
-    const t = setTimeout(() => setCoach(null), HINT_DISMISS_MS);
+    const hintMessage = "Remember to wait for the signal.";
+    setCoach({ selector: TRADE_ACTIONS_SELECTOR, message: hintMessage, spotlight: false });
+    const t = setTimeout(() => {
+      setCoach((prev) => (prev?.message === hintMessage ? null : prev));
+    }, HINT_DISMISS_MS);
     return () => clearTimeout(t);
   }, [introDone]);
 
@@ -609,6 +613,7 @@ export default function OnboardingPage() {
 
         {scenario && stage === "trial" && (
           <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-3">
+            {coach && !introStarted && <WelcomeOverlay message={coach.message} onNext={handleIntroNext} />}
             <div className="flex gap-3">
               <div data-onboarding="chart" className="relative h-[400px] flex-1 rounded-xl border border-border bg-bg">
                 <Chart
@@ -626,7 +631,7 @@ export default function OnboardingPage() {
                   position="top-left"
                 />
 
-                {coach && (
+                {coach && introStarted && (
                   <>
                     {coach.spotlight !== false && <SpotlightOverlay targetSelector={coach.selector} />}
                     <CoachMark
@@ -634,13 +639,7 @@ export default function OnboardingPage() {
                       targetSelector={coach.selector}
                       message={coach.message}
                       onNext={!introDone && countdown === null ? handleIntroNext : undefined}
-                      nextLabel={
-                        !introStarted
-                          ? "Let's go"
-                          : introStep >= WALKTHROUGH_ITEMS.length - 1
-                            ? "Start the trial"
-                            : "Next"
-                      }
+                      nextLabel={introStep >= WALKTHROUGH_ITEMS.length - 1 ? "Start the trial" : "Next"}
                     />
                   </>
                 )}
@@ -828,6 +827,30 @@ export default function OnboardingPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function WelcomeOverlay({ message, onNext }: { message: string; onNext: () => void }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex animate-fade-in items-center justify-center bg-bg/80 backdrop-blur-sm">
+      <div className="mx-4 w-[240px] rounded-xl border border-accent/40 bg-panel/95 px-4 py-3 text-center text-sm text-fg shadow-xl backdrop-blur-sm">
+        <p>{message}</p>
+        <div className="mt-2 flex justify-center">
+          <button
+            onClick={onNext}
+            className="flex items-center gap-1 rounded-md bg-accent px-3 py-1 text-sm font-medium text-on-accent hover:bg-accent/90"
+          >
+            Let's go
+            <ChevronRight size={12} strokeWidth={2} />
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
