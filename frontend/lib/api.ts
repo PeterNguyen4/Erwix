@@ -305,6 +305,8 @@ export interface UserPreference {
   debrief_day_of_week: number | null; // 0=Mon..6=Sun
   debrief_time: string | null; // "HH:MM:SS"
   onboarding_completed_at: string | null;
+  chart_indicators?: string[];
+  chart_indicator_colors?: Record<string, string>;
 }
 
 export interface ChartAnnotation {

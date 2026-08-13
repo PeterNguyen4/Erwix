@@ -2,18 +2,22 @@
 
 import { useRef, useState } from "react";
 import { ChevronDown, Check, TrendingUp } from "lucide-react";
-import { INDICATORS } from "@/components/chart/indicators";
+import { INDICATORS, PARAMETRIZED_FAMILIES, makeIndicatorId } from "@/components/chart/indicators";
 import { IconStar } from "@/components/chart/drawingTools";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
 interface IndicatorsMenuProps {
   active: Set<string>;
   onToggle: (id: string) => void;
+  onAdd: (id: string) => void;
   pinned: Set<string>;
   onTogglePin: (id: string) => void;
 }
 
-export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }: IndicatorsMenuProps) {
+const PARAMETRIZED_ID = /^(sma|ema|rsi)_(\d+)$/;
+const STATIC_INDICATORS = INDICATORS.filter((ind) => !PARAMETRIZED_ID.test(ind.id));
+
+export default function IndicatorsMenu({ active, onToggle, onAdd, pinned, onTogglePin }: IndicatorsMenuProps) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -36,7 +40,42 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
       <ToolbarTooltip label="Indicators" hover={hover && !open} anchorRef={buttonRef} />
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-48 rounded-md border border-border bg-panel py-1 shadow-lg">
-          {INDICATORS.map((ind) => {
+          {PARAMETRIZED_FAMILIES.map((fam) => {
+            const defaultId = makeIndicatorId(fam.id, fam.defaultPeriod);
+            return (
+              <div
+                key={fam.id}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-xs text-muted transition-colors hover:bg-violet-500/10 hover:text-fg"
+              >
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    onAdd(defaultId);
+                    setOpen(false);
+                  }}
+                  className="flex flex-1 items-center gap-2"
+                >
+                  <fam.icon />
+                  <span className="flex-1 text-left">{fam.label}</span>
+                </button>
+                <button
+                  type="button"
+                  title={pinned.has(defaultId) ? "Unpin from toolbar" : "Pin to toolbar"}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onTogglePin(defaultId);
+                  }}
+                  className={`shrink-0 transition-colors ${pinned.has(defaultId) ? "text-violet-400" : "text-muted hover:text-fg"}`}
+                >
+                  <IconStar filled={pinned.has(defaultId)} />
+                </button>
+              </div>
+            );
+          })}
+          <div className="my-1 border-t border-border" />
+          {STATIC_INDICATORS.map((ind) => {
             const checked = active.has(ind.id);
             return (
               <div
@@ -48,7 +87,10 @@ export default function IndicatorsMenu({ active, onToggle, pinned, onTogglePin }
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onToggle(ind.id)}
+                  onClick={() => {
+                    onToggle(ind.id);
+                    setOpen(false);
+                  }}
                   className="flex flex-1 items-center gap-2"
                 >
                   <ind.icon />

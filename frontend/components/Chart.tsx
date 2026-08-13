@@ -14,7 +14,7 @@ import {
   createChart,
   createSeriesMarkers,
 } from "lightweight-charts";
-import { MousePointer2, Trash2 } from "lucide-react";
+import { MousePointer2 } from "lucide-react";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
 import { CHART_PALETTES, TP_COLOR, SL_COLOR } from "@/lib/chartTheme";
@@ -22,6 +22,8 @@ import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
 import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
+import IndicatorBadges from "@/components/chart/IndicatorBadges";
+import ClearMenu from "@/components/chart/ClearMenu";
 import ChartContextMenu from "@/components/chart/ChartContextMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
@@ -62,6 +64,9 @@ interface ChartProps {
   infoOverlay?: boolean;
   requiredIndicators?: string[];
   hideToolbar?: boolean;
+  initialIndicators?: string[];
+  initialIndicatorColors?: Record<string, string>;
+  onIndicatorsChange?: (ids: string[], colors: Record<string, string>) => void;
 }
 
 interface HoveredCandle {
@@ -142,10 +147,6 @@ function IconCursor() {
   return <MousePointer2 size={16} strokeWidth={2} />;
 }
 
-function IconDelete() {
-  return <Trash2 size={16} strokeWidth={2} />;
-}
-
 export default function Chart({
   candles: allCandles,
   liveCandle,
@@ -159,6 +160,9 @@ export default function Chart({
   infoOverlay = false,
   requiredIndicators,
   hideToolbar = false,
+  initialIndicators,
+  initialIndicatorColors,
+  onIndicatorsChange,
 }: ChartProps) {
   const candles = useMemo(
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
@@ -265,6 +269,56 @@ export default function Chart({
     });
   };
 
+  const [indicatorColors, setIndicatorColors] = useState<Record<string, string>>({});
+  const [openIndicatorId, setOpenIndicatorId] = useState<string | null>(null);
+
+  const hydratedIndicatorsRef = useRef(initialIndicators === undefined);
+  useEffect(() => {
+    if (hydratedIndicatorsRef.current || initialIndicators === undefined) return;
+    hydratedIndicatorsRef.current = true;
+    setActiveIndicators(new Set(initialIndicators));
+    setIndicatorColors(initialIndicatorColors ?? {});
+  }, [initialIndicators, initialIndicatorColors]);
+
+  useEffect(() => {
+    if (!hydratedIndicatorsRef.current) return;
+    onIndicatorsChange?.([...activeIndicators], indicatorColors);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndicators, indicatorColors]);
+
+  const addIndicator = (id: string) => {
+    setActiveIndicators((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    setOpenIndicatorId(id);
+  };
+
+  const removeIndicator = (id: string) => {
+    setActiveIndicators((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const setIndicatorColor = (id: string, color: string) => {
+    setIndicatorColors((prev) => ({ ...prev, [id]: color }));
+  };
+
+  const changeIndicatorPeriod = (oldId: string, newId: string) => {
+    setActiveIndicators((prev) => {
+      if (!prev.has(oldId)) return prev;
+      const next = new Set(prev);
+      next.delete(oldId);
+      next.add(newId);
+      return next;
+    });
+    setIndicatorColors((prev) => {
+      if (!(oldId in prev)) return prev;
+      const { [oldId]: color, ...rest } = prev;
+      return { ...rest, [newId]: color };
+    });
+  };
+
   const activeOscillatorIds = useMemo(
     () => [...activeIndicators].filter((id) => resolveIndicator(id)?.kind === "oscillator"),
     [activeIndicators],
@@ -346,6 +400,7 @@ export default function Chart({
     const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
     seriesRef.current = def.createSeries(chart);
     seriesRef.current.setData(def.toData(candles) as never[]);
+    seriesRef.current.setSeriesOrder(9999);
   }, [chartTypeId, chartReady]);
 
   // Lock chart while setting line or fibonacci retracement
@@ -446,7 +501,7 @@ export default function Chart({
     const activeKeys = new Set<string>();
 
     for (const id of activeIndicators) {
-      const def = resolveIndicator(id);
+      const def = resolveIndicator(id, indicatorColors[id]);
       if (!def || def.kind !== "overlay" || !def.lines) continue;
       for (const line of def.lines) {
         const key = `${id}:${line.key}`;
@@ -459,8 +514,18 @@ export default function Chart({
             title: def.label,
             lastValueVisible: false,
             priceLineVisible: false,
+            crosshairMarkerVisible: false,
+            pointMarkersVisible: line.pointMarkers ?? false,
+            pointMarkersRadius: line.pointMarkersRadius,
           });
           map.set(key, series);
+        } else {
+          series.applyOptions({
+            color: line.color,
+            title: def.label,
+            pointMarkersVisible: line.pointMarkers ?? false,
+            pointMarkersRadius: line.pointMarkersRadius,
+          });
         }
         series.setData(line.compute(candles));
       }
@@ -471,7 +536,8 @@ export default function Chart({
         map.delete(key);
       }
     }
-  }, [activeIndicators, candles, chartReady]);
+    seriesRef.current?.setSeriesOrder(9999);
+  }, [activeIndicators, indicatorColors, candles, chartReady]);
 
   // Sync main pane with oscillators
   useEffect(() => {
@@ -481,7 +547,7 @@ export default function Chart({
     const activeKeys = new Set<string>();
 
     for (const id of activeOscillatorIds) {
-      const def = resolveIndicator(id);
+      const def = resolveIndicator(id, indicatorColors[id]);
       if (!def?.lines) continue;
       for (const line of def.lines) {
         const key = `${id}:${line.key}`;
@@ -496,10 +562,20 @@ export default function Chart({
               title: `${def.label} ${line.key}`,
               lastValueVisible: false,
               priceLineVisible: false,
+              crosshairMarkerVisible: false,
+              pointMarkersVisible: line.pointMarkers ?? false,
+              pointMarkersRadius: line.pointMarkersRadius,
             },
             1,
           );
           map.set(key, series);
+        } else {
+          series.applyOptions({
+            color: line.color,
+            title: `${def.label} ${line.key}`,
+            pointMarkersVisible: line.pointMarkers ?? false,
+            pointMarkersRadius: line.pointMarkersRadius,
+          });
         }
         series.setData(line.compute(candles));
       }
@@ -513,7 +589,7 @@ export default function Chart({
 
     const pane = chart.panes()[1];
     if (pane) pane.setHeight(activeKeys.size > 0 ? 130 : 0);
-  }, [activeOscillatorIds, candles, chartReady]);
+  }, [activeOscillatorIds, indicatorColors, candles, chartReady]);
 
   // Entry/take-profit/stop-loss price lines for a bracket order or open trade.
   useEffect(() => {
@@ -1018,6 +1094,17 @@ export default function Chart({
     setFibPreviewStart(null);
   };
 
+  const clearIndicators = () => {
+    setActiveIndicators(new Set());
+    setIndicatorColors({});
+    setOpenIndicatorId(null);
+  };
+
+  const clearAll = () => {
+    clearDrawings();
+    clearIndicators();
+  };
+
 
   // Change / % change from previous candle close.
   const changeDisplay = (() => {
@@ -1114,6 +1201,7 @@ export default function Chart({
           <IndicatorsMenu
             active={activeIndicators}
             onToggle={toggleIndicator}
+            onAdd={addIndicator}
             pinned={pinnedIndicators}
             onTogglePin={togglePinnedIndicator}
           />
@@ -1124,9 +1212,13 @@ export default function Chart({
             </ToolbarButton>
           ))}
 
-          <ToolbarButton label="Clear all drawings" tone="danger" onClick={clearDrawings}>
-            <IconDelete />
-          </ToolbarButton>
+          <ClearMenu
+            drawingCount={drawingState.completedLines.length + fibDrawings.length}
+            indicatorCount={activeIndicators.size}
+            onClearDrawings={clearDrawings}
+            onClearIndicators={clearIndicators}
+            onClearAll={clearAll}
+          />
         </div>
       </div>
       )}
@@ -1150,11 +1242,20 @@ export default function Chart({
         }}
       >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
-        {showInfoOverlay && ohlcBlock && (
-          <div className="absolute left-2 top-2 z-20 rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">
-            {ohlcBlock}
-          </div>
-        )}
+        <div className="absolute left-2 top-2 z-20 flex flex-col items-start gap-1">
+          {showInfoOverlay && ohlcBlock && (
+            <div className="rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">{ohlcBlock}</div>
+          )}
+          <IndicatorBadges
+            active={activeIndicators}
+            colors={indicatorColors}
+            openId={openIndicatorId}
+            onOpenChange={setOpenIndicatorId}
+            onSetColor={setIndicatorColor}
+            onRemove={removeIndicator}
+            onChangePeriod={changeIndicatorPeriod}
+          />
+        </div>
         {/* pointer-events-none so mouse events fall through to lightweight-charts'
             own canvas underneath — otherwise its native per-series crosshair
             markers (e.g. the dots that track the MACD/signal lines) never see

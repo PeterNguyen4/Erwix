@@ -22,10 +22,12 @@ function IconLine() {
 function IconFib() {
   return (
     <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
-      <line x1="2" y1="3" x2="16" y2="3" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="2" y1="7" x2="12" y2="7" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="2" y1="11" x2="16" y2="11" stroke="currentColor" strokeWidth="1.3" />
-      <line x1="2" y1="15" x2="9" y2="15" stroke="currentColor" strokeWidth="1.3" />
+      <line x1="2" y1="2" x2="16" y2="2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <line x1="2" y1="6.5" x2="12" y2="6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="14" cy="6.5" r="1.9" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      <line x1="2" y1="11" x2="16" y2="11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <line x1="6" y1="15.5" x2="16" y2="15.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="4" cy="15.5" r="1.9" fill="none" stroke="currentColor" strokeWidth="1.4" />
     </svg>
   );
 }

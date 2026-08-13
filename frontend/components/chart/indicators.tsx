@@ -1,20 +1,10 @@
-// Indicator registry: add a new indicator by adding one entry here — the
-// toolbar, the overlay-series sync effect, the oscillator sub-pane, and the
-// zone-drawing pass in Chart.tsx all read from this list, so nothing else
-// needs to change.
-//
-// - kind "overlay": one or more line series drawn on the main price pane
-//   (SMA, EMA, ...).
-// - kind "oscillator": one or more line series drawn in the separate
-//   sub-pane below the price chart (RSI, MACD, ...).
-// - kind "zone": shaded price/time boxes drawn on the canvas overlay instead
-//   of a lightweight-charts series (Fair Value Gap, ...).
 import type { UTCTimestamp } from "lightweight-charts";
 import type { Candle } from "@/lib/api";
 
 export interface LinePoint {
   time: UTCTimestamp;
   value: number;
+  color?: string;
 }
 
 export interface ZoneBox {
@@ -26,9 +16,11 @@ export interface ZoneBox {
 }
 
 export interface IndicatorLineDef {
-  key: string; // unique within the indicator; series map key is `${indicatorId}:${key}`
+  key: string;
   color: string;
   compute: (candles: Candle[]) => LinePoint[];
+  pointMarkers?: boolean;
+  pointMarkersRadius?: number;
 }
 
 export interface IndicatorDef {
@@ -119,11 +111,6 @@ function macdSignal(candles: Candle[]): LinePoint[] {
   return emaOfSeries(macdLine(candles), 9);
 }
 
-// Fair Value Gap: a 3-candle imbalance where candle i-1's high/low doesn't
-// overlap candle i+1's low/high, leaving an unfilled gap. The zone extends
-// right until a later candle trades back through it ("fills" it), or to the
-// most recent candle if it hasn't filled yet. Limited to a lookback window
-// so old, filled gaps don't pile up.
 function fvgZones(candles: Candle[], lookback = 150): ZoneBox[] {
   const zones: ZoneBox[] = [];
   if (candles.length < 3) return zones;
@@ -157,6 +144,97 @@ function fvgZones(candles: Candle[], lookback = 150): ZoneBox[] {
     zones.push({ startTime: prev.time as UTCTimestamp, endTime, top, bottom, color });
   }
   return zones;
+}
+
+function trueRange(candles: Candle[], i: number): number {
+  const c = candles[i];
+  if (i === 0) return c.high - c.low;
+  const prevClose = candles[i - 1].close;
+  return Math.max(c.high - c.low, Math.abs(c.high - prevClose), Math.abs(c.low - prevClose));
+}
+
+function atrSeries(candles: Candle[], period: number): (number | null)[] {
+  const out: (number | null)[] = new Array(candles.length).fill(null);
+  if (candles.length < period) return out;
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += trueRange(candles, i);
+  let atr = sum / period;
+  out[period - 1] = atr;
+  for (let i = period; i < candles.length; i++) {
+    atr = (atr * (period - 1) + trueRange(candles, i)) / period;
+    out[i] = atr;
+  }
+  return out;
+}
+
+function rollingHigh(candles: Candle[], length: number, i: number): number {
+  let max = -Infinity;
+  for (let j = Math.max(0, i - length + 1); j <= i; j++) max = Math.max(max, candles[j].high);
+  return max;
+}
+
+function rollingLow(candles: Candle[], length: number, i: number): number {
+  let min = Infinity;
+  for (let j = Math.max(0, i - length + 1); j <= i; j++) min = Math.min(min, candles[j].low);
+  return min;
+}
+
+const CHANDELIER_LONG_COLOR = "#22d3ee";
+const CHANDELIER_SHORT_COLOR = "#e879f9";
+
+function computeChandelier(candles: Candle[], length: number, atrPeriod: number, mult: number): LinePoint[] {
+  const points: LinePoint[] = [];
+  const startIdx = Math.max(length, atrPeriod) - 1;
+  if (startIdx < 0 || startIdx >= candles.length) return points;
+
+  const atr = atrSeries(candles, atrPeriod);
+  let shortvsPrev: number | null = null;
+  let longvsPrev: number | null = null;
+  let direction = 0;
+
+  for (let i = startIdx; i < candles.length; i++) {
+    const a = atr[i];
+    if (a == null) continue;
+
+    const shortStop = rollingLow(candles, length, i) + mult * a;
+    const longStop = rollingHigh(candles, length, i) - mult * a;
+    const close = candles[i].close;
+    const prevClose = i > startIdx ? candles[i - 1].close : close;
+
+    const shortvs: number = shortvsPrev == null ? shortStop : close > shortvsPrev ? shortStop : Math.min(shortStop, shortvsPrev);
+    const longvs: number = longvsPrev == null ? longStop : close < longvsPrev ? longStop : Math.max(longStop, longvsPrev);
+
+    const longSwitch = shortvsPrev != null && close >= shortvsPrev && prevClose < shortvsPrev;
+    const shortSwitch = longvsPrev != null && close <= longvsPrev && prevClose > longvsPrev;
+    if (direction <= 0 && longSwitch) direction = 1;
+    else if (direction >= 0 && shortSwitch) direction = -1;
+
+    const time = candles[i].time as UTCTimestamp;
+    const value = direction > 0 ? longvs : shortvs;
+    const color = direction > 0 ? CHANDELIER_LONG_COLOR : CHANDELIER_SHORT_COLOR;
+    points.push({ time, value, color });
+
+    shortvsPrev = shortvs;
+    longvsPrev = longvs;
+  }
+
+  return points;
+}
+
+function IconChandelier() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <path
+        d="M2 13 L6 13 L6 9 L11 9 L11 5 L16 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx="16" cy="5" r="1.4" fill="currentColor" />
+    </svg>
+  );
 }
 
 function IconSMA() {
@@ -207,42 +285,64 @@ function IconFVG() {
   );
 }
 
-function makeSMA(period: number): IndicatorDef {
+export const CHANDELIER_DEFAULTS = { length: 22, atrPeriod: 22, mult: 3 };
+
+export function makeChandelierId(length: number, atrPeriod: number, mult: number): string {
+  return `chandelier_${length}_${atrPeriod}_${mult}`;
+}
+
+function makeChandelier(length: number, atrPeriod: number, mult: number, color = CHANDELIER_LONG_COLOR): IndicatorDef {
+  return {
+    id: makeChandelierId(length, atrPeriod, mult),
+    label: "Chandelier Stop",
+    kind: "overlay",
+    icon: IconChandelier,
+    lines: [
+      {
+        key: "stop",
+        color,
+        pointMarkers: true,
+        pointMarkersRadius: 2,
+        compute: (c) => computeChandelier(c, length, atrPeriod, mult),
+      },
+    ],
+  };
+}
+
+function makeSMA(period: number, color = "#f0ad4e"): IndicatorDef {
   const id = `sma_${period}`;
   return {
     id,
     label: `SMA ${period}`,
     kind: "overlay",
     icon: IconSMA,
-    lines: [{ key: id, color: "#f0ad4e", compute: (c) => sma(c, period) }],
+    lines: [{ key: id, color, compute: (c) => sma(c, period) }],
   };
 }
 
-function makeEMA(period: number): IndicatorDef {
+function makeEMA(period: number, color = "#3e38f8"): IndicatorDef {
   const id = `ema_${period}`;
   return {
     id,
     label: `EMA ${period}`,
     kind: "overlay",
     icon: IconEMA,
-    lines: [{ key: id, color: "#38bdf8", compute: (c) => ema(c, period) }],
+    lines: [{ key: id, color, compute: (c) => ema(c, period) }],
   };
 }
 
-function makeRSI(period: number): IndicatorDef {
+function makeRSI(period: number, color = "#a78bfa"): IndicatorDef {
   const id = `rsi_${period}`;
   return {
     id,
     label: `RSI ${period}`,
     kind: "oscillator",
     icon: IconRSI,
-    lines: [{ key: id, color: "#a78bfa", compute: (c) => rsi(c, period) }],
+    lines: [{ key: id, color, compute: (c) => rsi(c, period) }],
   };
 }
 
-// Curated defaults shown in the toolbar dropdown (IndicatorsMenu). Ids follow the same
-// `family_period` scheme as strategy rule indicators (rule_engine.py's indicator_series)
-// so a plan referencing e.g. "sma_20" resolves straight to this entry.
+
 export const INDICATORS: IndicatorDef[] = [
   makeSMA(20),
   makeEMA(20),
@@ -264,22 +364,36 @@ export const INDICATORS: IndicatorDef[] = [
     icon: IconFVG,
     computeZones: (c) => fvgZones(c),
   },
+  makeChandelier(CHANDELIER_DEFAULTS.length, CHANDELIER_DEFAULTS.atrPeriod, CHANDELIER_DEFAULTS.mult),
 ];
 
 const PARAMETRIZED_ID = /^(sma|ema|rsi)_(\d+)$/;
+const CHANDELIER_ID = /^chandelier_(\d+)_(\d+)_(\d+)$/;
 
-// Resolves any indicator id — including periods outside the curated toolbar list
-// (e.g. "sma_50", "ema_9") — so a strategy's rules can drive the chart even when
-// their exact period was never toggled on manually. Only SMA/EMA/RSI are
-// parametrized this way; other rule indicators (stochastics, trend strength,
-// Heikin Ashi variants, ...) have no chart-line implementation yet.
-export function resolveIndicator(id: string): IndicatorDef | null {
-  const known = INDICATORS.find((i) => i.id === id);
-  if (known) return known;
+export function resolveIndicator(id: string, color?: string): IndicatorDef | null {
+  const chandelierMatch = CHANDELIER_ID.exec(id);
+  if (chandelierMatch) {
+    return makeChandelier(Number(chandelierMatch[1]), Number(chandelierMatch[2]), Number(chandelierMatch[3]), color);
+  }
   const match = PARAMETRIZED_ID.exec(id);
-  if (!match) return null;
-  const period = Number(match[2]);
-  if (match[1] === "sma") return makeSMA(period);
-  if (match[1] === "ema") return makeEMA(period);
-  return makeRSI(period);
+  if (match) {
+    const period = Number(match[2]);
+    if (match[1] === "sma") return makeSMA(period, color);
+    if (match[1] === "ema") return makeEMA(period, color);
+    return makeRSI(period, color);
+  }
+  const known = INDICATORS.find((i) => i.id === id);
+  if (!known) return null;
+  if (!color || !known.lines) return known;
+  return { ...known, lines: known.lines.map((l) => ({ ...l, color })) };
+}
+
+export const PARAMETRIZED_FAMILIES: { id: "sma" | "ema" | "rsi"; label: string; icon: () => JSX.Element; defaultColor: string; defaultPeriod: number }[] = [
+  { id: "sma", label: "SMA", icon: IconSMA, defaultColor: "#f0ad4e", defaultPeriod: 20 },
+  { id: "ema", label: "EMA", icon: IconEMA, defaultColor: "#3e38f8", defaultPeriod: 20 },
+  { id: "rsi", label: "RSI", icon: IconRSI, defaultColor: "#a78bfa", defaultPeriod: 14 },
+];
+
+export function makeIndicatorId(family: "sma" | "ema" | "rsi", period: number): string {
+  return `${family}_${period}`;
 }

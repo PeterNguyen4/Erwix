@@ -373,6 +373,8 @@ class UserPreferenceOut(BaseModel):
     debrief_day_of_week: int | None = None
     debrief_time: time | None = None
     onboarding_completed_at: datetime | None = None
+    chart_indicators: list[str] = []
+    chart_indicator_colors: dict[str, str] = {}
 
     model_config = {"from_attributes": True}
 
@@ -385,6 +387,8 @@ class UserPreferenceUpdate(BaseModel):
     debrief_day_of_week: int | None = None
     debrief_time: time | None = None
     onboarding_completed_at: datetime | None = None
+    chart_indicators: list[str] | None = None
+    chart_indicator_colors: dict[str, str] | None = None
 
 
 class OnboardingStorySlide(BaseModel):
