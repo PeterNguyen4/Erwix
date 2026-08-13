@@ -64,6 +64,8 @@ interface ChartProps {
   infoOverlay?: boolean;
   requiredIndicators?: string[];
   hideToolbar?: boolean;
+  lockIndicators?: boolean;
+  hideIndicatorBadges?: boolean;
   initialIndicators?: string[];
   initialIndicatorColors?: Record<string, string>;
   onIndicatorsChange?: (ids: string[], colors: Record<string, string>) => void;
@@ -160,6 +162,8 @@ export default function Chart({
   infoOverlay = false,
   requiredIndicators,
   hideToolbar = false,
+  lockIndicators = false,
+  hideIndicatorBadges = false,
   initialIndicators,
   initialIndicatorColors,
   onIndicatorsChange,
@@ -348,7 +352,7 @@ export default function Chart({
         vertLine: { visible: false, labelVisible: false },
         horzLine: { visible: false, labelVisible: false },
       },
-      timeScale: { borderColor: palette.border, timeVisible: true },
+      timeScale: { borderColor: palette.border, timeVisible: true, rightOffset: 3 },
       // Fixed so the main pane and the oscillator sub-pane (which can show
       // very different label widths — RSI's "0"-"100" vs MACD's decimals)
       // always reserve the same axis width and stay pixel-aligned.
@@ -421,13 +425,22 @@ export default function Chart({
     const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
     seriesRef.current.setData(def.toData(candles) as never[]);
     const total = candles.length;
-    if (total > 0) {
-      chartRef.current?.timeScale().setVisibleLogicalRange({ from: total - 100, to: total + 2 });
+    try {
+      if (visibleRange && total > 0) {
+        chartRef.current?.timeScale().setVisibleRange({
+          from: visibleRange.from as UTCTimestamp,
+          to: visibleRange.to as UTCTimestamp,
+        });
+      } else if (total > 0) {
+        chartRef.current?.timeScale().setVisibleLogicalRange({ from: total - 100, to: total + 2 });
+      }
+    } catch (err) {
+      console.warn("Chart: failed to apply visible range", err);
     }
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
     if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume, prevClose: prev?.close });
-  }, [candles, chartReady, chartTypeId]);
+  }, [candles, chartReady, chartTypeId, visibleRange]);
 
   // Apply live updates. Heikin-Ashi recomputes fully (its candles depend on
   // the running average of prior ones, so there's no cheap incremental form).
@@ -479,14 +492,17 @@ export default function Chart({
       );
   }, [annotations, candles]);
 
-  // Zoom/pan the visible time range when the agent calls zoom_to_range.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !visibleRange) return;
-    chart.timeScale().setVisibleRange({
-      from: visibleRange.from as UTCTimestamp,
-      to: visibleRange.to as UTCTimestamp,
-    });
+    try {
+      chart.timeScale().setVisibleRange({
+        from: visibleRange.from as UTCTimestamp,
+        to: visibleRange.to as UTCTimestamp,
+      });
+    } catch (err) {
+      console.warn("Chart: failed to apply visible range", err);
+    }
   }, [visibleRange]);
 
   // Sync overlay indicator series (drawn on the main price pane) with the
@@ -511,7 +527,7 @@ export default function Chart({
           series = chart.addSeries(LineSeries, {
             color: line.color,
             lineWidth: 2,
-            title: def.label,
+            title: hideIndicatorBadges ? "" : def.label,
             lastValueVisible: false,
             priceLineVisible: false,
             crosshairMarkerVisible: false,
@@ -522,7 +538,7 @@ export default function Chart({
         } else {
           series.applyOptions({
             color: line.color,
-            title: def.label,
+            title: hideIndicatorBadges ? "" : def.label,
             pointMarkersVisible: line.pointMarkers ?? false,
             pointMarkersRadius: line.pointMarkersRadius,
           });
@@ -537,7 +553,7 @@ export default function Chart({
       }
     }
     seriesRef.current?.setSeriesOrder(9999);
-  }, [activeIndicators, indicatorColors, candles, chartReady]);
+  }, [activeIndicators, indicatorColors, candles, chartReady, hideIndicatorBadges]);
 
   // Sync main pane with oscillators
   useEffect(() => {
@@ -607,7 +623,6 @@ export default function Chart({
         lineStyle: 0, // solid
         lineVisible: false,
         axisLabelVisible: true,
-        title: "Entry",
       }),
     );
     if (bracket.takeProfitPrice != null) {
@@ -619,7 +634,6 @@ export default function Chart({
           lineStyle: 2, // dashed
           lineVisible: false,
           axisLabelVisible: true,
-          title: "TP",
         }),
       );
     }
@@ -632,7 +646,6 @@ export default function Chart({
           lineStyle: 2, // dashed
           lineVisible: false,
           axisLabelVisible: true,
-          title: "SL",
         }),
       );
     }
@@ -689,22 +702,59 @@ export default function Chart({
           }
         }
 
-        // Hand-drawn level lines (the price lines above only supply the
-        // axis label), each starting at startX and running to the right edge.
-        const drawLevelLine = (levelY: number | null, color: string, dashed: boolean) => {
-          if (levelY == null) return;
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.setLineDash(dashed ? [6, 4] : []);
-          ctx.beginPath();
-          ctx.moveTo(startX, levelY);
-          ctx.lineTo(canvas.width, levelY);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        };
-        drawLevelLine(entryY, palette.fg, false);
-        if (bracket.takeProfitPrice != null) drawLevelLine(series.priceToCoordinate(bracket.takeProfitPrice), TP_COLOR, true);
-        if (bracket.stopLossPrice != null) drawLevelLine(series.priceToCoordinate(bracket.stopLossPrice), SL_COLOR, true);
+        if (mousePos && mousePos.x >= startX && entryY != null) {
+          const drawLevelLine = (levelY: number | null, color: string, dashed: boolean) => {
+            if (levelY == null) return;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash(dashed ? [6, 4] : []);
+            ctx.beginPath();
+            ctx.moveTo(startX, levelY);
+            ctx.lineTo(canvas.width, levelY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          };
+          const drawLevelLabel = (levelY: number | null, color: string, text: string, below: boolean) => {
+            if (levelY == null) return;
+            ctx.font = "11px monospace";
+            const padding = 5;
+            const textWidth = ctx.measureText(text).width;
+            const boxW = textWidth + padding * 2;
+            const boxH = 18;
+            const gap = 4;
+            const boxX = Math.min(startX + 6, canvas.width - boxW - 4);
+            const boxY = below ? levelY + gap : levelY - gap - boxH;
+            ctx.fillStyle = color;
+            ctx.fillRect(boxX, boxY, boxW, boxH);
+            ctx.fillStyle = "#0b0e14";
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, boxX + padding, boxY + boxH / 2 + 1);
+            ctx.textBaseline = "alphabetic";
+          };
+
+          const tpY = bracket.takeProfitPrice != null ? series.priceToCoordinate(bracket.takeProfitPrice) : null;
+          const slY = bracket.stopLossPrice != null ? series.priceToCoordinate(bracket.stopLossPrice) : null;
+          const entryYSafe: number = entryY;
+          const inZone = (levelY: number | null) =>
+            levelY != null &&
+            mousePos.y >= Math.min(entryYSafe, levelY) &&
+            mousePos.y <= Math.max(entryYSafe, levelY);
+          const hoveringTP = inZone(tpY);
+          const hoveringSL = inZone(slY);
+
+          if (hoveringTP || hoveringSL) {
+            drawLevelLine(entryY, palette.fg, false);
+            drawLevelLabel(entryY, palette.fg, `Entry ${bracket.entryPrice.toFixed(2)}`, false);
+          }
+          if (hoveringTP && bracket.takeProfitPrice != null) {
+            drawLevelLine(tpY, TP_COLOR, true);
+            drawLevelLabel(tpY, TP_COLOR, `TP ${bracket.takeProfitPrice.toFixed(2)}`, false);
+          }
+          if (hoveringSL && bracket.stopLossPrice != null) {
+            drawLevelLine(slY, SL_COLOR, true);
+            drawLevelLabel(slY, SL_COLOR, `SL ${bracket.stopLossPrice.toFixed(2)}`, true);
+          }
+        }
       }
     }
 
@@ -929,7 +979,7 @@ export default function Chart({
       return;
     }
 
-    if (bracket && drawingState.mode === "crosshair") {
+    if (bracket && drawingState.mode === "crosshair" && !lockIndicators) {
       const series = seriesRef.current;
       const startX = getBracketStartX();
       const onLine = startX != null && x >= startX;
@@ -981,6 +1031,7 @@ export default function Chart({
 
   const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
+    if (lockIndicators) return;
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -1019,7 +1070,7 @@ export default function Chart({
 
     if (drawingState.mode === "crosshair") {
       const bracketStartX = getBracketStartX();
-      if (bracket && bracketStartX != null && mousePos.x >= bracketStartX) {
+      if (!lockIndicators && bracket && bracketStartX != null && mousePos.x >= bracketStartX) {
         if (bracket.takeProfitPrice != null) {
           const tpY = series.priceToCoordinate(bracket.takeProfitPrice);
           if (tpY != null && Math.abs(mousePos.y - tpY) <= HANDLE_LINE_TOLERANCE) {
@@ -1246,15 +1297,18 @@ export default function Chart({
           {showInfoOverlay && ohlcBlock && (
             <div className="rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">{ohlcBlock}</div>
           )}
-          <IndicatorBadges
-            active={activeIndicators}
-            colors={indicatorColors}
-            openId={openIndicatorId}
-            onOpenChange={setOpenIndicatorId}
-            onSetColor={setIndicatorColor}
-            onRemove={removeIndicator}
-            onChangePeriod={changeIndicatorPeriod}
-          />
+          {!hideIndicatorBadges && (
+            <IndicatorBadges
+              active={activeIndicators}
+              colors={indicatorColors}
+              openId={openIndicatorId}
+              onOpenChange={setOpenIndicatorId}
+              onSetColor={setIndicatorColor}
+              onRemove={removeIndicator}
+              onChangePeriod={changeIndicatorPeriod}
+              locked={lockIndicators}
+            />
+          )}
         </div>
         {/* pointer-events-none so mouse events fall through to lightweight-charts'
             own canvas underneath — otherwise its native per-series crosshair

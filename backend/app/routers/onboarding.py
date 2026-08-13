@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends
 from langchain_core.messages import AnyMessage, HumanMessage, SystemMessage
@@ -14,6 +14,7 @@ from app.dependencies.rate_limit import rate_limit
 from app.models import DebriefReport, UserPreference
 from app.schemas import (
     Candle,
+    ChartAnnotation,
     OnboardingChecklistResult,
     OnboardingDebriefIn,
     OnboardingDebriefOut,
@@ -24,7 +25,7 @@ from app.schemas import (
 )
 from app.services import onboarding_scenario as scenario
 from app.services.agent_graph import _base_model
-from app.services.rule_engine import evaluate_rules_at
+from app.services.indicators import chandelier_stop, ema
 from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR
 
 logger = logging.getLogger("erwix.onboarding")
@@ -76,6 +77,8 @@ def _signal(
     description: str,
     color: str,
     is_confirmation: bool = False,
+    stop_loss_price: float | None = None,
+    take_profit_price: float | None = None,
 ) -> OnboardingSignal:
     return OnboardingSignal(
         index=i,
@@ -83,6 +86,8 @@ def _signal(
         kind=kind,
         description=description,
         is_confirmation=is_confirmation,
+        stop_loss_price=stop_loss_price,
+        take_profit_price=take_profit_price,
         annotation={
             "type": "marker",
             "time": candle.time,
@@ -93,80 +98,183 @@ def _signal(
     )
 
 
-def _compute_signals(candles: list[Candle]) -> list[OnboardingSignal]:
-    """Entry fires right on signal."""
+def _avg_range(candles: list[Candle], i: int) -> float | None:
+    window = candles[max(0, i - scenario.BIG_CANDLE_LOOKBACK) : i]
+    if not window:
+        return None
+    return sum(c.high - c.low for c in window) / len(window)
+
+
+class _StrategyResult:
+    __slots__ = ("signals", "horizontal_lines", "checklist_stage")
+
+    def __init__(
+        self,
+        signals: list[OnboardingSignal],
+        horizontal_lines: list[ChartAnnotation],
+        checklist_stage: list[int],
+    ) -> None:
+        self.signals = signals
+        self.horizontal_lines = horizontal_lines
+        self.checklist_stage = checklist_stage
+
+
+def _run_strategy(candles: list[Candle]) -> _StrategyResult:
+    """State machine for the EMA-breakout / pullback / horizontal-line-break playbook.
+
+    seek_breakout > pullback > wait_line_break > in_trade > back to seek_breakout.
+    Invalidated (back to seek_breakout, no signal) if price closes back below the EMA
+    during the pullback/line-wait phases, or if the breakout candle is oversized.
+    """
     signals: list[OnboardingSignal] = []
-    was_entry_trigger = False
-    was_exit = False
-    pending_entry_index: int | None = None
+    horizontal_lines: list[ChartAnnotation] = []
+    checklist_stage: list[int] = [0] * len(candles)
+    if not candles:
+        return _StrategyResult(signals, horizontal_lines, checklist_stage)
+
+    closes = [c.close for c in candles]
+    ema_values = ema(closes, scenario.EMA_PERIOD)
+    chandelier_values = chandelier_stop(
+        candles,
+        scenario.CHANDELIER_LENGTH,
+        scenario.CHANDELIER_ATR_PERIOD,
+        scenario.CHANDELIER_MULT,
+    )
+
+    state = "seek_breakout"
+    stage = 0
+    swing_high = 0.0
+    red_count = 0
+    line_price = 0.0
+    stop_price = 0.0
+    take_profit_price = 0.0
 
     for i, candle in enumerate(candles):
-        entry_trigger_now = evaluate_rules_at(candles, scenario.ENTRY_RULES, i)[0]
-        confirmation_now = evaluate_rules_at(candles, [scenario.CONFIRMATION_RULE], i)[0]
-        exit_now = any(evaluate_rules_at(candles, [r], i)[0] for r in scenario.EXIT_RULES)
+        ema_val = ema_values[i]
+        if ema_val is None:
+            checklist_stage[i] = stage
+            continue
+        prev_ema = ema_values[i - 1] if i > 0 else None
+        prev_close = candles[i - 1].close if i > 0 else None
+        is_red = candle.close < candle.open
+        body_bottom = min(candle.open, candle.close)
 
-        if entry_trigger_now and not was_entry_trigger:
-            signals.append(
-                _signal(candle, i, "entry", scenario.ENTRY_RULES[0].description, ENTRY_COLOR)
+        if state == "seek_breakout":
+            crossed_above = prev_ema is not None and prev_close is not None and (
+                prev_close <= prev_ema and candle.close > ema_val and body_bottom > ema_val
             )
-            pending_entry_index = i
-        elif (
-            pending_entry_index is not None
-            and i - pending_entry_index > scenario.CONFIRMATION_WINDOW
-        ):
-            pending_entry_index = None
+            if crossed_above:
+                avg_range = _avg_range(candles, i)
+                candle_range = candle.high - candle.low
+                if not (avg_range and candle_range > scenario.BIG_CANDLE_MULT * avg_range):
+                    state = "pullback"
+                    swing_high = candle.high
+                    red_count = 0
+                    stage = 1
+                # else: oversized breakout candle. SKIP
 
-        if pending_entry_index is not None and confirmation_now:
-            desc = (
-                f"{scenario.CONFIRMATION_RULE.description} — "
-                "confluence stacked, good time to enter"
-            )
-            signals.append(_signal(candle, i, "entry", desc, ENTRY_COLOR, is_confirmation=True))
-            pending_entry_index = None
+        elif state == "pullback":
+            if candle.close < ema_val:
+                state, stage = "seek_breakout", 0  # broke back below the EMA. SKIP
+            else:
+                if is_red:
+                    red_count += 1
+                else:
+                    red_count = 0
+                    swing_high = max(swing_high, candle.high)
+                if red_count >= scenario.PULLBACK_MIN_RED_CANDLES:
+                    state = "wait_line_break"
+                    line_price = swing_high
+                    stage = 2
+                    horizontal_lines.append(
+                        ChartAnnotation(
+                            type="line",
+                            time=candle.time,
+                            price=line_price,
+                            index=i,
+                            label=f"Swing high {line_price:.2f}",
+                            color=scenario.LINE_COLOR,
+                        )
+                    )
 
-        if exit_now and not was_exit:
-            desc = next(
-                (
-                    r.description
-                    for r in scenario.EXIT_RULES
-                    if evaluate_rules_at(candles, [r], i)[0]
-                ),
-                scenario.EXIT_RULES[0].description,
-            )
-            signals.append(_signal(candle, i, "exit", desc, EXIT_COLOR))
-        was_entry_trigger, was_exit = entry_trigger_now, exit_now
-    return signals
+        elif state == "wait_line_break":
+            if candle.close < ema_val:
+                state, stage = "seek_breakout", 0  # invalid before the line ever broke
+            elif candle.close > line_price:
+                stop = chandelier_values[i]
+                if stop is None or stop >= candle.close:
+                    state, stage = "seek_breakout", 0  # no usable long stop here — skip it
+                else:
+                    stop_price = stop
+                    take_profit_price = candle.close + scenario.RISK_REWARD_MULTIPLE * (
+                        candle.close - stop_price
+                    )
+                    desc = (
+                        f"Broke back above the horizontal line at {line_price:.2f} "
+                        f"(prior swing high) — buy, stop {stop_price:.2f}, "
+                        f"target {take_profit_price:.2f}"
+                    )
+                    signals.append(
+                        _signal(
+                            candle,
+                            i,
+                            "entry",
+                            desc,
+                            ENTRY_COLOR,
+                            stop_loss_price=stop_price,
+                            take_profit_price=take_profit_price,
+                        )
+                    )
+                    state, stage = "in_trade", 3
+
+        elif state == "in_trade":
+            if candle.close <= stop_price:
+                signals.append(
+                    _signal(candle, i, "exit", "Chandelier stop hit — exit", EXIT_COLOR)
+                )
+                state, stage = "seek_breakout", 0
+            elif candle.close >= take_profit_price:
+                signals.append(
+                    _signal(candle, i, "exit", "Take-profit hit (2x risk) — exit", EXIT_COLOR)
+                )
+                state, stage = "seek_breakout", 0
+
+        checklist_stage[i] = stage
+
+    return _StrategyResult(signals, horizontal_lines, checklist_stage)
 
 
-async def _fetch_display_candles_and_signals() -> tuple[list[Candle], list[OnboardingSignal]]:
-    """Fetches with indicators that peek further into past."""
-    lookback_start = scenario.WINDOW_START - timedelta(days=scenario.LOOKBACK_DAYS)
-    full_candles = await asyncio.to_thread(
+def _compute_signals(candles: list[Candle]) -> list[OnboardingSignal]:
+    return _run_strategy(candles).signals
+
+
+async def _fetch_scenario_data() -> tuple[list[Candle], _StrategyResult, int]:
+    """Fetches wider data range so  50-EMA/chandelier have their full setup."""
+    candles = await asyncio.to_thread(
         alpaca_client.get_candles,
         scenario.SYMBOL,
         scenario.TIMEFRAME,
-        lookback_start,
+        scenario.DATA_START,
         scenario.WINDOW_END,
     )
-    full_signals = _compute_signals(full_candles)
+    result = _run_strategy(candles)
 
-    window_start_ts = int(scenario.WINDOW_START.timestamp())
-    offset = next(
-        (i for i, c in enumerate(full_candles) if c.time >= window_start_ts),
-        len(full_candles),
+    trial_start_ts = int(scenario.TRIAL_START.timestamp())
+    trial_start_index = next(
+        (i for i, c in enumerate(candles) if c.time >= trial_start_ts),
+        max(0, len(candles) - 1),
     )
-    candles = full_candles[offset:]
-    signals = [
-        s.model_copy(update={"index": s.index - offset})
-        for s in full_signals
-        if s.index >= offset
-    ]
-    return candles, signals
+    return candles, result, trial_start_index
+
+
+async def _fetch_display_candles_and_signals() -> tuple[list[Candle], list[OnboardingSignal]]:
+    candles, result, _ = await _fetch_scenario_data()
+    return candles, result.signals
 
 
 @router.get("/scenario", response_model=OnboardingScenarioOut)
 async def get_scenario() -> OnboardingScenarioOut:
-    candles, signals = await _fetch_display_candles_and_signals()
+    candles, result, trial_start_index = await _fetch_scenario_data()
     return OnboardingScenarioOut(
         symbol=scenario.SYMBOL,
         timeframe=scenario.TIMEFRAME,
@@ -176,8 +284,11 @@ async def get_scenario() -> OnboardingScenarioOut:
             story=[OnboardingStorySlide(**slide) for slide in scenario.STORY],
             checklist=scenario.CHECKLIST,
         ),
-        signals=signals,
+        signals=result.signals,
         chart_indicators=scenario.CHART_INDICATORS,
+        trial_start_index=trial_start_index,
+        horizontal_lines=result.horizontal_lines,
+        checklist_stage=result.checklist_stage,
     )
 
 
@@ -228,8 +339,7 @@ def _score_checklist(
 ) -> list[OnboardingChecklistResult]:
     """Rate trial performance based on checklist."""
     index_by_time = {c.time: i for i, c in enumerate(candles)}
-    trigger_indices = [s.index for s in signals if s.kind == "entry" and not s.is_confirmation]
-    confirmation_indices = [s.index for s in signals if s.kind == "entry" and s.is_confirmation]
+    entry_indices = [s.index for s in signals if s.kind == "entry"]
     exit_indices = [s.index for s in signals if s.kind == "exit"]
 
     items = scenario.CHECKLIST
@@ -244,15 +354,15 @@ def _score_checklist(
         index_by_time.get(t.exit_time) for t in trades if t.exit_time is not None
     ]
 
-    signal_met = any(_near(i, trigger_indices) for i in enter_indices)
-    confirmation_met = any(_near(i, confirmation_indices) for i in enter_indices)
+    entry_met = any(_near(i, entry_indices) for i in enter_indices)
     exit_met = any(_near(i, exit_indices) for i in exit_idx_list)
 
     return [
-        OnboardingChecklistResult(item=items[0], status="met" if signal_met else "missed"),
-        OnboardingChecklistResult(item=items[1], status="met" if confirmation_met else "missed"),
-        OnboardingChecklistResult(item=items[2], status="met" if signal_met else "missed"),
-        OnboardingChecklistResult(item=items[3], status="met" if exit_met else "missed"),
+        OnboardingChecklistResult(item=items[0], status="met" if entry_met else "missed"),
+        OnboardingChecklistResult(item=items[1], status="met" if entry_met else "missed"),
+        OnboardingChecklistResult(item=items[2], status="met" if entry_met else "missed"),
+        OnboardingChecklistResult(item=items[3], status="met" if entry_met else "missed"),
+        OnboardingChecklistResult(item=items[4], status="met" if exit_met else "missed"),
     ]
 
 
@@ -293,7 +403,7 @@ async def submit_debrief(
     report = DebriefReport(
         user_id=user_id,
         report_type="onboarding",
-        window_start=scenario.WINDOW_START,
+        window_start=scenario.TRIAL_START,
         window_end=scenario.WINDOW_END,
         symbol=scenario.SYMBOL,
         status="ready",

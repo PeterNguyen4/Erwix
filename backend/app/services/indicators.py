@@ -218,6 +218,79 @@ def heikin_ashi(candles: list[Candle]) -> list[Candle]:
     return out
 
 
+def true_range(candles: list[Candle], i: int) -> float:
+    c = candles[i]
+    if i == 0:
+        return c.high - c.low
+    prev_close = candles[i - 1].close
+    return max(c.high - c.low, abs(c.high - prev_close), abs(c.low - prev_close))
+
+
+def atr(candles: list[Candle], period: int) -> list[float | None]:
+    n = len(candles)
+    out: list[float | None] = [None] * n
+    if n < period:
+        return out
+    running = sum(true_range(candles, i) for i in range(period))
+    value = running / period
+    out[period - 1] = value
+    for i in range(period, n):
+        value = (value * (period - 1) + true_range(candles, i)) / period
+        out[i] = value
+    return out
+
+
+def chandelier_stop(
+    candles: list[Candle], length: int = 22, atr_period: int = 22, mult: float = 3.0
+) -> list[float | None]:
+    """Mirrors frontend Chandelier."""
+    n = len(candles)
+    out: list[float | None] = [None] * n
+    start = max(length, atr_period) - 1
+    if start < 0 or start >= n:
+        return out
+
+    atr_series = atr(candles, atr_period)
+    shortvs_prev: float | None = None
+    longvs_prev: float | None = None
+    direction = 0
+
+    for i in range(start, n):
+        a = atr_series[i]
+        if a is None:
+            continue
+        window = candles[max(0, i - length + 1) : i + 1]
+        highest_high = max(c.high for c in window)
+        lowest_low = min(c.low for c in window)
+        long_stop = highest_high - mult * a
+        short_stop = lowest_low + mult * a
+        close = candles[i].close
+        prev_close = candles[i - 1].close if i > 0 else close
+
+        shortvs = (
+            short_stop
+            if shortvs_prev is None
+            else (short_stop if close > shortvs_prev else min(short_stop, shortvs_prev))
+        )
+        longvs = (
+            long_stop
+            if longvs_prev is None
+            else (long_stop if close < longvs_prev else max(long_stop, longvs_prev))
+        )
+
+        long_switch = shortvs_prev is not None and close >= shortvs_prev and prev_close < shortvs_prev
+        short_switch = longvs_prev is not None and close <= longvs_prev and prev_close > longvs_prev
+        if direction <= 0 and long_switch:
+            direction = 1
+        elif direction >= 0 and short_switch:
+            direction = -1
+
+        out[i] = longvs if direction > 0 else shortvs
+        shortvs_prev, longvs_prev = shortvs, longvs
+
+    return out
+
+
 def indicator_series(candles: list[Candle], name: str) -> list[float | None]:
     if name.startswith("ha_"):
         return _series(heikin_ashi(candles), name[len("ha_") :])

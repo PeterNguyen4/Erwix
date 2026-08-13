@@ -12,6 +12,7 @@ interface IndicatorBadgesProps {
   onSetColor: (id: string, color: string) => void;
   onRemove: (id: string) => void;
   onChangePeriod: (oldId: string, newId: string) => void;
+  locked?: boolean;
 }
 
 const PARAMETRIZED_ID = /^(sma|ema|rsi)_(\d+)$/;
@@ -25,6 +26,7 @@ export default function IndicatorBadges({
   onSetColor,
   onRemove,
   onChangePeriod,
+  locked = false,
 }: IndicatorBadgesProps) {
   const [periodDraft, setPeriodDraft] = useState("");
   const [chandelierDraft, setChandelierDraft] = useState({ length: "", atrPeriod: "", mult: "" });
@@ -79,15 +81,21 @@ export default function IndicatorBadges({
         const match = PARAMETRIZED_ID.exec(id);
         const isChandelier = CHANDELIER_ID.test(id);
         const color = colors[id] ?? def.lines?.[0]?.color ?? "#888";
-        const isOpen = openId === id;
+        const isOpen = !locked && openId === id;
 
         return (
           <div key={id} className="relative">
             <button
               type="button"
+              disabled={locked}
               onClick={() => onOpenChange(isOpen ? null : id)}
+              title={locked ? def.label : undefined}
               className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium text-fg transition-colors ${
-                isOpen ? "border-violet-400 bg-violet-500/30" : "border-border bg-field hover:bg-violet-500/20"
+                locked
+                  ? "cursor-default border-border bg-field opacity-90"
+                  : isOpen
+                    ? "border-violet-400 bg-violet-500/30"
+                    : "border-border bg-field hover:bg-violet-500/20"
               }`}
             >
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
