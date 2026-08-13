@@ -260,6 +260,7 @@ class ChartAnnotation(BaseModel):
     price: float
     label: str | None = None
     color: str | None = None
+    index: int | None = None
 
 
 class AgentReviewRequest(BaseModel):
@@ -393,7 +394,10 @@ class UserPreferenceUpdate(BaseModel):
 
 class OnboardingStorySlide(BaseModel):
     heading: str
+    # Supports **bold** spans (rendered as an accent-colored highlight) and \n
+    # for line breaks — see frontend/app/onboarding/page.tsx's renderStoryBody.
     body: str
+    image: str | None = None
 
 
 class OnboardingPlaybook(BaseModel):
@@ -409,6 +413,8 @@ class OnboardingSignal(BaseModel):
     description: str
     annotation: ChartAnnotation
     is_confirmation: bool = False
+    stop_loss_price: float | None = None
+    take_profit_price: float | None = None
 
 
 class OnboardingScenarioOut(BaseModel):
@@ -418,6 +424,9 @@ class OnboardingScenarioOut(BaseModel):
     playbook: OnboardingPlaybook
     signals: list[OnboardingSignal]
     chart_indicators: list[str]
+    trial_start_index: int = 0
+    horizontal_lines: list[ChartAnnotation] = []
+    checklist_stage: list[int] = []
 
 
 class OnboardingTradeIn(BaseModel):

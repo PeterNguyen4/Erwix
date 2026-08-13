@@ -47,7 +47,6 @@ export interface BracketLevels {
   entryPrice: number;
   takeProfitPrice?: number | null;
   stopLossPrice?: number | null;
-  /** Unix seconds when the bracket was set up — lines are drawn from here forward, not from "now". */
   entryTime: number;
 }
 
@@ -64,6 +63,8 @@ interface ChartProps {
   infoOverlay?: boolean;
   requiredIndicators?: string[];
   hideToolbar?: boolean;
+  lockIndicators?: boolean;
+  hideIndicatorBadges?: boolean;
   initialIndicators?: string[];
   initialIndicatorColors?: Record<string, string>;
   onIndicatorsChange?: (ids: string[], colors: Record<string, string>) => void;
@@ -88,7 +89,7 @@ function formatVolume(v: number): string {
 interface DrawingState {
   isDrawing: boolean;
   points: Array<{ x: number; y: number }>;
-  mode: "crosshair" | "line" | "fib" | null;
+  mode: "crosshair" | "line" | "fib" | "forecast" | null;
   completedLines: Array<Array<{ x: number; y: number }>>;
 }
 
@@ -98,6 +99,17 @@ interface FibDrawing {
   time2: number;
   price2: number;
 }
+
+interface ForecastDrawing {
+  time1: number;
+  time2: number;
+  entryPrice: number;
+  targetPrice: number;
+  stopPrice: number;
+}
+
+const FORECAST_DEFAULT_PCT = 0.01;
+const FORECAST_DEFAULT_BAR_SPAN = 3;
 
 const FIB_LEVELS: { ratio: number; color: string }[] = [
   { ratio: 0, color: "#787b86" },
@@ -127,7 +139,6 @@ function toMarker(a: ChartAnnotation, snappedTime: UTCTimestamp): SeriesMarker<T
   };
 }
 
-// Snap to the candle whose time is closest to the agent's annotation time.
 function nearestCandleTime(candles: Candle[], time: number): UTCTimestamp | null {
   if (candles.length === 0) return null;
   let closest = candles[0];
@@ -160,6 +171,8 @@ export default function Chart({
   infoOverlay = false,
   requiredIndicators,
   hideToolbar = false,
+  lockIndicators = false,
+  hideIndicatorBadges = false,
   initialIndicators,
   initialIndicatorColors,
   onIndicatorsChange,
@@ -190,6 +203,13 @@ export default function Chart({
   const [fibDrawings, setFibDrawings] = useState<FibDrawing[]>([]);
   const [fibPreviewStart, setFibPreviewStart] = useState<{ time: number; price: number } | null>(null);
   const [draggingFibHandle, setDraggingFibHandle] = useState<{ index: number; handle: "start" | "end" } | null>(null);
+  const [forecastDrawings, setForecastDrawings] = useState<ForecastDrawing[]>([]);
+  const [draggingForecastHandle, setDraggingForecastHandle] = useState<{
+    index: number;
+    handle: "target" | "stop" | "start" | "end";
+  } | null>(null);
+  const draggingForecastMoveRef = useRef<{ index: number; startX: number; startY: number; dx: number; dy: number } | null>(null);
+  const [draggingForecastMoveIndex, setDraggingForecastMoveIndex] = useState<number | null>(null);
   const [draggingBracketHandle, setDraggingBracketHandle] = useState<"tp" | "sl" | null>(null);
   const [hoveredBracketHandle, setHoveredBracketHandle] = useState<"tp" | "sl" | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null);
@@ -324,8 +344,6 @@ export default function Chart({
     [activeIndicators],
   );
 
-  // Fixed to bracket.entryTime (when the bracket was set up) so the start of
-  // the lines/zones doesn't drift forward as new candles arrive.
   const getBracketStartX = () => {
     const chart = chartRef.current;
     if (!chart || !bracket) return null;
@@ -348,10 +366,7 @@ export default function Chart({
         vertLine: { visible: false, labelVisible: false },
         horzLine: { visible: false, labelVisible: false },
       },
-      timeScale: { borderColor: palette.border, timeVisible: true },
-      // Fixed so the main pane and the oscillator sub-pane (which can show
-      // very different label widths — RSI's "0"-"100" vs MACD's decimals)
-      // always reserve the same axis width and stay pixel-aligned.
+      timeScale: { borderColor: palette.border, timeVisible: true, rightOffset: 3 },
       rightPriceScale: { borderColor: palette.border, minimumWidth: 68 },
       autoSize: true,
     });
@@ -410,27 +425,41 @@ export default function Chart({
     const suspend =
       drawingState.mode === "fib" ||
       drawingState.mode === "line" ||
+      drawingState.mode === "forecast" ||
       draggingFibHandle !== null ||
-      draggingBracketHandle !== null;
+      draggingBracketHandle !== null ||
+      draggingForecastHandle !== null ||
+      draggingForecastMoveIndex !== null;
     chart.applyOptions({ handleScroll: !suspend, handleScale: !suspend });
-  }, [drawingState.mode, draggingFibHandle, draggingBracketHandle, chartReady]);
+  }, [drawingState.mode, draggingFibHandle, draggingBracketHandle, draggingForecastHandle, draggingForecastMoveIndex, chartReady]);
 
-  // Load historical candles
   useEffect(() => {
     if (!seriesRef.current) return;
     const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
-    seriesRef.current.setData(def.toData(candles) as never[]);
+    try {
+      markersPluginRef.current?.setMarkers([]);
+      seriesRef.current.setData(def.toData(candles) as never[]);
+    } catch (err) {
+      console.warn("Chart: failed to set candle data", err);
+    }
     const total = candles.length;
-    if (total > 0) {
-      chartRef.current?.timeScale().setVisibleLogicalRange({ from: total - 100, to: total + 2 });
+    try {
+      if (visibleRange && total > 0) {
+        chartRef.current?.timeScale().setVisibleRange({
+          from: visibleRange.from as UTCTimestamp,
+          to: visibleRange.to as UTCTimestamp,
+        });
+      } else if (total > 0) {
+        chartRef.current?.timeScale().setVisibleLogicalRange({ from: total - 100, to: total + 2 });
+      }
+    } catch (err) {
+      console.warn("Chart: failed to apply visible range", err);
     }
     const last = candles[candles.length - 1];
     const prev = candles[candles.length - 2];
     if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume, prevClose: prev?.close });
-  }, [candles, chartReady, chartTypeId]);
+  }, [candles, chartReady, chartTypeId, visibleRange]);
 
-  // Apply live updates. Heikin-Ashi recomputes fully (its candles depend on
-  // the running average of prior ones, so there's no cheap incremental form).
   useEffect(() => {
     if (!seriesRef.current || !liveCandle) return;
     if (chartTypeId === "heikinashi") {
@@ -479,14 +508,17 @@ export default function Chart({
       );
   }, [annotations, candles]);
 
-  // Zoom/pan the visible time range when the agent calls zoom_to_range.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart || !visibleRange) return;
-    chart.timeScale().setVisibleRange({
-      from: visibleRange.from as UTCTimestamp,
-      to: visibleRange.to as UTCTimestamp,
-    });
+    try {
+      chart.timeScale().setVisibleRange({
+        from: visibleRange.from as UTCTimestamp,
+        to: visibleRange.to as UTCTimestamp,
+      });
+    } catch (err) {
+      console.warn("Chart: failed to apply visible range", err);
+    }
   }, [visibleRange]);
 
   // Sync overlay indicator series (drawn on the main price pane) with the
@@ -511,7 +543,7 @@ export default function Chart({
           series = chart.addSeries(LineSeries, {
             color: line.color,
             lineWidth: 2,
-            title: def.label,
+            title: hideIndicatorBadges ? "" : def.label,
             lastValueVisible: false,
             priceLineVisible: false,
             crosshairMarkerVisible: false,
@@ -522,7 +554,7 @@ export default function Chart({
         } else {
           series.applyOptions({
             color: line.color,
-            title: def.label,
+            title: hideIndicatorBadges ? "" : def.label,
             pointMarkersVisible: line.pointMarkers ?? false,
             pointMarkersRadius: line.pointMarkersRadius,
           });
@@ -537,7 +569,7 @@ export default function Chart({
       }
     }
     seriesRef.current?.setSeriesOrder(9999);
-  }, [activeIndicators, indicatorColors, candles, chartReady]);
+  }, [activeIndicators, indicatorColors, candles, chartReady, hideIndicatorBadges]);
 
   // Sync main pane with oscillators
   useEffect(() => {
@@ -607,7 +639,6 @@ export default function Chart({
         lineStyle: 0, // solid
         lineVisible: false,
         axisLabelVisible: true,
-        title: "Entry",
       }),
     );
     if (bracket.takeProfitPrice != null) {
@@ -619,7 +650,6 @@ export default function Chart({
           lineStyle: 2, // dashed
           lineVisible: false,
           axisLabelVisible: true,
-          title: "TP",
         }),
       );
     }
@@ -632,7 +662,6 @@ export default function Chart({
           lineStyle: 2, // dashed
           lineVisible: false,
           axisLabelVisible: true,
-          title: "SL",
         }),
       );
     }
@@ -662,9 +691,6 @@ export default function Chart({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Bracket TP/SL zones — shaded bands between the entry price and each
-    // level, so the risk/reward is visible at a glance. Clipped to start at
-    // bracket.entryTime's x-coordinate instead of the left edge of the chart.
     if (bracket && chartRef.current && seriesRef.current) {
       const series = seriesRef.current;
       const nowX = getBracketStartX();
@@ -689,22 +715,59 @@ export default function Chart({
           }
         }
 
-        // Hand-drawn level lines (the price lines above only supply the
-        // axis label), each starting at startX and running to the right edge.
-        const drawLevelLine = (levelY: number | null, color: string, dashed: boolean) => {
-          if (levelY == null) return;
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 2;
-          ctx.setLineDash(dashed ? [6, 4] : []);
-          ctx.beginPath();
-          ctx.moveTo(startX, levelY);
-          ctx.lineTo(canvas.width, levelY);
-          ctx.stroke();
-          ctx.setLineDash([]);
-        };
-        drawLevelLine(entryY, palette.fg, false);
-        if (bracket.takeProfitPrice != null) drawLevelLine(series.priceToCoordinate(bracket.takeProfitPrice), TP_COLOR, true);
-        if (bracket.stopLossPrice != null) drawLevelLine(series.priceToCoordinate(bracket.stopLossPrice), SL_COLOR, true);
+        if (mousePos && mousePos.x >= startX && entryY != null) {
+          const drawLevelLine = (levelY: number | null, color: string, dashed: boolean) => {
+            if (levelY == null) return;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.setLineDash(dashed ? [6, 4] : []);
+            ctx.beginPath();
+            ctx.moveTo(startX, levelY);
+            ctx.lineTo(canvas.width, levelY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+          };
+          const drawLevelLabel = (levelY: number | null, color: string, text: string, below: boolean) => {
+            if (levelY == null) return;
+            ctx.font = "11px monospace";
+            const padding = 5;
+            const textWidth = ctx.measureText(text).width;
+            const boxW = textWidth + padding * 2;
+            const boxH = 18;
+            const gap = 4;
+            const boxX = Math.min(startX + 6, canvas.width - boxW - 4);
+            const boxY = below ? levelY + gap : levelY - gap - boxH;
+            ctx.fillStyle = color;
+            ctx.fillRect(boxX, boxY, boxW, boxH);
+            ctx.fillStyle = "#0b0e14";
+            ctx.textBaseline = "middle";
+            ctx.fillText(text, boxX + padding, boxY + boxH / 2 + 1);
+            ctx.textBaseline = "alphabetic";
+          };
+
+          const tpY = bracket.takeProfitPrice != null ? series.priceToCoordinate(bracket.takeProfitPrice) : null;
+          const slY = bracket.stopLossPrice != null ? series.priceToCoordinate(bracket.stopLossPrice) : null;
+          const entryYSafe: number = entryY;
+          const inZone = (levelY: number | null) =>
+            levelY != null &&
+            mousePos.y >= Math.min(entryYSafe, levelY) &&
+            mousePos.y <= Math.max(entryYSafe, levelY);
+          const hoveringTP = inZone(tpY);
+          const hoveringSL = inZone(slY);
+
+          if (hoveringTP || hoveringSL) {
+            drawLevelLine(entryY, palette.fg, false);
+            drawLevelLabel(entryY, palette.fg, `Entry ${bracket.entryPrice.toFixed(2)}`, false);
+          }
+          if (hoveringTP && bracket.takeProfitPrice != null) {
+            drawLevelLine(tpY, TP_COLOR, true);
+            drawLevelLabel(tpY, TP_COLOR, `TP ${bracket.takeProfitPrice.toFixed(2)}`, false);
+          }
+          if (hoveringSL && bracket.stopLossPrice != null) {
+            drawLevelLine(slY, SL_COLOR, true);
+            drawLevelLabel(slY, SL_COLOR, `SL ${bracket.stopLossPrice.toFixed(2)}`, true);
+          }
+        }
       }
     }
 
@@ -824,6 +887,94 @@ export default function Chart({
       }
     }
 
+    if (chartRef.current && seriesRef.current) {
+      const chart = chartRef.current;
+      const mainSeries = seriesRef.current;
+
+      forecastDrawings.forEach((f, index) => {
+        let x1 = chart.timeScale().timeToCoordinate(f.time1 as UTCTimestamp);
+        let x2 = chart.timeScale().timeToCoordinate(f.time2 as UTCTimestamp);
+        let entryY = mainSeries.priceToCoordinate(f.entryPrice);
+        let targetY = mainSeries.priceToCoordinate(f.targetPrice);
+        let stopY = mainSeries.priceToCoordinate(f.stopPrice);
+        if (x1 == null || x2 == null || entryY == null || targetY == null || stopY == null) return;
+        const move = draggingForecastMoveRef.current;
+        if (move && move.index === index) {
+          x1 = (x1 + move.dx) as typeof x1;
+          x2 = (x2 + move.dx) as typeof x2;
+          entryY = (entryY + move.dy) as typeof entryY;
+          targetY = (targetY + move.dy) as typeof targetY;
+          stopY = (stopY + move.dy) as typeof stopY;
+        }
+        const left = Math.min(x1, x2);
+        const right = Math.max(x1, x2);
+        const centerX = (left + right) / 2;
+
+        ctx.fillStyle = hexToRgba(TP_COLOR, 0.2);
+        ctx.fillRect(left, Math.min(entryY, targetY), right - left, Math.abs(entryY - targetY));
+        ctx.fillStyle = hexToRgba(SL_COLOR, 0.2);
+        ctx.fillRect(left, Math.min(entryY, stopY), right - left, Math.abs(entryY - stopY));
+
+        ctx.strokeStyle = palette.fg;
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 4]);
+        ctx.beginPath();
+        ctx.moveTo(left, entryY);
+        ctx.lineTo(right, entryY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        const targetPct = ((f.targetPrice - f.entryPrice) / f.entryPrice) * 100;
+        const stopPct = ((f.entryPrice - f.stopPrice) / f.entryPrice) * 100;
+        const reward = Math.abs(f.targetPrice - f.entryPrice);
+        const risk = Math.abs(f.entryPrice - f.stopPrice);
+        const rr = risk > 0 ? reward / risk : null;
+
+        const drawLabel = (y: number, color: string, text: string, above: boolean) => {
+          ctx.font = "11px monospace";
+          const padding = 5;
+          const textWidth = ctx.measureText(text).width;
+          const boxW = textWidth + padding * 2;
+          const boxH = 18;
+          const boxX = centerX - boxW / 2;
+          const boxY = above ? y - 18 - 4 : y + 4;
+          ctx.fillStyle = color;
+          ctx.fillRect(boxX, boxY, boxW, boxH);
+          ctx.fillStyle = "#0b0e14";
+          ctx.textBaseline = "middle";
+          ctx.fillText(text, boxX + padding, boxY + boxH / 2 + 1);
+          ctx.textBaseline = "alphabetic";
+        };
+        drawLabel(targetY, TP_COLOR, `Target: ${f.targetPrice.toFixed(2)} (${targetPct.toFixed(3)}%)`, true);
+        drawLabel(stopY, SL_COLOR, `Stop: ${f.stopPrice.toFixed(2)} (${stopPct.toFixed(3)}%)`, false);
+
+        ctx.font = "11px monospace";
+        const rrText = `Risk/reward ratio: ${rr != null ? rr.toFixed(2) : "-"}`;
+        const rrWidth = ctx.measureText(rrText).width;
+        ctx.fillStyle = "#ef5350";
+        ctx.fillRect(centerX - rrWidth / 2 - 5, entryY - 9, rrWidth + 10, 18);
+        ctx.fillStyle = "#fff";
+        ctx.textBaseline = "middle";
+        ctx.fillText(rrText, centerX - rrWidth / 2, entryY + 1);
+        ctx.textBaseline = "alphabetic";
+
+        const isDragging = draggingForecastHandle?.index === index;
+        const drawHandle = (hx: number, hy: number, handle: "target" | "stop" | "start" | "end") => {
+          ctx.beginPath();
+          ctx.arc(hx, hy, 5, 0, 2 * Math.PI);
+          ctx.fillStyle = palette.bg;
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = isDragging && draggingForecastHandle?.handle === handle ? "#3b82f6" : hexToRgba("#3b82f6", 0.6);
+          ctx.stroke();
+        };
+        drawHandle(centerX, targetY, "target");
+        drawHandle(centerX, stopY, "stop");
+        drawHandle(left, entryY, "start");
+        drawHandle(right, entryY, "end");
+      });
+    }
+
     if (mousePos) {
       ctx.strokeStyle = palette.muted;
       ctx.lineWidth = 1;
@@ -841,7 +992,10 @@ export default function Chart({
       // X-axis time label at bottom.
       if (crosshairData.time !== null) {
         const d = new Date(crosshairData.time * 1000);
-        const timeLabel = `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+        const hasTimeOfDay = d.getHours() !== 0 || d.getMinutes() !== 0;
+        const timeLabel = hasTimeOfDay
+          ? `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`
+          : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
         ctx.font = "11px monospace";
         const tw = ctx.measureText(timeLabel).width;
         const px = 6, py = 3;
@@ -912,7 +1066,7 @@ export default function Chart({
         ctx.fill();
       }
     }
-  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, candles, draggingBracketHandle, palette]);
+  }, [mousePos, drawingState, crosshairData, bracket, redrawTick, activeIndicators, fibDrawings, fibPreviewStart, forecastDrawings, draggingForecastHandle, candles, draggingBracketHandle, palette]);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     const canvas = canvasRef.current;
@@ -929,7 +1083,7 @@ export default function Chart({
       return;
     }
 
-    if (bracket && drawingState.mode === "crosshair") {
+    if (bracket && drawingState.mode === "crosshair" && !lockIndicators) {
       const series = seriesRef.current;
       const startX = getBracketStartX();
       const onLine = startX != null && x >= startX;
@@ -961,6 +1115,34 @@ export default function Chart({
       return;
     }
 
+    if (draggingForecastMoveRef.current) {
+      const drag = draggingForecastMoveRef.current;
+      draggingForecastMoveRef.current = { ...drag, dx: x - drag.startX, dy: y - drag.startY };
+      return;
+    }
+
+    if (draggingForecastHandle) {
+      const chart = chartRef.current;
+      const series = seriesRef.current;
+      const { handle, index } = draggingForecastHandle;
+      if (handle === "start" || handle === "end") {
+        const time = chart?.timeScale().coordinateToTime(x) as number | null;
+        if (time != null) {
+          setForecastDrawings((prev) =>
+            prev.map((f, i) => (i !== index ? f : handle === "start" ? { ...f, time1: time } : { ...f, time2: time })),
+          );
+        }
+        return;
+      }
+      const price = series?.coordinateToPrice(y);
+      if (price != null) {
+        setForecastDrawings((prev) =>
+          prev.map((f, i) => (i !== index ? f : handle === "target" ? { ...f, targetPrice: price } : { ...f, stopPrice: price })),
+        );
+      }
+      return;
+    }
+
     const chart = chartRef.current;
     if (chart && candles.length > 0) {
       const logical = chart.timeScale().coordinateToLogical(x);
@@ -981,6 +1163,7 @@ export default function Chart({
 
   const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
+    if (lockIndicators) return;
     setContextMenu({ x: e.clientX, y: e.clientY });
   };
 
@@ -994,6 +1177,30 @@ export default function Chart({
   };
 
   const handleMouseClick = () => {
+    if (drawingState.mode === "forecast" && mousePos) {
+      const chart = chartRef.current;
+      const series = seriesRef.current;
+      if (!chart || !series || candles.length === 0) return;
+      const entryPrice = series.coordinateToPrice(mousePos.y);
+      const logical = chart.timeScale().coordinateToLogical(mousePos.x);
+      if (entryPrice == null || logical == null) return;
+      const idx = Math.max(0, Math.min(Math.round(logical), candles.length - 1));
+      const startIdx = Math.max(0, idx - FORECAST_DEFAULT_BAR_SPAN);
+      const endIdx = Math.min(candles.length - 1, idx + FORECAST_DEFAULT_BAR_SPAN);
+      setForecastDrawings((prev) => [
+        ...prev,
+        {
+          time1: candles[startIdx].time,
+          time2: candles[endIdx].time,
+          entryPrice,
+          targetPrice: entryPrice * (1 + FORECAST_DEFAULT_PCT),
+          stopPrice: entryPrice * (1 - FORECAST_DEFAULT_PCT),
+        },
+      ]);
+      setDrawingState((prev) => ({ ...prev, mode: "crosshair", points: [] }));
+      return;
+    }
+
     if (drawingState.mode !== "line" || !mousePos) return;
     if (drawingState.points.length === 0) {
       setDrawingState({ ...drawingState, points: [mousePos] });
@@ -1019,7 +1226,7 @@ export default function Chart({
 
     if (drawingState.mode === "crosshair") {
       const bracketStartX = getBracketStartX();
-      if (bracket && bracketStartX != null && mousePos.x >= bracketStartX) {
+      if (!lockIndicators && bracket && bracketStartX != null && mousePos.x >= bracketStartX) {
         if (bracket.takeProfitPrice != null) {
           const tpY = series.priceToCoordinate(bracket.takeProfitPrice);
           if (tpY != null && Math.abs(mousePos.y - tpY) <= HANDLE_LINE_TOLERANCE) {
@@ -1050,6 +1257,41 @@ export default function Chart({
           return;
         }
       }
+      for (let i = forecastDrawings.length - 1; i >= 0; i--) {
+        const f = forecastDrawings[i];
+        const x1 = chart.timeScale().timeToCoordinate(f.time1 as UTCTimestamp);
+        const x2 = chart.timeScale().timeToCoordinate(f.time2 as UTCTimestamp);
+        const entryY = series.priceToCoordinate(f.entryPrice);
+        const targetY = series.priceToCoordinate(f.targetPrice);
+        const stopY = series.priceToCoordinate(f.stopPrice);
+        if (x1 == null || x2 == null || entryY == null) continue;
+        const left = Math.min(x1, x2);
+        const right = Math.max(x1, x2);
+        const centerX = (left + right) / 2;
+        if (targetY != null && Math.hypot(mousePos.x - centerX, mousePos.y - targetY) <= HANDLE_HIT_RADIUS) {
+          setDraggingForecastHandle({ index: i, handle: "target" });
+          return;
+        }
+        if (stopY != null && Math.hypot(mousePos.x - centerX, mousePos.y - stopY) <= HANDLE_HIT_RADIUS) {
+          setDraggingForecastHandle({ index: i, handle: "stop" });
+          return;
+        }
+        if (Math.hypot(mousePos.x - left, mousePos.y - entryY) <= HANDLE_HIT_RADIUS) {
+          setDraggingForecastHandle({ index: i, handle: "start" });
+          return;
+        }
+        if (Math.hypot(mousePos.x - right, mousePos.y - entryY) <= HANDLE_HIT_RADIUS) {
+          setDraggingForecastHandle({ index: i, handle: "end" });
+          return;
+        }
+        const top = targetY != null ? Math.min(targetY, entryY) : entryY;
+        const bottom = stopY != null ? Math.max(stopY, entryY) : entryY;
+        if (mousePos.x >= left && mousePos.x <= right && mousePos.y >= top && mousePos.y <= bottom) {
+          draggingForecastMoveRef.current = { index: i, startX: mousePos.x, startY: mousePos.y, dx: 0, dy: 0 };
+          setDraggingForecastMoveIndex(i);
+          return;
+        }
+      }
       return;
     }
 
@@ -1069,6 +1311,38 @@ export default function Chart({
       setDraggingFibHandle(null);
       return;
     }
+    if (draggingForecastHandle) {
+      setDraggingForecastHandle(null);
+      return;
+    }
+    if (draggingForecastMoveRef.current) {
+      const { index, dx, dy } = draggingForecastMoveRef.current;
+      const chart = chartRef.current;
+      const series = seriesRef.current;
+      if (chart && series && (dx !== 0 || dy !== 0)) {
+        setForecastDrawings((prev) =>
+          prev.map((f, i) => {
+            if (i !== index) return f;
+            const x1 = chart.timeScale().timeToCoordinate(f.time1 as UTCTimestamp);
+            const x2 = chart.timeScale().timeToCoordinate(f.time2 as UTCTimestamp);
+            const entryY = series.priceToCoordinate(f.entryPrice);
+            const targetY = series.priceToCoordinate(f.targetPrice);
+            const stopY = series.priceToCoordinate(f.stopPrice);
+            if (x1 == null || x2 == null || entryY == null || targetY == null || stopY == null) return f;
+            const time1 = chart.timeScale().coordinateToTime(x1 + dx) as number | null;
+            const time2 = chart.timeScale().coordinateToTime(x2 + dx) as number | null;
+            const entryPrice = series.coordinateToPrice(entryY + dy);
+            const targetPrice = series.coordinateToPrice(targetY + dy);
+            const stopPrice = series.coordinateToPrice(stopY + dy);
+            if (time1 == null || time2 == null || entryPrice == null || targetPrice == null || stopPrice == null) return f;
+            return { time1, time2, entryPrice, targetPrice, stopPrice };
+          }),
+        );
+      }
+      draggingForecastMoveRef.current = null;
+      setDraggingForecastMoveIndex(null);
+      return;
+    }
     if (drawingState.mode !== "fib" || !fibPreviewStart || !mousePos) return;
     const chart = chartRef.current;
     const series = seriesRef.current;
@@ -1083,7 +1357,7 @@ export default function Chart({
     setDrawingState((prev) => ({ ...prev, mode: "crosshair", points: [] }));
   };
 
-  const setMode = (mode: "crosshair" | "line" | "fib") => {
+  const setMode = (mode: "crosshair" | "line" | "fib" | "forecast") => {
     setDrawingState({ ...drawingState, points: [], mode });
     setFibPreviewStart(null);
   };
@@ -1092,6 +1366,7 @@ export default function Chart({
     setDrawingState({ isDrawing: false, points: [], mode: drawingState.mode, completedLines: [] });
     setFibDrawings([]);
     setFibPreviewStart(null);
+    setForecastDrawings([]);
   };
 
   const clearIndicators = () => {
@@ -1181,7 +1456,11 @@ export default function Chart({
             <IconCursor />
           </ToolbarButton>
           <DrawingMenu
-            value={drawingState.mode === "line" || drawingState.mode === "fib" ? drawingState.mode : "crosshair"}
+            value={
+              drawingState.mode === "line" || drawingState.mode === "fib" || drawingState.mode === "forecast"
+                ? drawingState.mode
+                : "crosshair"
+            }
             onChange={(id: DrawingToolId) => setMode(id)}
             align="right"
             pinned={pinnedDrawingTools}
@@ -1213,7 +1492,7 @@ export default function Chart({
           ))}
 
           <ClearMenu
-            drawingCount={drawingState.completedLines.length + fibDrawings.length}
+            drawingCount={drawingState.completedLines.length + fibDrawings.length + forecastDrawings.length}
             indicatorCount={activeIndicators.size}
             onClearDrawings={clearDrawings}
             onClearIndicators={clearIndicators}
@@ -1236,9 +1515,11 @@ export default function Chart({
           cursor:
             draggingBracketHandle || hoveredBracketHandle
               ? "ns-resize"
-              : drawingState.mode === "line" || drawingState.mode === "fib"
-                ? "crosshair"
-                : "default",
+              : draggingForecastMoveIndex !== null
+                ? "grabbing"
+                : drawingState.mode === "line" || drawingState.mode === "fib" || drawingState.mode === "forecast"
+                  ? "crosshair"
+                  : "default",
         }}
       >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
@@ -1246,15 +1527,18 @@ export default function Chart({
           {showInfoOverlay && ohlcBlock && (
             <div className="rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">{ohlcBlock}</div>
           )}
-          <IndicatorBadges
-            active={activeIndicators}
-            colors={indicatorColors}
-            openId={openIndicatorId}
-            onOpenChange={setOpenIndicatorId}
-            onSetColor={setIndicatorColor}
-            onRemove={removeIndicator}
-            onChangePeriod={changeIndicatorPeriod}
-          />
+          {!hideIndicatorBadges && (
+            <IndicatorBadges
+              active={activeIndicators}
+              colors={indicatorColors}
+              openId={openIndicatorId}
+              onOpenChange={setOpenIndicatorId}
+              onSetColor={setIndicatorColor}
+              onRemove={removeIndicator}
+              onChangePeriod={changeIndicatorPeriod}
+              locked={lockIndicators}
+            />
+          )}
         </div>
         {/* pointer-events-none so mouse events fall through to lightweight-charts'
             own canvas underneath — otherwise its native per-series crosshair
@@ -1275,7 +1559,11 @@ export default function Chart({
           onClose={() => setContextMenu(null)}
           chartTypeId={chartTypeId}
           onChartTypeChange={setChartTypeId}
-          drawingMode={drawingState.mode === "line" || drawingState.mode === "fib" ? drawingState.mode : "crosshair"}
+          drawingMode={
+            drawingState.mode === "line" || drawingState.mode === "fib" || drawingState.mode === "forecast"
+              ? drawingState.mode
+              : "crosshair"
+          }
           onDrawingModeChange={setMode}
           activeIndicators={activeIndicators}
           onToggleIndicator={toggleIndicator}

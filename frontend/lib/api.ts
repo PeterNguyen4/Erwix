@@ -315,6 +315,7 @@ export interface ChartAnnotation {
   price: number;
   label?: string;
   color?: string;
+  index?: number | null;
 }
 
 // Phase-2: LangGraph analyst agent's trade-window review.
@@ -510,6 +511,7 @@ export type RuleWatchEvent =
 export interface OnboardingStorySlide {
   heading: string;
   body: string;
+  image?: string | null;
 }
 
 export interface OnboardingPlaybook {
@@ -525,6 +527,8 @@ export interface OnboardingSignal {
   description: string;
   annotation: ChartAnnotation;
   is_confirmation: boolean;
+  stop_loss_price?: number | null;
+  take_profit_price?: number | null;
 }
 
 export interface OnboardingScenario {
@@ -534,6 +538,9 @@ export interface OnboardingScenario {
   playbook: OnboardingPlaybook;
   signals: OnboardingSignal[];
   chart_indicators: string[];
+  trial_start_index: number;
+  horizontal_lines: ChartAnnotation[];
+  checklist_stage: number[];
 }
 
 export interface OnboardingTrade {

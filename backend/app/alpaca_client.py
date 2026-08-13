@@ -3,12 +3,13 @@ Wrapper around alpaca-py for data, paper trading, and live streaming.
 """
 
 import logging
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 # Suppress all Alpaca websocket noise — auth failures and retries are handled by
 # _guarded_start_ws and surfaced once through erwix.market instead.
 logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
 
+from alpaca.common.enums import Sort  # noqa: E402
 from alpaca.data.historical import StockHistoricalDataClient  # noqa: E402
 from alpaca.data.live import StockDataStream  # noqa: E402
 from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest  # noqa: E402
@@ -87,6 +88,11 @@ async def search_assets(q: str, limit: int = 10) -> list[dict]:
     return results
 
 
+BARS_LOOKBACK_LIMIT = 3000
+
+_EARLIEST_POSSIBLE_START = datetime(2000, 1, 1, tzinfo=UTC)
+
+
 def get_candles(
     symbol: str,
     timeframe: str = "1Day",
@@ -95,25 +101,28 @@ def get_candles(
 ) -> list[Candle]:
     tf = _TIMEFRAMES.get(timeframe, _TIMEFRAMES["1Day"])
     if start is None:
-        _lookback = {
-            "1Min": timedelta(days=3),
-            "5Min": timedelta(days=7),
-            "15Min": timedelta(days=14),
-            "1Hour": timedelta(days=30),
-            "1Day": timedelta(days=180),
-            "1Week": timedelta(days=730),
-            "1Month": timedelta(days=1825),
-        }
-        start = datetime.now(UTC) - _lookback.get(timeframe, timedelta(days=180))
-    req = StockBarsRequest(
-        symbol_or_symbols=symbol.upper(),
-        timeframe=tf,
-        start=start,
-        end=end,
-    )
-    bars = _data_client().get_stock_bars(req)
+        req = StockBarsRequest(
+            symbol_or_symbols=symbol.upper(),
+            timeframe=tf,
+            start=_EARLIEST_POSSIBLE_START,
+            end=end,
+            limit=BARS_LOOKBACK_LIMIT,
+            sort=Sort.DESC,
+        )
+        bars = _data_client().get_stock_bars(req)
+        rows = list(bars.data.get(symbol.upper(), []))
+        rows.reverse()
+    else:
+        req = StockBarsRequest(
+            symbol_or_symbols=symbol.upper(),
+            timeframe=tf,
+            start=start,
+            end=end,
+        )
+        bars = _data_client().get_stock_bars(req)
+        rows = bars.data.get(symbol.upper(), [])
     out: list[Candle] = []
-    for bar in bars.data.get(symbol.upper(), []):
+    for bar in rows:
         out.append(
             Candle(
                 time=int(bar.timestamp.timestamp()),

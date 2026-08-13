@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -28,7 +28,6 @@ import {
   OnboardingScenario,
   OnboardingTrade,
 } from "@/lib/api";
-import RuleSignalToastStack from "@/components/RuleSignalToast";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import CoachMark from "@/components/onboarding/CoachMark";
 import type { RuleSignal } from "@/lib/useRuleWatch";
@@ -48,6 +47,10 @@ type Stage =
 type Experience = "Pro" | "Advanced" | "Intermediate" | "Beginner";
 type TradingStyle = "Ambitious" | "Balanced" | "Steady" | "Simple";
 
+type FeedItem =
+  | { kind: "signal"; id: string; time: number; signalKind: "entry" | "exit"; text: string }
+  | { kind: "trade"; id: string; time: number; action: "buy" | "sell"; price: number };
+
 const ENTER_SELECTOR = '[data-onboarding="enter-button"]';
 const EXIT_SELECTOR = '[data-onboarding="exit-button"]';
 const TRADE_ACTIONS_SELECTOR = '[data-onboarding="trade-actions"]';
@@ -57,12 +60,15 @@ const TOAST_SELECTOR = '[data-onboarding="signal-toast"]';
 const COUNTDOWN_START = 3;
 const COUNTDOWN_STEP_MS = 800;
 const RESUME_DELAY_MS = 1500;
-const RESUME_COUNTDOWN_START = 5;
-const TOAST_DISMISS_MS = 3000;
+const RESUME_STEP_MS = 1000;
+const RESUME_COUNTDOWN_START = 10;
 const CONGRATS_MS = 3000;
 const HINT_DISMISS_MS = 4000;
 const CHECKLIST_STAGGER_MS = 1500;
-const TRIAL_AUTOPLAY_MS = 900;
+const TRIAL_AUTOPLAY_MS = 1300;
+const SLOW_AUTOPLAY_MS = 2800;
+const TRIAL_VISIBLE_CANDLES = 28;
+const SIGNAL_SNAP_TOLERANCE = 2;
 const GENERATING_MESSAGES = [
   "Reviewing your trial run...",
   "Scoring each part of the playbook...",
@@ -112,7 +118,7 @@ const WIZARD_STEPS: { stage: Stage; heading: string; subheading: string; icon: t
 const MOCK_TOAST: RuleSignal = {
   id: "mock-toast",
   kind: "entry",
-  description: "EMA 20 crossed above EMA 50 — confluence stacked, good time to enter",
+  description: "EMA 20 crossed above EMA 50 (Confluence stacked, good time to enter)",
   annotation: { type: "marker", time: 0, price: 0, label: "", color: "#26a69a" },
 };
 
@@ -123,7 +129,7 @@ const WALKTHROUGH_ITEMS: { selector: string; message: string; mockToast?: boolea
   },
   {
     selector: TOAST_SELECTOR,
-    message: "This is what a signal toast looks like. When one pops up, that's your cue to act.",
+    message: "Signals show up as messages here as they happen. When one lands, that's your cue to act.",
     mockToast: true,
   },
   {
@@ -133,12 +139,12 @@ const WALKTHROUGH_ITEMS: { selector: string; message: string; mockToast?: boolea
   },
   {
     selector: TRADE_ACTIONS_SELECTOR,
-    message: "Enter and exit are yours to call. Remember that the toast signals will be there to help.",
+    message: "Enter and exit are yours to call. Remember that the signal messages will be there to help.",
     mockToast: true,
   },
   {
     selector: CHECKLIST_SELECTOR,
-    message: "The playbook is always available.",
+    message: "The playbook is always here for reference.",
   },
   {
     selector: CHART_SELECTOR,
@@ -182,6 +188,23 @@ interface StoredProgress {
   style: TradingStyle | null;
 }
 
+function renderStoryBody(body: string): React.ReactNode {
+  return body.split("\n").map((line, lineIndex, lines) => (
+    <span key={lineIndex}>
+      {line.split(/(\*\*[^*]+\*\*)/g).map((chunk, i) =>
+        chunk.startsWith("**") && chunk.endsWith("**") ? (
+          <span key={i} className="font-normal italic text-accent dark:text-violet-400">
+            {chunk.slice(2, -2)}
+          </span>
+        ) : (
+          <span key={i}>{chunk}</span>
+        ),
+      )}
+      {lineIndex < lines.length - 1 && <br />}
+    </span>
+  ));
+}
+
 export default function OnboardingPage() {
   const { completeOnboarding } = useAuth();
   const router = useRouter();
@@ -199,6 +222,12 @@ export default function OnboardingPage() {
   const [toasts, setToasts] = useState<RuleSignal[]>([]);
   const [openTrade, setOpenTrade] = useState<{ time: number; price: number } | null>(null);
   const [trades, setTrades] = useState<OnboardingTrade[]>([]);
+  const [bracket, setBracket] = useState<{
+    entryPrice: number;
+    stopLossPrice: number | null;
+    takeProfitPrice: number | null;
+    entryTime: number;
+  } | null>(null);
   const [coach, setCoach] = useState<{ selector: string; message: string; spotlight?: boolean } | null>(null);
   const [awaitingAction, setAwaitingAction] = useState(false);
   const [resumeCountdown, setResumeCountdown] = useState<number | null>(null);
@@ -217,11 +246,21 @@ export default function OnboardingPage() {
   const openTradeRef = useRef(openTrade);
   openTradeRef.current = openTrade;
   const finishedRef = useRef(false);
+  const narratedIndexRef = useRef<number>(-1);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+
+  const breakoutIndex = scenario ? scenario.checklist_stage.findIndex((s) => s >= 1) : -1;
+  const pullbackIndex = scenario ? scenario.checklist_stage.findIndex((s) => s >= 2) : -1;
+  const exitSignalIndex = scenario ? (scenario.signals.find((s) => s.kind === "exit")?.index ?? -1) : -1;
+  const slowdownStartIndex = breakoutIndex >= 0 ? Math.max(0, breakoutIndex - 3) : -1;
 
   useEffect(() => {
     api
       .onboardingScenario()
-      .then(setScenario)
+      .then((s) => {
+        setScenario(s);
+        setCursorIndex(s.trial_start_index);
+      })
       .catch(() => setLoadError("Couldn't load the trial scenario. Please try again shortly."));
   }, []);
 
@@ -237,7 +276,7 @@ export default function OnboardingPage() {
       setStyle(saved.style);
       setStage(restoredStage);
     } catch {
-      // corrupt or inaccessible storage — just start fresh
+      
     }
   }, []);
 
@@ -285,8 +324,6 @@ export default function OnboardingPage() {
     }
   };
 
-  // One-off reminder right as the tape starts moving for real — not part of the
-  // walkthrough, so it auto-dismisses instead of waiting on a click.
   useEffect(() => {
     if (!introDone) return;
     const hintMessage = "Remember to wait for the signal.";
@@ -300,11 +337,15 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (stage !== "trial" || !scenario || !introDone || awaitingAction) return;
     const total = scenario.candles.length;
-    const interval = setInterval(() => {
+    const isSlow =
+      slowdownStartIndex >= 0 &&
+      cursorIndex >= slowdownStartIndex &&
+      (exitSignalIndex < 0 || cursorIndex < exitSignalIndex);
+    const t = setTimeout(() => {
       setCursorIndex((i) => Math.min(i + 1, total - 1));
-    }, TRIAL_AUTOPLAY_MS);
-    return () => clearInterval(interval);
-  }, [stage, scenario, introDone, awaitingAction]);
+    }, isSlow ? SLOW_AUTOPLAY_MS : TRIAL_AUTOPLAY_MS);
+    return () => clearTimeout(t);
+  }, [stage, scenario, introDone, awaitingAction, cursorIndex, slowdownStartIndex, exitSignalIndex]);
 
   useEffect(() => {
     if (!awaitingAction) {
@@ -323,9 +364,32 @@ export default function OnboardingPage() {
       setCoach(null);
       return;
     }
-    const t = setTimeout(() => setResumeCountdown((c) => (c ?? 1) - 1), COUNTDOWN_STEP_MS);
+    const t = setTimeout(() => setResumeCountdown((c) => (c ?? 1) - 1), RESUME_STEP_MS);
     return () => clearTimeout(t);
   }, [resumeCountdown]);
+
+  useEffect(() => {
+    if (stage !== "trial" || !scenario || !introDone || awaitingAction) return;
+    if (cursorIndex === narratedIndexRef.current) return;
+
+    let message: string | null = null;
+    if (slowdownStartIndex >= 0 && cursorIndex === slowdownStartIndex) {
+      message = "Here we go! I'm slowing it down for you.";
+    } else if (breakoutIndex >= 0 && cursorIndex === breakoutIndex) {
+      message = "Breakout! Price just closed above the 50 EMA.";
+    } else if (pullbackIndex >= 0 && cursorIndex === pullbackIndex) {
+      message = "Real pullback! I drew the horizontal line for you.";
+    }
+    if (message == null) return;
+    narratedIndexRef.current = cursorIndex;
+
+    const text = message;
+    setCoach({ selector: CHART_SELECTOR, message: text, spotlight: true });
+    const t = setTimeout(() => {
+      setCoach((prev) => (prev?.message === text ? null : prev));
+    }, HINT_DISMISS_MS);
+    return () => clearTimeout(t);
+  }, [cursorIndex, scenario, stage, introDone, awaitingAction, slowdownStartIndex, breakoutIndex, pullbackIndex]);
 
   useEffect(() => {
     if (!scenario || stage !== "trial" || !introDone) return;
@@ -363,10 +427,14 @@ export default function OnboardingPage() {
       const exitFired = fired.some((s) => s.kind === "exit");
       if (entryFired && !openTrade) {
         setAwaitingAction(true);
-        setCoach({ selector: ENTER_SELECTOR, message: "Signal fired — tap Enter to take the trade" });
+        setCoach({
+          selector: ENTER_SELECTOR,
+          message: "It's time to buy! I'll set the 1:2 stop-loss and take-profit. Tap Enter to take the trade.",
+          spotlight: true,
+        });
       } else if (exitFired && openTrade) {
         setAwaitingAction(true);
-        setCoach({ selector: EXIT_SELECTOR, message: "Exit signal — tap Exit to close out" });
+        setCoach({ selector: EXIT_SELECTOR, message: "We hit our take profit! Tap Exit to close out" });
       }
     }
 
@@ -384,16 +452,26 @@ export default function OnboardingPage() {
     return () => clearInterval(t);
   }, [stage]);
 
-  const dismissToast = useCallback((id: string) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);
-
   const handleEnter = () => {
     if (!scenario || openTrade) return;
     const candle = scenario.candles[cursorIndex];
     if (!candle) return;
     setOpenTrade({ time: candle.time, price: candle.close });
-    setCoach(null);
     setAwaitingAction(false);
     setResumeCountdown(null);
+
+    const entrySignal = scenario.signals.find(
+      (s) => s.kind === "entry" && Math.abs(s.index - cursorIndex) <= SIGNAL_SNAP_TOLERANCE,
+    );
+    if (entrySignal?.stop_loss_price != null && entrySignal?.take_profit_price != null) {
+      setBracket({
+        entryPrice: candle.close,
+        stopLossPrice: entrySignal.stop_loss_price,
+        takeProfitPrice: entrySignal.take_profit_price,
+        entryTime: candle.time,
+      });
+    }
+    setCoach(null);
   };
 
   const handleExit = () => {
@@ -410,9 +488,15 @@ export default function OnboardingPage() {
       },
     ]);
     setOpenTrade(null);
-    setCoach(null);
+    setBracket(null);
     setAwaitingAction(false);
     setResumeCountdown(null);
+
+    const speedMessage = "Speeding back up to normal...";
+    setCoach({ selector: CHART_SELECTOR, message: speedMessage, spotlight: false });
+    setTimeout(() => {
+      setCoach((prev) => (prev?.message === speedMessage ? null : prev));
+    }, HINT_DISMISS_MS);
   };
 
   const finishTrial = async () => {
@@ -465,6 +549,12 @@ export default function OnboardingPage() {
   const showingMockToast =
     introStarted && !introDone && countdown === null && WALKTHROUGH_ITEMS[introStep]?.mockToast === true;
 
+  const revealedLines: ChartAnnotation[] = scenario
+    ? scenario.horizontal_lines
+        .filter((l) => (l.index ?? 0) <= cursorIndex)
+        .map((l) => ({ ...l, label: undefined }))
+    : [];
+
   const tradeAnnotations: ChartAnnotation[] = [
     ...trades.flatMap((t): ChartAnnotation[] => [
       { type: "marker", time: t.enter_time, price: t.enter_price, label: "Buy", color: "#26a69a" },
@@ -475,7 +565,52 @@ export default function OnboardingPage() {
     ...(openTrade
       ? [{ type: "marker", time: openTrade.time, price: openTrade.price, label: "Buy", color: "#26a69a" } as ChartAnnotation]
       : []),
+    ...revealedLines,
   ];
+
+  const feedItems: FeedItem[] = [
+    ...toasts.map(
+      (t): FeedItem => ({
+        kind: "signal",
+        id: t.id,
+        time: t.annotation.time,
+        signalKind: t.kind,
+        text: t.description,
+      }),
+    ),
+    ...trades.flatMap((t, i): FeedItem[] => [
+      { kind: "trade", id: `buy-${i}-${t.enter_time}`, time: t.enter_time, action: "buy", price: t.enter_price },
+      ...(t.exit_time != null && t.exit_price != null
+        ? ([
+            {
+              kind: "trade",
+              id: `sell-${i}-${t.exit_time}`,
+              time: t.exit_time,
+              action: "sell",
+              price: t.exit_price,
+            },
+          ] as FeedItem[])
+        : []),
+    ]),
+    ...(openTrade
+      ? [{ kind: "trade", id: `buy-open-${openTrade.time}`, time: openTrade.time, action: "buy", price: openTrade.price } as FeedItem]
+      : []),
+    ...(showingMockToast
+      ? [{ kind: "signal", id: MOCK_TOAST.id, time: 0, signalKind: MOCK_TOAST.kind, text: MOCK_TOAST.description } as FeedItem]
+      : []),
+  ].sort((a, b) => a.time - b.time);
+
+  const feedItemCount = feedItems.length;
+  useEffect(() => {
+    chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [feedItemCount]);
+
+  const visibleRange = scenario
+    ? {
+        from: scenario.candles[Math.max(0, cursorIndex - TRIAL_VISIBLE_CANDLES)].time,
+        to: scenario.candles[cursorIndex].time,
+      }
+    : null;
 
   return (
     <div className="flex h-screen w-full flex-col overflow-auto bg-bg">
@@ -574,7 +709,7 @@ export default function OnboardingPage() {
         )}
 
         {scenario && stage === "story" && (
-          <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-6">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-6">
             <div className="text-sm font-medium text-muted">{scenario.playbook.title}</div>
 
             <div className="flex min-h-[240px] flex-col justify-center rounded-xl border border-border bg-bg p-8">
@@ -584,9 +719,17 @@ export default function OnboardingPage() {
                     <h2 className="mb-4 text-xl font-semibold tracking-tight text-fg">
                       {scenario.playbook.story[storyIndex].heading}
                     </h2>
-                    <p className="text-base leading-relaxed text-fg">
-                      {scenario.playbook.story[storyIndex].body}
-                    </p>
+                    {scenario.playbook.story[storyIndex].image && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={scenario.playbook.story[storyIndex].image!}
+                        alt=""
+                        className="mb-4 max-h-[525px] w-full rounded-lg object-contain"
+                      />
+                    )}
+                    <div className="text-base leading-relaxed text-fg">
+                      {renderStoryBody(scenario.playbook.story[storyIndex].body)}
+                    </div>
                   </>
                 ) : (
                   <>
@@ -654,6 +797,22 @@ export default function OnboardingPage() {
           <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-3">
             {coach && !introStarted && <WelcomeOverlay message={coach.message} onNext={handleIntroNext} />}
             <div className="flex gap-3">
+              <div
+                data-onboarding="checklist-toggle"
+                title="Playbook checklist"
+                className="w-64 shrink-0 overflow-hidden rounded-xl border border-border bg-bg p-4"
+              >
+                <div className="mb-3 text-sm font-semibold text-muted">Checklist</div>
+                <ul className="space-y-3">
+                  {scenario.playbook.checklist.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-xs leading-snug text-fg">
+                      <CheckCircle2 size={16} strokeWidth={2} className="mt-0.5 shrink-0 text-accent dark:text-violet-400" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
               <div data-onboarding="chart" className="relative h-[400px] flex-1 rounded-xl border border-border bg-bg">
                 <Chart
                   candles={scenario.candles}
@@ -661,13 +820,11 @@ export default function OnboardingPage() {
                   symbol={scenario.symbol}
                   requiredIndicators={scenario.chart_indicators}
                   annotations={tradeAnnotations}
+                  bracket={bracket}
+                  visibleRange={visibleRange}
                   hideToolbar
-                />
-                <RuleSignalToastStack
-                  signals={showingMockToast ? [MOCK_TOAST] : toasts}
-                  onDismiss={dismissToast}
-                  autoDismissMs={showingMockToast ? Number.MAX_SAFE_INTEGER : TOAST_DISMISS_MS}
-                  position="top-left"
+                  lockIndicators
+                  hideIndicatorBadges
                 />
 
                 {coach && introStarted && (
@@ -701,8 +858,26 @@ export default function OnboardingPage() {
                 )}
 
                 {showCongrats && (
-                  <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center rounded-xl bg-bg/60 px-6 backdrop-blur-sm">
-                    <span className="animate-pop-in text-center text-xl font-bold text-accent dark:text-violet-400">
+                  <div className="pointer-events-none absolute inset-0 z-50 grid place-items-center overflow-hidden rounded-xl bg-bg/60 px-6 backdrop-blur-sm">
+                    <div className="absolute inset-x-0 -top-4 h-32 overflow-visible">
+                      {CONFETTI_PIECES.map((p, i) => (
+                        <span
+                          key={i}
+                          className="absolute animate-confetti-fall rounded-sm"
+                          style={{
+                            left: `${p.left}%`,
+                            top: `${p.top}%`,
+                            width: p.size,
+                            height: p.size * 2,
+                            backgroundColor: p.color,
+                            animationDelay: `${p.delay}s`,
+                            animationDuration: `${p.duration}s`,
+                            transform: `rotate(${p.rotate}deg)`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span className="relative z-10 animate-pop-in text-center text-xl font-bold text-accent dark:text-violet-400">
                       Congrats on your first Erwix trade!
                     </span>
                   </div>
@@ -710,19 +885,40 @@ export default function OnboardingPage() {
               </div>
 
               <div
-                data-onboarding="checklist-toggle"
-                title="Playbook checklist"
-                className="w-64 shrink-0 overflow-hidden rounded-xl border border-border bg-bg p-4"
+                data-onboarding="signal-toast"
+                title="Trade chat"
+                className="flex w-72 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-bg"
               >
-                <div className="mb-3 text-sm font-semibold text-muted">Checklist</div>
-                <ul className="space-y-3">
-                  {scenario.playbook.checklist.map((item) => (
-                    <li key={item} className="flex items-start gap-2 text-sm leading-snug text-fg">
-                      <CheckCircle2 size={18} strokeWidth={2} className="mt-0.5 shrink-0 text-accent" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
+                <div className="shrink-0 border-b border-border px-4 py-2.5 text-sm font-semibold text-muted">
+                  Trade chat
+                </div>
+                <div ref={chatScrollRef} className="flex-1 space-y-2 overflow-y-auto p-3">
+                  {feedItems.length === 0 && (
+                    <p className="text-xs leading-relaxed text-muted">
+                      Signals and your trades will show up here as they happen.
+                    </p>
+                  )}
+                  {feedItems.map((item) =>
+                    item.kind === "signal" ? (
+                      <div
+                        key={item.id}
+                        className="flex animate-fade-in-up items-start gap-2 rounded-lg bg-field px-3 py-2 text-xs"
+                      >
+                        <span
+                          className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: item.signalKind === "entry" ? "#26a69a" : "#ef5350" }}
+                        />
+                        <p className="leading-snug text-fg">{item.text}</p>
+                      </div>
+                    ) : (
+                      <div key={item.id} className="flex animate-fade-in-up justify-end">
+                        <div className="max-w-[85%] rounded-lg bg-accent/20 px-3 py-2 text-xs text-fg dark:bg-violet-500/20">
+                          {item.action === "buy" ? "Bought" : "Sold"} at ${item.price.toFixed(2)}
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </div>
               </div>
             </div>
 
@@ -731,7 +927,7 @@ export default function OnboardingPage() {
                 <div className="text-xs font-semibold text-muted">Your position</div>
                 <div className="mt-0.5 text-sm text-fg">
                   {openTrade
-                    ? `In a trade — entered at ${openTrade.price.toFixed(2)}`
+                    ? `Entered trade at ${openTrade.price.toFixed(2)}`
                     : trades.length > 0
                       ? `${trades.length} trade${trades.length === 1 ? "" : "s"} so far`
                       : "Watching for a signal..."}
@@ -795,24 +991,6 @@ export default function OnboardingPage() {
           <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-6">
             <div className="text-center">
               <div className="relative mb-1 flex items-center justify-center">
-                <div className="pointer-events-none absolute inset-x-0 -top-4 h-32 overflow-visible">
-                  {CONFETTI_PIECES.map((p, i) => (
-                    <span
-                      key={i}
-                      className="absolute animate-confetti-fall rounded-sm"
-                      style={{
-                        left: `${p.left}%`,
-                        top: `${p.top}%`,
-                        width: p.size,
-                        height: p.size * 2,
-                        backgroundColor: p.color,
-                        animationDelay: `${p.delay}s`,
-                        animationDuration: `${p.duration}s`,
-                        transform: `rotate(${p.rotate}deg)`,
-                      }}
-                    />
-                  ))}
-                </div>
                 <PartyPopper size={30} strokeWidth={2} className="relative z-10 animate-pop-in text-accent dark:text-violet-400" />
               </div>
               <h2 className="text-2xl font-bold tracking-tight text-fg">

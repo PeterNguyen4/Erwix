@@ -1,7 +1,6 @@
 import { Star, Brush } from "lucide-react";
 
-// Drawing-tool registry (trend line / Fibonacci retracement)
-export type DrawingToolId = "line" | "fib";
+export type DrawingToolId = "line" | "fib" | "forecast";
 
 export interface DrawingToolDef {
   id: DrawingToolId;
@@ -32,6 +31,20 @@ function IconFib() {
   );
 }
 
+function IconForecast() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <line x1="2" y1="4" x2="16" y2="4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="9" cy="4" r="1.8" fill="currentColor" />
+      <line x1="2" y1="9" x2="16" y2="9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="3" cy="9" r="1.8" fill="currentColor" />
+      <circle cx="15" cy="9" r="1.8" fill="currentColor" />
+      <line x1="2" y1="14" x2="16" y2="14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="9" cy="14" r="1.8" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function IconStar({ filled }: { filled: boolean }) {
   return <Star size={12} strokeWidth={1.6} fill={filled ? "currentColor" : "none"} />;
 }
@@ -43,4 +56,5 @@ export function IconDrawingTool() {
 export const DRAWING_TOOLS: DrawingToolDef[] = [
   { id: "line", label: "Trend Line", icon: IconLine },
   { id: "fib", label: "Fibonacci Retracement", icon: IconFib },
+  { id: "forecast", label: "Forecast", icon: IconForecast },
 ];
