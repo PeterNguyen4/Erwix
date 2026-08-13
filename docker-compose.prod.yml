@@ -3,6 +3,18 @@ services:
     image: pgvector/pgvector:pg16
     container_name: erwix-db
     restart: always
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - effective_cache_size=192MB
+      - -c
+      - work_mem=4MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - max_connections=40
     environment:
       POSTGRES_USER: erwix
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -14,11 +26,13 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    mem_limit: 300m
 
   redis:
     image: redis:7-alpine
     container_name: erwix-redis
     restart: always
+    command: redis-server --maxmemory 80mb --maxmemory-policy allkeys-lru
     volumes:
       - erwix_redisdata:/data
     healthcheck:
@@ -26,6 +40,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    mem_limit: 100m
 
   backend:
     build: ./backend
@@ -40,6 +55,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    mem_limit: 450m
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -50,6 +66,7 @@ services:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
       - backend
+    mem_limit: 64m
 
 volumes:
   erwix_pgdata:
