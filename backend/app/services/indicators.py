@@ -278,8 +278,12 @@ def chandelier_stop(
             else (long_stop if close < longvs_prev else max(long_stop, longvs_prev))
         )
 
-        long_switch = shortvs_prev is not None and close >= shortvs_prev and prev_close < shortvs_prev
-        short_switch = longvs_prev is not None and close <= longvs_prev and prev_close > longvs_prev
+        long_switch = (
+            shortvs_prev is not None and close >= shortvs_prev and prev_close < shortvs_prev
+        )
+        short_switch = (
+            longvs_prev is not None and close <= longvs_prev and prev_close > longvs_prev
+        )
         if direction <= 0 and long_switch:
             direction = 1
         elif direction >= 0 and short_switch:

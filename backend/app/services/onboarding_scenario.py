@@ -22,8 +22,9 @@ STORY: list[dict[str, str | None]] = [
     {
         "heading": "Breaking above",
         "body": (
-            "We start below the 50 EMA. Our first sign is when price breaks above the 50 EMA and the "
-            "**candle closes above it**. Notice how the top of the candle's body sits above the line."
+            "We start below the 50 EMA. Our first sign is when price breaks above the 50 EMA "
+            "and the **candle closes above it**. Notice how the top of the candle's body sits "
+            "above the line."
         ),
         "image": "/slides/break-above.png",
     },
