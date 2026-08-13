@@ -7,9 +7,9 @@ DATA_START = datetime(2021, 3, 3, tzinfo=UTC)
 TRIAL_START = datetime(2021, 5, 25, tzinfo=UTC)
 WINDOW_END = datetime(2021, 7, 24, tzinfo=UTC)
 
-TITLE = "The Breakout-Pulldown Playbook"
+TITLE = "The Pulldown-Breakout Strategy"
 
-STORY: list[dict[str, str]] = [
+STORY: list[dict[str, str | None]] = [
     {
         "heading": "The 50 EMA",
         "body": (
@@ -17,21 +17,24 @@ STORY: list[dict[str, str]] = [
             "last 50 days. More weight is given to recent candles, so it reacts fast to sudden "
             "price changes."
         ),
+        "image": "/slides/the-50-ema.png",
     },
     {
-        "heading": "Breakout",
+        "heading": "Breaking above",
         "body": (
-            "We start below the 50 EMA. Our first sign is when price breaks above the 50 EMA and the candle closes "
-            "above it. Notice how the bottom of the candle's body sits above the line."
+            "We start below the 50 EMA. Our first sign is when price breaks above the 50 EMA and the "
+            "**candle closes above it**. Notice how the top of the candle's body sits above the line."
         ),
+        "image": "/slides/break-above.png",
     },
     {
         "heading": "Pullback",
         "body": (
-            "After the breakout, wait for a real pullback: at least 2 back-to-back red "
-            "candles coming down. Then draw a horizontal line at the swing high just before the "
-            "pullback started. That's the top wick of the last candle before those red candles."
+            "Now wait for a **real pullback** (at least 2 red candles back-to-back "
+            "coming down). Then draw a horizontal line at the top wick just before "
+            "those red candles. That's the swing high."
         ),
+        "image": "/slides/pullback.png",
     },
     {
         "heading": "Entry",
@@ -39,6 +42,7 @@ STORY: list[dict[str, str]] = [
             "Buy when price breaks back above that horizontal line, right at the breakout candle's "
             "close. But how do know when and how much to buy/sell?"
         ),
+        "image": "/slides/entry.png",
     },
     {
         "heading": "Helping hands",
@@ -47,21 +51,31 @@ STORY: list[dict[str, str]] = [
             "widens in volatile markets and tightens in calm ones. When combining the right tools "
             "and signals, we are able to form strong confluences that help us trade."
         ),
+        "image": "/slides/helping-hands.png",
     },
     {
-        "heading": "Guidelines",
+        "heading": "Guidance",
         "body": (
-            "Set stop-loss at the Chandelier stop and take-profit at 2x the stop distance. "
+            "Set stop-loss at the Chandelier stop and **take-profit at 2x** the stop distance. "
             "In a real trade, that would mean that we aim to make $100 for every $50 we risk. "
         ),
+        "image": "/slides/guidance.png",
     },
     {
-        "heading": "Invalidations",
+        "heading": "Invalidation: Broken EMA",
         "body": (
-            "Two things void the setup: \n\n1. The pullback breaking back below the 50 EMA"
-            "\n\n2. The breakout candle being 3-4x the size of an average candle. \n\nBoth signs make "
-            "the move unreliable, so skip it and wait for the next breakout."
+            "The setup is void if the pullback breaks back below the 50 EMA. The pullback was "
+            "too strong and not clean, so skip the trade."
         ),
+        "image": "/slides/invalid-1.png",
+    },
+    {
+        "heading": "Invalidation: oversized candle",
+        "body": (
+            "It's is also void if the breakout candle is 3-4x the size of an average candle. "
+            "Price may reverse back down."
+        ),
+        "image": "/slides/invalid-2.png",
     },
 ]
 

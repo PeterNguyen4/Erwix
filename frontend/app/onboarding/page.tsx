@@ -118,7 +118,7 @@ const WIZARD_STEPS: { stage: Stage; heading: string; subheading: string; icon: t
 const MOCK_TOAST: RuleSignal = {
   id: "mock-toast",
   kind: "entry",
-  description: "EMA 20 crossed above EMA 50 — confluence stacked, good time to enter",
+  description: "EMA 20 crossed above EMA 50 (Confluence stacked, good time to enter)",
   annotation: { type: "marker", time: 0, price: 0, label: "", color: "#26a69a" },
 };
 
@@ -276,7 +276,7 @@ export default function OnboardingPage() {
       setStyle(saved.style);
       setStage(restoredStage);
     } catch {
-      // corrupt or inaccessible storage — just start fresh
+      
     }
   }, []);
 
@@ -429,7 +429,7 @@ export default function OnboardingPage() {
         setAwaitingAction(true);
         setCoach({
           selector: ENTER_SELECTOR,
-          message: "It's go time. I'll set the 1:2 stop-loss and take-profit. Tap Enter to take the trade.",
+          message: "It's time to buy! I'll set the 1:2 stop-loss and take-profit. Tap Enter to take the trade.",
           spotlight: true,
         });
       } else if (exitFired && openTrade) {
@@ -709,7 +709,7 @@ export default function OnboardingPage() {
         )}
 
         {scenario && stage === "story" && (
-          <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-6">
+          <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-6">
             <div className="text-sm font-medium text-muted">{scenario.playbook.title}</div>
 
             <div className="flex min-h-[240px] flex-col justify-center rounded-xl border border-border bg-bg p-8">
@@ -724,7 +724,7 @@ export default function OnboardingPage() {
                       <img
                         src={scenario.playbook.story[storyIndex].image!}
                         alt=""
-                        className="mb-4 max-h-40 w-full rounded-lg object-contain"
+                        className="mb-4 max-h-[525px] w-full rounded-lg object-contain"
                       />
                     )}
                     <div className="text-base leading-relaxed text-fg">
@@ -927,7 +927,7 @@ export default function OnboardingPage() {
                 <div className="text-xs font-semibold text-muted">Your position</div>
                 <div className="mt-0.5 text-sm text-fg">
                   {openTrade
-                    ? `In a trade — entered at ${openTrade.price.toFixed(2)}`
+                    ? `Entered trade at ${openTrade.price.toFixed(2)}`
                     : trades.length > 0
                       ? `${trades.length} trade${trades.length === 1 ? "" : "s"} so far`
                       : "Watching for a signal..."}
