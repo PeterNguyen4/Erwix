@@ -285,6 +285,30 @@ function IconFVG() {
   );
 }
 
+export const CHANDELIER_DEFAULTS = { length: 22, atrPeriod: 22, mult: 3 };
+
+export function makeChandelierId(length: number, atrPeriod: number, mult: number): string {
+  return `chandelier_${length}_${atrPeriod}_${mult}`;
+}
+
+function makeChandelier(length: number, atrPeriod: number, mult: number, color = CHANDELIER_LONG_COLOR): IndicatorDef {
+  return {
+    id: makeChandelierId(length, atrPeriod, mult),
+    label: "Chandelier Stop",
+    kind: "overlay",
+    icon: IconChandelier,
+    lines: [
+      {
+        key: "stop",
+        color,
+        pointMarkers: true,
+        pointMarkersRadius: 2,
+        compute: (c) => computeChandelier(c, length, atrPeriod, mult),
+      },
+    ],
+  };
+}
+
 function makeSMA(period: number, color = "#f0ad4e"): IndicatorDef {
   const id = `sma_${period}`;
   return {
@@ -296,7 +320,7 @@ function makeSMA(period: number, color = "#f0ad4e"): IndicatorDef {
   };
 }
 
-function makeEMA(period: number, color = "#38bdf8"): IndicatorDef {
+function makeEMA(period: number, color = "#3e38f8"): IndicatorDef {
   const id = `ema_${period}`;
   return {
     id,
@@ -340,26 +364,17 @@ export const INDICATORS: IndicatorDef[] = [
     icon: IconFVG,
     computeZones: (c) => fvgZones(c),
   },
-  {
-    id: "chandelier",
-    label: "Chandelier Stop",
-    kind: "overlay",
-    icon: IconChandelier,
-    lines: [
-      {
-        key: "stop",
-        color: CHANDELIER_LONG_COLOR,
-        pointMarkers: true,
-        pointMarkersRadius: 2,
-        compute: (c) => computeChandelier(c, 22, 22, 3),
-      },
-    ],
-  },
+  makeChandelier(CHANDELIER_DEFAULTS.length, CHANDELIER_DEFAULTS.atrPeriod, CHANDELIER_DEFAULTS.mult),
 ];
 
 const PARAMETRIZED_ID = /^(sma|ema|rsi)_(\d+)$/;
+const CHANDELIER_ID = /^chandelier_(\d+)_(\d+)_(\d+)$/;
 
 export function resolveIndicator(id: string, color?: string): IndicatorDef | null {
+  const chandelierMatch = CHANDELIER_ID.exec(id);
+  if (chandelierMatch) {
+    return makeChandelier(Number(chandelierMatch[1]), Number(chandelierMatch[2]), Number(chandelierMatch[3]), color);
+  }
   const match = PARAMETRIZED_ID.exec(id);
   if (match) {
     const period = Number(match[2]);
@@ -375,7 +390,7 @@ export function resolveIndicator(id: string, color?: string): IndicatorDef | nul
 
 export const PARAMETRIZED_FAMILIES: { id: "sma" | "ema" | "rsi"; label: string; icon: () => JSX.Element; defaultColor: string; defaultPeriod: number }[] = [
   { id: "sma", label: "SMA", icon: IconSMA, defaultColor: "#f0ad4e", defaultPeriod: 20 },
-  { id: "ema", label: "EMA", icon: IconEMA, defaultColor: "#38bdf8", defaultPeriod: 20 },
+  { id: "ema", label: "EMA", icon: IconEMA, defaultColor: "#3e38f8", defaultPeriod: 20 },
   { id: "rsi", label: "RSI", icon: IconRSI, defaultColor: "#a78bfa", defaultPeriod: 14 },
 ];
 

@@ -287,8 +287,6 @@ export default function Chart({
     setIndicatorColors((prev) => ({ ...prev, [id]: color }));
   };
 
-  // Swaps an indicator's period (e.g. "ema_20" -> "ema_50") in place, carrying
-  // over any custom color the trader had picked for the old instance.
   const changeIndicatorPeriod = (oldId: string, newId: string) => {
     setActiveIndicators((prev) => {
       if (!prev.has(oldId)) return prev;
@@ -385,6 +383,7 @@ export default function Chart({
     const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
     seriesRef.current = def.createSeries(chart);
     seriesRef.current.setData(def.toData(candles) as never[]);
+    seriesRef.current.setSeriesOrder(9999);
   }, [chartTypeId, chartReady]);
 
   // Lock chart while setting line or fibonacci retracement
@@ -520,6 +519,7 @@ export default function Chart({
         map.delete(key);
       }
     }
+    seriesRef.current?.setSeriesOrder(9999);
   }, [activeIndicators, indicatorColors, candles, chartReady]);
 
   // Sync main pane with oscillators
