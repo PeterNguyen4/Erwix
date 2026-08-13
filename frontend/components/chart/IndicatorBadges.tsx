@@ -58,7 +58,7 @@ export default function IndicatorBadges({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    <div className="flex flex-col items-start gap-1">
       {ids.map((id) => {
         const def = resolveIndicator(id, colors[id]);
         if (!def) return null;

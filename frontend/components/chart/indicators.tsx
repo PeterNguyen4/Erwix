@@ -4,6 +4,7 @@ import type { Candle } from "@/lib/api";
 export interface LinePoint {
   time: UTCTimestamp;
   value: number;
+  color?: string;
 }
 
 export interface ZoneBox {
@@ -18,6 +19,8 @@ export interface IndicatorLineDef {
   key: string;
   color: string;
   compute: (candles: Candle[]) => LinePoint[];
+  pointMarkers?: boolean;
+  pointMarkersRadius?: number;
 }
 
 export interface IndicatorDef {
@@ -108,11 +111,6 @@ function macdSignal(candles: Candle[]): LinePoint[] {
   return emaOfSeries(macdLine(candles), 9);
 }
 
-// Fair Value Gap: a 3-candle imbalance where candle i-1's high/low doesn't
-// overlap candle i+1's low/high, leaving an unfilled gap. The zone extends
-// right until a later candle trades back through it ("fills" it), or to the
-// most recent candle if it hasn't filled yet. Limited to a lookback window
-// so old, filled gaps don't pile up.
 function fvgZones(candles: Candle[], lookback = 150): ZoneBox[] {
   const zones: ZoneBox[] = [];
   if (candles.length < 3) return zones;
@@ -146,6 +144,97 @@ function fvgZones(candles: Candle[], lookback = 150): ZoneBox[] {
     zones.push({ startTime: prev.time as UTCTimestamp, endTime, top, bottom, color });
   }
   return zones;
+}
+
+function trueRange(candles: Candle[], i: number): number {
+  const c = candles[i];
+  if (i === 0) return c.high - c.low;
+  const prevClose = candles[i - 1].close;
+  return Math.max(c.high - c.low, Math.abs(c.high - prevClose), Math.abs(c.low - prevClose));
+}
+
+function atrSeries(candles: Candle[], period: number): (number | null)[] {
+  const out: (number | null)[] = new Array(candles.length).fill(null);
+  if (candles.length < period) return out;
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += trueRange(candles, i);
+  let atr = sum / period;
+  out[period - 1] = atr;
+  for (let i = period; i < candles.length; i++) {
+    atr = (atr * (period - 1) + trueRange(candles, i)) / period;
+    out[i] = atr;
+  }
+  return out;
+}
+
+function rollingHigh(candles: Candle[], length: number, i: number): number {
+  let max = -Infinity;
+  for (let j = Math.max(0, i - length + 1); j <= i; j++) max = Math.max(max, candles[j].high);
+  return max;
+}
+
+function rollingLow(candles: Candle[], length: number, i: number): number {
+  let min = Infinity;
+  for (let j = Math.max(0, i - length + 1); j <= i; j++) min = Math.min(min, candles[j].low);
+  return min;
+}
+
+const CHANDELIER_LONG_COLOR = "#22d3ee";
+const CHANDELIER_SHORT_COLOR = "#e879f9";
+
+function computeChandelier(candles: Candle[], length: number, atrPeriod: number, mult: number): LinePoint[] {
+  const points: LinePoint[] = [];
+  const startIdx = Math.max(length, atrPeriod) - 1;
+  if (startIdx < 0 || startIdx >= candles.length) return points;
+
+  const atr = atrSeries(candles, atrPeriod);
+  let shortvsPrev: number | null = null;
+  let longvsPrev: number | null = null;
+  let direction = 0;
+
+  for (let i = startIdx; i < candles.length; i++) {
+    const a = atr[i];
+    if (a == null) continue;
+
+    const shortStop = rollingLow(candles, length, i) + mult * a;
+    const longStop = rollingHigh(candles, length, i) - mult * a;
+    const close = candles[i].close;
+    const prevClose = i > startIdx ? candles[i - 1].close : close;
+
+    const shortvs: number = shortvsPrev == null ? shortStop : close > shortvsPrev ? shortStop : Math.min(shortStop, shortvsPrev);
+    const longvs: number = longvsPrev == null ? longStop : close < longvsPrev ? longStop : Math.max(longStop, longvsPrev);
+
+    const longSwitch = shortvsPrev != null && close >= shortvsPrev && prevClose < shortvsPrev;
+    const shortSwitch = longvsPrev != null && close <= longvsPrev && prevClose > longvsPrev;
+    if (direction <= 0 && longSwitch) direction = 1;
+    else if (direction >= 0 && shortSwitch) direction = -1;
+
+    const time = candles[i].time as UTCTimestamp;
+    const value = direction > 0 ? longvs : shortvs;
+    const color = direction > 0 ? CHANDELIER_LONG_COLOR : CHANDELIER_SHORT_COLOR;
+    points.push({ time, value, color });
+
+    shortvsPrev = shortvs;
+    longvsPrev = longvs;
+  }
+
+  return points;
+}
+
+function IconChandelier() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 18 18" fill="none">
+      <path
+        d="M2 13 L6 13 L6 9 L11 9 L11 5 L16 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <circle cx="16" cy="5" r="1.4" fill="currentColor" />
+    </svg>
+  );
 }
 
 function IconSMA() {
@@ -229,9 +318,7 @@ function makeRSI(period: number, color = "#a78bfa"): IndicatorDef {
   };
 }
 
-// Curated defaults shown in the toolbar dropdown (IndicatorsMenu). Ids follow the same
-// `family_period` scheme as strategy rule indicators (rule_engine.py's indicator_series)
-// so a plan referencing e.g. "sma_20" resolves straight to this entry.
+
 export const INDICATORS: IndicatorDef[] = [
   makeSMA(20),
   makeEMA(20),
@@ -253,15 +340,25 @@ export const INDICATORS: IndicatorDef[] = [
     icon: IconFVG,
     computeZones: (c) => fvgZones(c),
   },
+  {
+    id: "chandelier",
+    label: "Chandelier Stop",
+    kind: "overlay",
+    icon: IconChandelier,
+    lines: [
+      {
+        key: "stop",
+        color: CHANDELIER_LONG_COLOR,
+        pointMarkers: true,
+        pointMarkersRadius: 2,
+        compute: (c) => computeChandelier(c, 22, 22, 3),
+      },
+    ],
+  },
 ];
 
 const PARAMETRIZED_ID = /^(sma|ema|rsi)_(\d+)$/;
 
-// Resolves any indicator id — including periods outside the curated toolbar list
-// (e.g. "sma_50", "ema_9") — so a strategy's rules can drive the chart even when
-// their exact period was never toggled on manually. Only SMA/EMA/RSI are
-// parametrized this way; other rule indicators (stochastics, trend strength,
-// Heikin Ashi variants, ...) have no chart-line implementation yet.
 export function resolveIndicator(id: string, color?: string): IndicatorDef | null {
   const match = PARAMETRIZED_ID.exec(id);
   if (match) {

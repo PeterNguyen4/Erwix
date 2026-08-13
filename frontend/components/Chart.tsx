@@ -498,10 +498,18 @@ export default function Chart({
             title: def.label,
             lastValueVisible: false,
             priceLineVisible: false,
+            crosshairMarkerVisible: false,
+            pointMarkersVisible: line.pointMarkers ?? false,
+            pointMarkersRadius: line.pointMarkersRadius,
           });
           map.set(key, series);
         } else {
-          series.applyOptions({ color: line.color, title: def.label });
+          series.applyOptions({
+            color: line.color,
+            title: def.label,
+            pointMarkersVisible: line.pointMarkers ?? false,
+            pointMarkersRadius: line.pointMarkersRadius,
+          });
         }
         series.setData(line.compute(candles));
       }
@@ -537,12 +545,20 @@ export default function Chart({
               title: `${def.label} ${line.key}`,
               lastValueVisible: false,
               priceLineVisible: false,
+              crosshairMarkerVisible: false,
+              pointMarkersVisible: line.pointMarkers ?? false,
+              pointMarkersRadius: line.pointMarkersRadius,
             },
             1,
           );
           map.set(key, series);
         } else {
-          series.applyOptions({ color: line.color, title: `${def.label} ${line.key}` });
+          series.applyOptions({
+            color: line.color,
+            title: `${def.label} ${line.key}`,
+            pointMarkersVisible: line.pointMarkers ?? false,
+            pointMarkersRadius: line.pointMarkersRadius,
+          });
         }
         series.setData(line.compute(candles));
       }
