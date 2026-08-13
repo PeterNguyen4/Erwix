@@ -1,14 +1,3 @@
-// Indicator registry: add a new indicator by adding one entry here — the
-// toolbar, the overlay-series sync effect, the oscillator sub-pane, and the
-// zone-drawing pass in Chart.tsx all read from this list, so nothing else
-// needs to change.
-//
-// - kind "overlay": one or more line series drawn on the main price pane
-//   (SMA, EMA, ...).
-// - kind "oscillator": one or more line series drawn in the separate
-//   sub-pane below the price chart (RSI, MACD, ...).
-// - kind "zone": shaded price/time boxes drawn on the canvas overlay instead
-//   of a lightweight-charts series (Fair Value Gap, ...).
 import type { UTCTimestamp } from "lightweight-charts";
 import type { Candle } from "@/lib/api";
 
@@ -26,7 +15,7 @@ export interface ZoneBox {
 }
 
 export interface IndicatorLineDef {
-  key: string; // unique within the indicator; series map key is `${indicatorId}:${key}`
+  key: string;
   color: string;
   compute: (candles: Candle[]) => LinePoint[];
 }
@@ -207,36 +196,36 @@ function IconFVG() {
   );
 }
 
-function makeSMA(period: number): IndicatorDef {
+function makeSMA(period: number, color = "#f0ad4e"): IndicatorDef {
   const id = `sma_${period}`;
   return {
     id,
     label: `SMA ${period}`,
     kind: "overlay",
     icon: IconSMA,
-    lines: [{ key: id, color: "#f0ad4e", compute: (c) => sma(c, period) }],
+    lines: [{ key: id, color, compute: (c) => sma(c, period) }],
   };
 }
 
-function makeEMA(period: number): IndicatorDef {
+function makeEMA(period: number, color = "#38bdf8"): IndicatorDef {
   const id = `ema_${period}`;
   return {
     id,
     label: `EMA ${period}`,
     kind: "overlay",
     icon: IconEMA,
-    lines: [{ key: id, color: "#38bdf8", compute: (c) => ema(c, period) }],
+    lines: [{ key: id, color, compute: (c) => ema(c, period) }],
   };
 }
 
-function makeRSI(period: number): IndicatorDef {
+function makeRSI(period: number, color = "#a78bfa"): IndicatorDef {
   const id = `rsi_${period}`;
   return {
     id,
     label: `RSI ${period}`,
     kind: "oscillator",
     icon: IconRSI,
-    lines: [{ key: id, color: "#a78bfa", compute: (c) => rsi(c, period) }],
+    lines: [{ key: id, color, compute: (c) => rsi(c, period) }],
   };
 }
 
@@ -273,13 +262,26 @@ const PARAMETRIZED_ID = /^(sma|ema|rsi)_(\d+)$/;
 // their exact period was never toggled on manually. Only SMA/EMA/RSI are
 // parametrized this way; other rule indicators (stochastics, trend strength,
 // Heikin Ashi variants, ...) have no chart-line implementation yet.
-export function resolveIndicator(id: string): IndicatorDef | null {
-  const known = INDICATORS.find((i) => i.id === id);
-  if (known) return known;
+export function resolveIndicator(id: string, color?: string): IndicatorDef | null {
   const match = PARAMETRIZED_ID.exec(id);
-  if (!match) return null;
-  const period = Number(match[2]);
-  if (match[1] === "sma") return makeSMA(period);
-  if (match[1] === "ema") return makeEMA(period);
-  return makeRSI(period);
+  if (match) {
+    const period = Number(match[2]);
+    if (match[1] === "sma") return makeSMA(period, color);
+    if (match[1] === "ema") return makeEMA(period, color);
+    return makeRSI(period, color);
+  }
+  const known = INDICATORS.find((i) => i.id === id);
+  if (!known) return null;
+  if (!color || !known.lines) return known;
+  return { ...known, lines: known.lines.map((l) => ({ ...l, color })) };
+}
+
+export const PARAMETRIZED_FAMILIES: { id: "sma" | "ema" | "rsi"; label: string; icon: () => JSX.Element; defaultColor: string; defaultPeriod: number }[] = [
+  { id: "sma", label: "SMA", icon: IconSMA, defaultColor: "#f0ad4e", defaultPeriod: 20 },
+  { id: "ema", label: "EMA", icon: IconEMA, defaultColor: "#38bdf8", defaultPeriod: 20 },
+  { id: "rsi", label: "RSI", icon: IconRSI, defaultColor: "#a78bfa", defaultPeriod: 14 },
+];
+
+export function makeIndicatorId(family: "sma" | "ema" | "rsi", period: number): string {
+  return `${family}_${period}`;
 }

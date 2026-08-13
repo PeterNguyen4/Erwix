@@ -22,6 +22,7 @@ import ToolbarButton from "@/components/chart/ToolbarButton";
 import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
 import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
+import IndicatorBadges from "@/components/chart/IndicatorBadges";
 import ChartContextMenu from "@/components/chart/ChartContextMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
@@ -265,6 +266,44 @@ export default function Chart({
     });
   };
 
+  const [indicatorColors, setIndicatorColors] = useState<Record<string, string>>({});
+  const [openIndicatorId, setOpenIndicatorId] = useState<string | null>(null);
+
+  const addIndicator = (id: string) => {
+    setActiveIndicators((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+    setOpenIndicatorId(id);
+  };
+
+  const removeIndicator = (id: string) => {
+    setActiveIndicators((prev) => {
+      if (!prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const setIndicatorColor = (id: string, color: string) => {
+    setIndicatorColors((prev) => ({ ...prev, [id]: color }));
+  };
+
+  // Swaps an indicator's period (e.g. "ema_20" -> "ema_50") in place, carrying
+  // over any custom color the trader had picked for the old instance.
+  const changeIndicatorPeriod = (oldId: string, newId: string) => {
+    setActiveIndicators((prev) => {
+      if (!prev.has(oldId)) return prev;
+      const next = new Set(prev);
+      next.delete(oldId);
+      next.add(newId);
+      return next;
+    });
+    setIndicatorColors((prev) => {
+      if (!(oldId in prev)) return prev;
+      const { [oldId]: color, ...rest } = prev;
+      return { ...rest, [newId]: color };
+    });
+  };
+
   const activeOscillatorIds = useMemo(
     () => [...activeIndicators].filter((id) => resolveIndicator(id)?.kind === "oscillator"),
     [activeIndicators],
@@ -446,7 +485,7 @@ export default function Chart({
     const activeKeys = new Set<string>();
 
     for (const id of activeIndicators) {
-      const def = resolveIndicator(id);
+      const def = resolveIndicator(id, indicatorColors[id]);
       if (!def || def.kind !== "overlay" || !def.lines) continue;
       for (const line of def.lines) {
         const key = `${id}:${line.key}`;
@@ -461,6 +500,8 @@ export default function Chart({
             priceLineVisible: false,
           });
           map.set(key, series);
+        } else {
+          series.applyOptions({ color: line.color, title: def.label });
         }
         series.setData(line.compute(candles));
       }
@@ -471,7 +512,7 @@ export default function Chart({
         map.delete(key);
       }
     }
-  }, [activeIndicators, candles, chartReady]);
+  }, [activeIndicators, indicatorColors, candles, chartReady]);
 
   // Sync main pane with oscillators
   useEffect(() => {
@@ -481,7 +522,7 @@ export default function Chart({
     const activeKeys = new Set<string>();
 
     for (const id of activeOscillatorIds) {
-      const def = resolveIndicator(id);
+      const def = resolveIndicator(id, indicatorColors[id]);
       if (!def?.lines) continue;
       for (const line of def.lines) {
         const key = `${id}:${line.key}`;
@@ -500,6 +541,8 @@ export default function Chart({
             1,
           );
           map.set(key, series);
+        } else {
+          series.applyOptions({ color: line.color, title: `${def.label} ${line.key}` });
         }
         series.setData(line.compute(candles));
       }
@@ -513,7 +556,7 @@ export default function Chart({
 
     const pane = chart.panes()[1];
     if (pane) pane.setHeight(activeKeys.size > 0 ? 130 : 0);
-  }, [activeOscillatorIds, candles, chartReady]);
+  }, [activeOscillatorIds, indicatorColors, candles, chartReady]);
 
   // Entry/take-profit/stop-loss price lines for a bracket order or open trade.
   useEffect(() => {
@@ -1114,6 +1157,7 @@ export default function Chart({
           <IndicatorsMenu
             active={activeIndicators}
             onToggle={toggleIndicator}
+            onAdd={addIndicator}
             pinned={pinnedIndicators}
             onTogglePin={togglePinnedIndicator}
           />
@@ -1150,11 +1194,20 @@ export default function Chart({
         }}
       >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
-        {showInfoOverlay && ohlcBlock && (
-          <div className="absolute left-2 top-2 z-20 rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">
-            {ohlcBlock}
-          </div>
-        )}
+        <div className="absolute left-2 top-2 z-20 flex flex-col items-start gap-1">
+          {showInfoOverlay && ohlcBlock && (
+            <div className="rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">{ohlcBlock}</div>
+          )}
+          <IndicatorBadges
+            active={activeIndicators}
+            colors={indicatorColors}
+            openId={openIndicatorId}
+            onOpenChange={setOpenIndicatorId}
+            onSetColor={setIndicatorColor}
+            onRemove={removeIndicator}
+            onChangePeriod={changeIndicatorPeriod}
+          />
+        </div>
         {/* pointer-events-none so mouse events fall through to lightweight-charts'
             own canvas underneath — otherwise its native per-series crosshair
             markers (e.g. the dots that track the MACD/signal lines) never see
