@@ -47,7 +47,6 @@ export interface BracketLevels {
   entryPrice: number;
   takeProfitPrice?: number | null;
   stopLossPrice?: number | null;
-  /** Unix seconds when the bracket was set up — lines are drawn from here forward, not from "now". */
   entryTime: number;
 }
 
@@ -129,7 +128,6 @@ function toMarker(a: ChartAnnotation, snappedTime: UTCTimestamp): SeriesMarker<T
   };
 }
 
-// Snap to the candle whose time is closest to the agent's annotation time.
 function nearestCandleTime(candles: Candle[], time: number): UTCTimestamp | null {
   if (candles.length === 0) return null;
   let closest = candles[0];
@@ -328,8 +326,6 @@ export default function Chart({
     [activeIndicators],
   );
 
-  // Fixed to bracket.entryTime (when the bracket was set up) so the start of
-  // the lines/zones doesn't drift forward as new candles arrive.
   const getBracketStartX = () => {
     const chart = chartRef.current;
     if (!chart || !bracket) return null;
@@ -353,9 +349,6 @@ export default function Chart({
         horzLine: { visible: false, labelVisible: false },
       },
       timeScale: { borderColor: palette.border, timeVisible: true, rightOffset: 3 },
-      // Fixed so the main pane and the oscillator sub-pane (which can show
-      // very different label widths — RSI's "0"-"100" vs MACD's decimals)
-      // always reserve the same axis width and stay pixel-aligned.
       rightPriceScale: { borderColor: palette.border, minimumWidth: 68 },
       autoSize: true,
     });
@@ -419,11 +412,15 @@ export default function Chart({
     chart.applyOptions({ handleScroll: !suspend, handleScale: !suspend });
   }, [drawingState.mode, draggingFibHandle, draggingBracketHandle, chartReady]);
 
-  // Load historical candles
   useEffect(() => {
     if (!seriesRef.current) return;
     const def = CHART_TYPES.find((t) => t.id === chartTypeId) ?? CHART_TYPES[0];
-    seriesRef.current.setData(def.toData(candles) as never[]);
+    try {
+      markersPluginRef.current?.setMarkers([]);
+      seriesRef.current.setData(def.toData(candles) as never[]);
+    } catch (err) {
+      console.warn("Chart: failed to set candle data", err);
+    }
     const total = candles.length;
     try {
       if (visibleRange && total > 0) {
@@ -442,8 +439,6 @@ export default function Chart({
     if (last) setHoveredCandle({ open: last.open, high: last.high, low: last.low, close: last.close, volume: last.volume, prevClose: prev?.close });
   }, [candles, chartReady, chartTypeId, visibleRange]);
 
-  // Apply live updates. Heikin-Ashi recomputes fully (its candles depend on
-  // the running average of prior ones, so there's no cheap incremental form).
   useEffect(() => {
     if (!seriesRef.current || !liveCandle) return;
     if (chartTypeId === "heikinashi") {
@@ -675,9 +670,6 @@ export default function Chart({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Bracket TP/SL zones — shaded bands between the entry price and each
-    // level, so the risk/reward is visible at a glance. Clipped to start at
-    // bracket.entryTime's x-coordinate instead of the left edge of the chart.
     if (bracket && chartRef.current && seriesRef.current) {
       const series = seriesRef.current;
       const nowX = getBracketStartX();
@@ -891,7 +883,10 @@ export default function Chart({
       // X-axis time label at bottom.
       if (crosshairData.time !== null) {
         const d = new Date(crosshairData.time * 1000);
-        const timeLabel = `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+        const hasTimeOfDay = d.getHours() !== 0 || d.getMinutes() !== 0;
+        const timeLabel = hasTimeOfDay
+          ? `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`
+          : `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()}`;
         ctx.font = "11px monospace";
         const tw = ctx.measureText(timeLabel).width;
         const px = 6, py = 3;
