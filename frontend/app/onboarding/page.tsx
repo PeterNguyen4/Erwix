@@ -844,7 +844,7 @@ function WelcomeOverlay({ message, onNext }: { message: string; onNext: () => vo
             onClick={onNext}
             className="flex items-center gap-1 rounded-md bg-accent px-3 py-1 text-sm font-medium text-on-accent hover:bg-accent/90"
           >
-            Let's go
+            Let&apos;s go
             <ChevronRight size={12} strokeWidth={2} />
           </button>
         </div>
