@@ -169,6 +169,19 @@ const CONFETTI_PIECES = Array.from({ length: 18 }, (_, i) => ({
   size: i % 3 === 0 ? 9 : 6,
 }));
 
+const PROGRESS_STORAGE_KEY = "erwix-onboarding-progress";
+const STAGE_RESTORE_CEILING: Partial<Record<Stage, Stage>> = {
+  trial: "story",
+  generating: "story",
+  debrief: "story",
+};
+
+interface StoredProgress {
+  stage: Stage;
+  experience: Experience | null;
+  style: TradingStyle | null;
+}
+
 export default function OnboardingPage() {
   const { completeOnboarding } = useAuth();
   const router = useRouter();
@@ -211,6 +224,31 @@ export default function OnboardingPage() {
       .then(setScenario)
       .catch(() => setLoadError("Couldn't load the trial scenario. Please try again shortly."));
   }, []);
+
+// Restore progress on refresh
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(PROGRESS_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw) as StoredProgress;
+      const restoredStage = STAGE_RESTORE_CEILING[saved.stage] ?? saved.stage;
+      if (restoredStage === "welcome") return;
+      setExperience(saved.experience);
+      setStyle(saved.style);
+      setStage(restoredStage);
+    } catch {
+      // corrupt or inaccessible storage — just start fresh
+    }
+  }, []);
+
+  useEffect(() => {
+    if (stage === "welcome") {
+      sessionStorage.removeItem(PROGRESS_STORAGE_KEY);
+      return;
+    }
+    const progress: StoredProgress = { stage, experience, style };
+    sessionStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+  }, [stage, experience, style]);
 
   useEffect(() => {
     if (stage !== "trial" || countdown !== null) return;
@@ -412,6 +450,7 @@ export default function OnboardingPage() {
     setFinishing(true);
     try {
       await api.savePreferences({ onboarding_completed_at: new Date().toISOString() });
+      sessionStorage.removeItem(PROGRESS_STORAGE_KEY);
       completeOnboarding();
       router.replace("/");
     } finally {
