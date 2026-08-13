@@ -408,6 +408,10 @@ async def _get_or_create_preferences(db: AsyncSession, user_id: int) -> UserPref
         db.add(pref)
         await db.commit()
         await db.refresh(pref)
+    if pref.chart_indicators is None:
+        pref.chart_indicators = []
+    if pref.chart_indicator_colors is None:
+        pref.chart_indicator_colors = {}
     return pref
 
 
@@ -440,5 +444,9 @@ async def update_preferences(
         pref.debrief_time = body.debrief_time
     if body.onboarding_completed_at is not None:
         pref.onboarding_completed_at = body.onboarding_completed_at
+    if body.chart_indicators is not None:
+        pref.chart_indicators = body.chart_indicators
+    if body.chart_indicator_colors is not None:
+        pref.chart_indicator_colors = body.chart_indicator_colors
     await db.commit()
     return pref

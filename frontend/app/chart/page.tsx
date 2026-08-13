@@ -116,6 +116,9 @@ function ChartPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day"));
   const [prefsResolved, setPrefsResolved] = useState(() => !!searchParams.get("symbol"));
+  const [chartIndicators, setChartIndicators] = useState<string[] | undefined>(undefined);
+  const [chartIndicatorColors, setChartIndicatorColors] = useState<Record<string, string> | undefined>(undefined);
+  const saveIndicatorsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [symbolSearch, setSymbolSearch] = useState("");
   const [searchResults, setSearchResults] = useState<SymbolResult[]>(DEFAULT_RESULTS);
@@ -179,6 +182,9 @@ function ChartPage() {
         setCandles(cached ?? []);
         setLoading(!cached);
       }
+
+      setChartIndicators(prefs.chart_indicators ?? []);
+      setChartIndicatorColors(prefs.chart_indicator_colors ?? {});
     }).catch(() => {}).finally(() => setPrefsResolved(true));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -190,6 +196,13 @@ function ChartPage() {
       api.savePreferences({ last_symbol: symbol, last_symbol_name: symbolName, last_timeframe: timeframe }).catch(() => {});
     }, 1000);
   }, [symbol, symbolName, timeframe]);
+
+  const handleIndicatorsChange = useCallback((ids: string[], colors: Record<string, string>) => {
+    if (saveIndicatorsDebounceRef.current) clearTimeout(saveIndicatorsDebounceRef.current);
+    saveIndicatorsDebounceRef.current = setTimeout(() => {
+      api.savePreferences({ chart_indicators: ids, chart_indicator_colors: colors }).catch(() => {});
+    }, 1000);
+  }, []);
 
   useEffect(() => { loadCandles(); }, [loadCandles]);
 
@@ -368,7 +381,7 @@ function ChartPage() {
           <div className="relative flex-1 min-h-0 rounded-lg border border-auth-field/40 bg-bg overflow-hidden">
             {error ? (
               <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
-            ) : loading || !prefsResolved ? (
+            ) : !prefsResolved || (loading && candles.length === 0) ? (
               <ChartSkeleton />
             ) : candles.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-4">
@@ -384,6 +397,9 @@ function ChartPage() {
                 symbol={symbol}
                 bracket={bracketPreview}
                 annotations={ruleAnnotations}
+                initialIndicators={chartIndicators}
+                initialIndicatorColors={chartIndicatorColors}
+                onIndicatorsChange={handleIndicatorsChange}
                 onBracketDrag={(which, newPrice) =>
                   which === "tp" ? setTakeProfitPrice(newPrice) : setStopLossPrice(newPrice)
                 }

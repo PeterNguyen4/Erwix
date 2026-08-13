@@ -85,6 +85,9 @@ class UserPreference(Base):
 
     onboarding_completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    chart_indicators: Mapped[list | None] = mapped_column(JSON, default=list)
+    chart_indicator_colors: Mapped[dict | None] = mapped_column(JSON, default=dict)
+
 
 class WatchlistItem(Base):
     __tablename__ = "watchlist_items"

@@ -14,7 +14,7 @@ import {
   createChart,
   createSeriesMarkers,
 } from "lightweight-charts";
-import { MousePointer2, Trash2 } from "lucide-react";
+import { MousePointer2 } from "lucide-react";
 import type { Candle, ChartAnnotation, ZoomRange } from "@/lib/api";
 import { useTheme } from "@/components/ThemeProvider";
 import { CHART_PALETTES, TP_COLOR, SL_COLOR } from "@/lib/chartTheme";
@@ -23,6 +23,7 @@ import ChartTypeMenu from "@/components/chart/ChartTypeMenu";
 import DrawingMenu from "@/components/chart/DrawingMenu";
 import IndicatorsMenu from "@/components/chart/IndicatorsMenu";
 import IndicatorBadges from "@/components/chart/IndicatorBadges";
+import ClearMenu from "@/components/chart/ClearMenu";
 import ChartContextMenu from "@/components/chart/ChartContextMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
@@ -63,6 +64,9 @@ interface ChartProps {
   infoOverlay?: boolean;
   requiredIndicators?: string[];
   hideToolbar?: boolean;
+  initialIndicators?: string[];
+  initialIndicatorColors?: Record<string, string>;
+  onIndicatorsChange?: (ids: string[], colors: Record<string, string>) => void;
 }
 
 interface HoveredCandle {
@@ -143,10 +147,6 @@ function IconCursor() {
   return <MousePointer2 size={16} strokeWidth={2} />;
 }
 
-function IconDelete() {
-  return <Trash2 size={16} strokeWidth={2} />;
-}
-
 export default function Chart({
   candles: allCandles,
   liveCandle,
@@ -160,6 +160,9 @@ export default function Chart({
   infoOverlay = false,
   requiredIndicators,
   hideToolbar = false,
+  initialIndicators,
+  initialIndicatorColors,
+  onIndicatorsChange,
 }: ChartProps) {
   const candles = useMemo(
     () => (cursorIndex == null ? allCandles : allCandles.slice(0, cursorIndex + 1)),
@@ -268,6 +271,20 @@ export default function Chart({
 
   const [indicatorColors, setIndicatorColors] = useState<Record<string, string>>({});
   const [openIndicatorId, setOpenIndicatorId] = useState<string | null>(null);
+
+  const hydratedIndicatorsRef = useRef(initialIndicators === undefined);
+  useEffect(() => {
+    if (hydratedIndicatorsRef.current || initialIndicators === undefined) return;
+    hydratedIndicatorsRef.current = true;
+    setActiveIndicators(new Set(initialIndicators));
+    setIndicatorColors(initialIndicatorColors ?? {});
+  }, [initialIndicators, initialIndicatorColors]);
+
+  useEffect(() => {
+    if (!hydratedIndicatorsRef.current) return;
+    onIndicatorsChange?.([...activeIndicators], indicatorColors);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeIndicators, indicatorColors]);
 
   const addIndicator = (id: string) => {
     setActiveIndicators((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
@@ -1077,6 +1094,17 @@ export default function Chart({
     setFibPreviewStart(null);
   };
 
+  const clearIndicators = () => {
+    setActiveIndicators(new Set());
+    setIndicatorColors({});
+    setOpenIndicatorId(null);
+  };
+
+  const clearAll = () => {
+    clearDrawings();
+    clearIndicators();
+  };
+
 
   // Change / % change from previous candle close.
   const changeDisplay = (() => {
@@ -1184,9 +1212,13 @@ export default function Chart({
             </ToolbarButton>
           ))}
 
-          <ToolbarButton label="Clear all drawings" tone="danger" onClick={clearDrawings}>
-            <IconDelete />
-          </ToolbarButton>
+          <ClearMenu
+            drawingCount={drawingState.completedLines.length + fibDrawings.length}
+            indicatorCount={activeIndicators.size}
+            onClearDrawings={clearDrawings}
+            onClearIndicators={clearIndicators}
+            onClearAll={clearAll}
+          />
         </div>
       </div>
       )}

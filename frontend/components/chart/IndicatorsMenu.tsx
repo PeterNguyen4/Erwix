@@ -87,7 +87,10 @@ export default function IndicatorsMenu({ active, onToggle, onAdd, pinned, onTogg
                 <button
                   type="button"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => onToggle(ind.id)}
+                  onClick={() => {
+                    onToggle(ind.id);
+                    setOpen(false);
+                  }}
                   className="flex flex-1 items-center gap-2"
                 >
                   <ind.icon />
