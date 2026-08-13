@@ -214,6 +214,14 @@ export default function OnboardingPage() {
   const [style, setStyle] = useState<TradingStyle | null>(null);
   const [storyIndex, setStoryIndex] = useState(0);
   const [scenario, setScenario] = useState<OnboardingScenario | null>(null);
+
+  useEffect(() => {
+    if (!scenario) return;
+    const image = scenario.playbook.story[storyIndex]?.image;
+    if (image) new window.Image().src = image;
+    const nextImage = scenario.playbook.story[storyIndex + 1]?.image;
+    if (nextImage) new window.Image().src = nextImage;
+  }, [scenario, storyIndex]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [cursorIndex, setCursorIndex] = useState(0);
@@ -724,6 +732,8 @@ export default function OnboardingPage() {
                       <img
                         src={scenario.playbook.story[storyIndex].image!}
                         alt=""
+                        loading="eager"
+                        fetchPriority="high"
                         className="mb-4 max-h-[525px] w-full rounded-lg object-contain"
                       />
                     )}
