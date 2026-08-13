@@ -107,6 +107,12 @@ def evaluate_rules(candles: list[Candle], rules: list) -> list[bool]:
     return [evaluate_rule(rule, candles, i) for rule in rules]
 
 
+def evaluate_rules_at(candles: list[Candle], rules: list, i: int) -> list[bool]:
+    if not candles or i < 0 or i >= len(candles):
+        return [False] * len(rules)
+    return [evaluate_rule(rule, candles, i) for rule in rules]
+
+
 def rules_just_fired(prev: list[bool], curr: list[bool]) -> list[int]:
     return [i for i, (p, c) in enumerate(zip(prev, curr, strict=True)) if not p and c]
 

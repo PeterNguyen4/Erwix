@@ -312,7 +312,7 @@ class DebriefStep(BaseModel):
 
 class DebriefReportOut(BaseModel):
     id: int
-    report_type: Literal["scheduled", "ask"] = "scheduled"
+    report_type: Literal["scheduled", "ask", "onboarding"] = "scheduled"
     status: Literal["pending", "running", "ready", "error"]
     window_start: datetime | None
     window_end: datetime | None
@@ -372,6 +372,7 @@ class UserPreferenceOut(BaseModel):
     debrief_enabled: bool = True
     debrief_day_of_week: int | None = None
     debrief_time: time | None = None
+    onboarding_completed_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -383,6 +384,58 @@ class UserPreferenceUpdate(BaseModel):
     debrief_enabled: bool | None = None
     debrief_day_of_week: int | None = None
     debrief_time: time | None = None
+    onboarding_completed_at: datetime | None = None
+
+
+class OnboardingStorySlide(BaseModel):
+    heading: str
+    body: str
+
+
+class OnboardingPlaybook(BaseModel):
+    title: str
+    story: list[OnboardingStorySlide]
+    checklist: list[str]
+
+
+class OnboardingSignal(BaseModel):
+    index: int
+    time: int
+    kind: Literal["entry", "exit"]
+    description: str
+    annotation: ChartAnnotation
+    is_confirmation: bool = False
+
+
+class OnboardingScenarioOut(BaseModel):
+    symbol: str
+    timeframe: str
+    candles: list[Candle]
+    playbook: OnboardingPlaybook
+    signals: list[OnboardingSignal]
+    chart_indicators: list[str]
+
+
+class OnboardingTradeIn(BaseModel):
+    enter_time: int
+    enter_price: float
+    exit_time: int | None = None
+    exit_price: float | None = None
+
+
+class OnboardingDebriefIn(BaseModel):
+    trades: list[OnboardingTradeIn] = Field(default_factory=list)
+
+
+class OnboardingChecklistResult(BaseModel):
+    item: str
+    status: Literal["met", "missed", "not_attempted"]
+
+
+class OnboardingDebriefOut(BaseModel):
+    debrief: DebriefReportOut
+    classification: Literal["perfect", "sat_out", "mistimed"]
+    checklist_results: list[OnboardingChecklistResult]
 
 
 # ---- News agent ----

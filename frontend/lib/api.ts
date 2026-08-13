@@ -304,6 +304,7 @@ export interface UserPreference {
   debrief_enabled: boolean;
   debrief_day_of_week: number | null; // 0=Mon..6=Sun
   debrief_time: string | null; // "HH:MM:SS"
+  onboarding_completed_at: string | null;
 }
 
 export interface ChartAnnotation {
@@ -373,6 +374,7 @@ export interface DebriefStep {
 
 export interface DebriefReport {
   id: number;
+  report_type?: "scheduled" | "ask" | "onboarding";
   status: "pending" | "running" | "ready" | "error";
   window_start: string;
   window_end: string;
@@ -503,6 +505,53 @@ export type RuleWatchEvent =
   | { type: "signal"; kind: "entry" | "exit"; description: string; annotation: ChartAnnotation }
   | { type: "error"; detail: string };
 
+export interface OnboardingStorySlide {
+  heading: string;
+  body: string;
+}
+
+export interface OnboardingPlaybook {
+  title: string;
+  story: OnboardingStorySlide[];
+  checklist: string[];
+}
+
+export interface OnboardingSignal {
+  index: number;
+  time: number;
+  kind: "entry" | "exit";
+  description: string;
+  annotation: ChartAnnotation;
+  is_confirmation: boolean;
+}
+
+export interface OnboardingScenario {
+  symbol: string;
+  timeframe: string;
+  candles: Candle[];
+  playbook: OnboardingPlaybook;
+  signals: OnboardingSignal[];
+  chart_indicators: string[];
+}
+
+export interface OnboardingTrade {
+  enter_time: number;
+  enter_price: number;
+  exit_time: number | null;
+  exit_price: number | null;
+}
+
+export interface OnboardingChecklistResult {
+  item: string;
+  status: "met" | "missed" | "not_attempted";
+}
+
+export interface OnboardingDebrief {
+  debrief: DebriefReport;
+  classification: "perfect" | "sat_out" | "mistimed";
+  checklist_results: OnboardingChecklistResult[];
+}
+
 export type DebriefEvent =
   | { type: "token"; text: string }
   | { type: "annotations"; annotations: ChartAnnotation[] }
@@ -574,6 +623,17 @@ async function deleteRequest(path: string, _retried = false): Promise<void> {
   const res = await fetch(`${API}${path}`, { method: "DELETE", credentials: "include" });
   if (res.status === 401 && !_retried && (await tryRefresh())) {
     return deleteRequest(path, true);
+  }
+  if (!res.ok) {
+    const detail = await res.text();
+    throw new Error(`${res.status}: ${detail}`);
+  }
+}
+
+async function postNoContent(path: string, _retried = false): Promise<void> {
+  const res = await fetch(`${API}${path}`, { method: "POST", credentials: "include" });
+  if (res.status === 401 && !_retried && (await tryRefresh())) {
+    return postNoContent(path, true);
   }
   if (!res.ok) {
     const detail = await res.text();
@@ -719,6 +779,10 @@ export const api = {
   getPreferences: () => getJSON<UserPreference>("/api/users/preferences"),
   savePreferences: (prefs: Partial<UserPreference>) =>
     postJSON<UserPreference>("/api/users/preferences", prefs, "PATCH"),
+  onboardingScenario: () => getJSON<OnboardingScenario>("/api/onboarding/scenario"),
+  submitOnboardingDebrief: (trades: OnboardingTrade[]) =>
+    postJSON<OnboardingDebrief>("/api/onboarding/debrief", { trades }),
+  resetOnboarding: () => postNoContent("/api/onboarding/reset"),
   saveBacktestConfig: (config: BacktestConfig) =>
     config.id
       ? postJSON<BacktestConfig>(`/api/backtest/configs/${config.id}`, config, "PATCH")

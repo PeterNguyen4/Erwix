@@ -226,3 +226,6 @@ config/.claude/
 CLAUDE.md
 .env
 .env.local
+
+
+docs

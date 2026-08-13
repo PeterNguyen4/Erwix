@@ -438,5 +438,7 @@ async def update_preferences(
         pref.debrief_day_of_week = body.debrief_day_of_week
     if body.debrief_time is not None:
         pref.debrief_time = body.debrief_time
+    if body.onboarding_completed_at is not None:
+        pref.onboarding_completed_at = body.onboarding_completed_at
     await db.commit()
     return pref
