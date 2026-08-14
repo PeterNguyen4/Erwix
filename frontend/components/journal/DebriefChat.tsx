@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ArrowUp, History, Plus, Search, SlashSquare, Trash2, Wrench, X } from "lucide-react";
+import ScrollToBottomButton from "@/components/ScrollToBottomButton";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
@@ -149,8 +150,21 @@ export default function DebriefChat({ reportId }: { reportId?: number | null }) 
     getDebriefChatDraft(draftKey).attached = attached;
   }, [attached, draftKey]);
 
-  useEffect(() => {
+  const [atBottom, setAtBottom] = useState(true);
+
+  const scrollToBottom = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  };
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 24);
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+    setAtBottom(true);
   }, [messages]);
 
   const latestMessagesRef = useRef(messages);
@@ -517,7 +531,11 @@ export default function DebriefChat({ reportId }: { reportId?: number | null }) 
         {sessionsMenu}
       </div>
       <div className="pointer-events-none absolute inset-x-0 top-[41px] z-10 h-6 bg-gradient-to-b from-panel to-transparent" />
-      <div ref={scrollRef} className="chat-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-32 pt-6">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="chat-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-32 pt-6"
+      >
         {messages.map((m) => (
           <div
             key={m.id}
@@ -565,6 +583,9 @@ export default function DebriefChat({ reportId }: { reportId?: number | null }) 
         ))}
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-panel to-transparent" />
+      {!atBottom && (
+        <ScrollToBottomButton onClick={scrollToBottom} className="absolute bottom-24 left-1/2 z-20 -translate-x-1/2" />
+      )}
       <div className="absolute inset-x-0 bottom-0 z-20">{inputRow}</div>
     </div>
   );

@@ -30,6 +30,7 @@ import {
 } from "@/lib/api";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import CoachMark from "@/components/onboarding/CoachMark";
+import ScrollToBottomButton from "@/components/ScrollToBottomButton";
 import type { RuleSignal } from "@/lib/useRuleWatch";
 
 const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
@@ -222,6 +223,12 @@ export default function OnboardingPage() {
     const nextImage = scenario.playbook.story[storyIndex + 1]?.image;
     if (nextImage) new window.Image().src = nextImage;
   }, [scenario, storyIndex]);
+
+  useEffect(() => {
+    const el = pageScrollRef.current;
+    if (!el) return;
+    setPageAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 24);
+  }, [stage, storyIndex]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [cursorIndex, setCursorIndex] = useState(0);
@@ -256,6 +263,8 @@ export default function OnboardingPage() {
   const finishedRef = useRef(false);
   const narratedIndexRef = useRef<number>(-1);
   const chatScrollRef = useRef<HTMLDivElement>(null);
+  const pageScrollRef = useRef<HTMLDivElement>(null);
+  const [pageAtBottom, setPageAtBottom] = useState(true);
 
   const breakoutIndex = scenario ? scenario.checklist_stage.findIndex((s) => s >= 1) : -1;
   const pullbackIndex = scenario ? scenario.checklist_stage.findIndex((s) => s >= 2) : -1;
@@ -621,7 +630,24 @@ export default function OnboardingPage() {
     : null;
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-auto bg-bg">
+    <div
+      ref={pageScrollRef}
+      onScroll={() => {
+        const el = pageScrollRef.current;
+        if (!el) return;
+        setPageAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 24);
+      }}
+      className="flex h-screen w-full flex-col overflow-auto bg-bg"
+    >
+      {stage === "story" && !pageAtBottom && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 h-24 bg-gradient-to-t from-bg to-transparent" />
+      )}
+      {stage === "story" && !pageAtBottom && (
+        <ScrollToBottomButton
+          onClick={() => pageScrollRef.current?.scrollTo({ top: pageScrollRef.current.scrollHeight, behavior: "smooth" })}
+          className="fixed bottom-6 left-1/2 z-30 -translate-x-1/2"
+        />
+      )}
       <div className="flex w-full flex-1 gap-8 p-8">
         <div key={stage} className="flex flex-1 flex-col gap-6 animate-slide-in-right">
         {loadError && (
