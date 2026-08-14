@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -665,17 +666,32 @@ export default function OnboardingPage() {
         )}
 
         {scenario && stage === "welcome" && (
-          <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-4 text-center">
-            <div className="mb-2 text-3xl font-semibold tracking-tight text-fg">Welcome to Erwix</div>
-            <p className="text-base leading-relaxed text-muted">
-              Build your strategy, then automate journaling and analysis with AI.
-            </p>
-            <button
-              onClick={() => setStage("experience")}
-              className="mt-6 flex items-center justify-center gap-1.5 rounded-lg bg-accent px-8 py-3 text-sm font-medium text-on-accent hover:bg-accent/90"
+          <div className="flex w-full flex-1 items-center justify-center gap-16">
+            <div className="flex flex-1 flex-col items-center gap-4 text-center">
+              <div className="mb-2 text-3xl font-semibold tracking-tight text-fg">Welcome to Erwix</div>
+              <p className="max-w-[19rem] text-base leading-relaxed text-muted">
+                Build your strategy, then automate journaling, analysis, and testing with AI.
+              </p>
+              <button
+                onClick={() => setStage("experience")}
+                className="mt-6 flex items-center justify-center gap-1.5 rounded-lg bg-accent px-8 py-3 text-sm font-medium text-on-accent hover:bg-accent/90"
+              >
+                Get started
+              </button>
+            </div>
+            <div
+              className="relative hidden max-h-[85vh] flex-1 md:block"
+              style={{ aspectRatio: "1074 / 894" }}
             >
-              Get started
-            </button>
+              <Image
+                src="/erwix-hero.webp"
+                alt=""
+                fill
+                sizes="(min-width: 768px) 40vw, 0px"
+                className="object-contain"
+                priority
+              />
+            </div>
           </div>
         )}
 
