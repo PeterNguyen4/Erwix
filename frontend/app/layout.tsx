@@ -3,6 +3,7 @@ import "./globals.css";
 import ConditionalSidebar from "@/components/ConditionalSidebar";
 import AuthProvider from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import TitleTooltip from "@/components/TitleTooltip";
 
 const THEME_INIT_SCRIPT = `
 (function () {
@@ -43,6 +44,7 @@ export default function RootLayout({
             <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
               {children}
             </div>
+            <TitleTooltip />
           </AuthProvider>
         </ThemeProvider>
       </body>

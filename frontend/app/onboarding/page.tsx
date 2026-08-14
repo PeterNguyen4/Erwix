@@ -357,12 +357,13 @@ export default function OnboardingPage() {
     const isSlow =
       slowdownStartIndex >= 0 &&
       cursorIndex >= slowdownStartIndex &&
-      (exitSignalIndex < 0 || cursorIndex < exitSignalIndex);
+      (exitSignalIndex < 0 || cursorIndex < exitSignalIndex) &&
+      trades.length === 0;
     const t = setTimeout(() => {
       setCursorIndex((i) => Math.min(i + 1, total - 1));
     }, isSlow ? SLOW_AUTOPLAY_MS : TRIAL_AUTOPLAY_MS);
     return () => clearTimeout(t);
-  }, [stage, scenario, introDone, awaitingAction, cursorIndex, slowdownStartIndex, exitSignalIndex]);
+  }, [stage, scenario, introDone, awaitingAction, cursorIndex, slowdownStartIndex, exitSignalIndex, trades.length]);
 
   useEffect(() => {
     if (!awaitingAction) {
@@ -446,12 +447,12 @@ export default function OnboardingPage() {
         setAwaitingAction(true);
         setCoach({
           selector: ENTER_SELECTOR,
-          message: "It's time to buy! I'll set the 1:2 stop-loss and take-profit. Tap Enter to take the trade.",
+          message: "It's time to buy! I'll set the 1:2 stop-loss and take-profit. Tap Buy to take the trade.",
           spotlight: true,
         });
       } else if (exitFired && openTrade) {
         setAwaitingAction(true);
-        setCoach({ selector: EXIT_SELECTOR, message: "We hit our take profit! Tap Exit to close out" });
+        setCoach({ selector: EXIT_SELECTOR, message: "We hit our take profit! Tap Sell to close out" });
       }
     }
 
@@ -923,11 +924,10 @@ export default function OnboardingPage() {
 
               <div
                 data-onboarding="signal-toast"
-                title="Trade chat"
                 className="flex w-72 shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-bg"
               >
                 <div className="shrink-0 border-b border-border px-4 py-2.5 text-sm font-semibold text-muted">
-                  Trade chat
+                  Trade log
                 </div>
                 <div ref={chatScrollRef} className="flex-1 space-y-2 overflow-y-auto p-3">
                   {feedItems.length === 0 && (
@@ -956,47 +956,37 @@ export default function OnboardingPage() {
                     ),
                   )}
                 </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between rounded-xl border border-border bg-bg p-4">
-              <div>
-                <div className="text-xs font-semibold text-muted">Your position</div>
-                <div className="mt-0.5 text-sm text-fg">
-                  {openTrade
-                    ? `Entered trade at ${openTrade.price.toFixed(2)}`
-                    : trades.length > 0
-                      ? `${trades.length} trade${trades.length === 1 ? "" : "s"} so far`
-                      : "Watching for a signal..."}
+                <div
+                  data-onboarding="trade-actions"
+                  className="flex shrink-0 items-center justify-end gap-2 border-t border-border p-3"
+                >
+                  <button
+                    data-onboarding="enter-button"
+                    title="Open a simulated position at the current price"
+                    onClick={handleEnter}
+                    disabled={!!openTrade || !introDone}
+                    className={`rounded-md bg-up/90 px-4 py-2 text-sm font-semibold text-white hover:bg-up disabled:opacity-40 ${
+                      awaitingAction && !openTrade
+                        ? "animate-pulse ring-2 ring-up ring-offset-2 ring-offset-bg"
+                        : ""
+                    }`}
+                  >
+                    Buy
+                  </button>
+                  <button
+                    data-onboarding="exit-button"
+                    title="Close your simulated position at the current price"
+                    onClick={handleExit}
+                    disabled={!openTrade || !introDone}
+                    className={`rounded-md bg-down/90 px-4 py-2 text-sm font-semibold text-white hover:bg-down disabled:opacity-40 ${
+                      awaitingAction && openTrade
+                        ? "animate-pulse ring-2 ring-down ring-offset-2 ring-offset-bg"
+                        : ""
+                    }`}
+                  >
+                    Sell
+                  </button>
                 </div>
-              </div>
-              <div data-onboarding="trade-actions" className="flex items-center gap-2">
-                <button
-                  data-onboarding="enter-button"
-                  title="Open a simulated position at the current price"
-                  onClick={handleEnter}
-                  disabled={!!openTrade || !introDone}
-                  className={`rounded-md bg-green-500/20 px-4 py-2 text-sm font-medium text-green-500 hover:bg-green-500/30 disabled:opacity-40 ${
-                    awaitingAction && !openTrade
-                      ? "animate-pulse ring-2 ring-green-400 ring-offset-2 ring-offset-bg"
-                      : ""
-                  }`}
-                >
-                  Enter
-                </button>
-                <button
-                  data-onboarding="exit-button"
-                  title="Close your simulated position at the current price"
-                  onClick={handleExit}
-                  disabled={!openTrade || !introDone}
-                  className={`rounded-md bg-red-500/20 px-4 py-2 text-sm font-medium text-red-500 hover:bg-red-500/30 disabled:opacity-40 ${
-                    awaitingAction && openTrade
-                      ? "animate-pulse ring-2 ring-red-400 ring-offset-2 ring-offset-bg"
-                      : ""
-                  }`}
-                >
-                  Exit
-                </button>
               </div>
             </div>
           </div>
