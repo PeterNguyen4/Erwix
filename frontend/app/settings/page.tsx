@@ -6,6 +6,7 @@ import Image from "next/image";
 import { Moon, Sun, Link2, Unlink, LogOut, UserRoundCog } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { useAuth } from "@/components/AuthProvider";
+import AlpacaConnectModal from "@/components/AlpacaConnectModal";
 import { api, AlpacaStatus, UserPrivate } from "@/lib/api";
 
 export default function SettingsPage() {
@@ -29,6 +30,7 @@ function SettingsPageInner() {
   const [alpacaBanner, setAlpacaBanner] = useState<"connected" | "error" | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [showAlpacaDisclosure, setShowAlpacaDisclosure] = useState(false);
 
   const [users, setUsers] = useState<UserPrivate[] | null>(null);
   const [usersError, setUsersError] = useState<string | null>(null);
@@ -82,6 +84,7 @@ function SettingsPageInner() {
   }, [searchParams, router]);
 
   const handleConnect = async () => {
+    setShowAlpacaDisclosure(false);
     setConnecting(true);
     try {
       await api.connectAlpaca("paper");
@@ -151,9 +154,9 @@ function SettingsPageInner() {
               ) : (
                 <button
                   type="button"
-                  onClick={handleConnect}
+                  onClick={() => setShowAlpacaDisclosure(true)}
                   disabled={connecting || alpaca === null}
-                  className="flex items-center gap-1.5 rounded-md bg-accent/20 px-3 py-1.5 text-xs font-medium text-accent hover:bg-accent/30 disabled:opacity-50 dark:text-violet-400"
+                  className="flex items-center gap-1.5 rounded-md bg-violet-500/20 px-3 py-1.5 text-xs font-medium text-violet-600 hover:bg-violet-500/30 disabled:opacity-50 dark:text-violet-400"
                 >
                   <Link2 size={14} strokeWidth={2} />
                   {connecting ? "Redirecting..." : "Connect"}
@@ -174,7 +177,7 @@ function SettingsPageInner() {
                   type="button"
                   onClick={() => setTheme("dark")}
                   className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    theme === "dark" ? "bg-accent/20 text-accent dark:text-violet-400" : "text-muted hover:text-fg"
+                    theme === "dark" ? "bg-violet-500/20 text-violet-600 dark:text-violet-400" : "text-muted hover:text-fg"
                   }`}
                 >
                   <Moon size={14} strokeWidth={2} />
@@ -184,7 +187,7 @@ function SettingsPageInner() {
                   type="button"
                   onClick={() => setTheme("light")}
                   className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    theme === "light" ? "bg-accent/20 text-accent" : "text-muted hover:text-fg"
+                    theme === "light" ? "bg-violet-500/20 text-violet-600" : "text-muted hover:text-fg"
                   }`}
                 >
                   <Sun size={14} strokeWidth={2} />
@@ -286,6 +289,14 @@ function SettingsPageInner() {
           )}
         </div>
       </div>
+
+      {showAlpacaDisclosure && (
+        <AlpacaConnectModal
+          onCancel={() => setShowAlpacaDisclosure(false)}
+          onConnect={handleConnect}
+          connecting={connecting}
+        />
+      )}
     </main>
   );
 }

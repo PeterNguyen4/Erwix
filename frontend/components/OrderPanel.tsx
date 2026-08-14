@@ -10,15 +10,13 @@ interface OrderPanelProps {
   onOrderPlaced?: () => void;
   buyingPower?: number | null;
   price?: number | null;
-  /** Fires with the live entry/TP/SL preview while the bracket toggle is on, so the chart can shade it. */
   onBracketChange?: (bracket: BracketLevels | null) => void;
-  /** Controlled so the chart's draggable TP/SL lines can push edits back into these inputs. */
   takeProfitPrice: number;
   onTakeProfitPriceChange: (price: number) => void;
   stopLossPrice: number;
   onStopLossPriceChange: (price: number) => void;
-  /** Latest plotted candle time (unix seconds) — used as the bracket's entry time so it lines up with the chart's own timeline instead of the wall clock. */
   currentTime?: number | null;
+  onRequireAlpacaConnect?: () => boolean;
 }
 
 const fmtUsd = (v: number) =>
@@ -35,6 +33,7 @@ export default function OrderPanel({
   stopLossPrice,
   onStopLossPriceChange,
   currentTime,
+  onRequireAlpacaConnect,
 }: OrderPanelProps) {
   const [qty, setQty] = useState(1);
   const [type, setType] = useState<"market" | "limit">("market");
@@ -83,6 +82,7 @@ export default function OrderPanel({
   useEffect(() => () => onBracketChange?.(null), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function submit(side: "buy" | "sell") {
+    if (onRequireAlpacaConnect?.()) return;
     setBusy(true);
     setStatus(null);
     try {

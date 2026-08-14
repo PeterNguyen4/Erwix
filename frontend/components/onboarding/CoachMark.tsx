@@ -45,8 +45,6 @@ export default function CoachMark({ targetSelector, message, onNext, nextLabel =
     };
 
     const raf = requestAnimationFrame(measure);
-    // Re-measure once more after the bubble has actually painted, so the
-    // fallback height guess gets replaced by the real offsetHeight.
     const raf2 = requestAnimationFrame(() => requestAnimationFrame(measure));
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
