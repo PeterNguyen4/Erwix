@@ -505,7 +505,7 @@ export default function OnboardingPage() {
       },
     ]);
     setOpenTrade(null);
-    setBracket(null);
+    setBracket((prev) => (prev ? { ...prev, exitTime: candle.time } : prev));
     setAwaitingAction(false);
     setResumeCountdown(null);
 
@@ -595,13 +595,13 @@ export default function OnboardingPage() {
         text: t.description,
       }),
     ),
-    ...trades.flatMap((t, i): FeedItem[] => [
-      { kind: "trade", id: `buy-${i}-${t.enter_time}`, time: t.enter_time, action: "buy", price: t.enter_price },
+    ...trades.flatMap((t): FeedItem[] => [
+      { kind: "trade", id: `buy-${t.enter_time}`, time: t.enter_time, action: "buy", price: t.enter_price },
       ...(t.exit_time != null && t.exit_price != null
         ? ([
             {
               kind: "trade",
-              id: `sell-${i}-${t.exit_time}`,
+              id: `sell-${t.exit_time}`,
               time: t.exit_time,
               action: "sell",
               price: t.exit_price,
@@ -610,7 +610,7 @@ export default function OnboardingPage() {
         : []),
     ]),
     ...(openTrade
-      ? [{ kind: "trade", id: `buy-open-${openTrade.time}`, time: openTrade.time, action: "buy", price: openTrade.price } as FeedItem]
+      ? [{ kind: "trade", id: `buy-${openTrade.time}`, time: openTrade.time, action: "buy", price: openTrade.price } as FeedItem]
       : []),
     ...(showingMockToast
       ? [{ kind: "signal", id: MOCK_TOAST.id, time: 0, signalKind: MOCK_TOAST.kind, text: MOCK_TOAST.description } as FeedItem]
@@ -657,7 +657,8 @@ export default function OnboardingPage() {
         )}
 
         {!scenario && !loadError && (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent/30 border-t-accent dark:border-t-violet-400" />
             Loading your trial scenario…
           </div>
         )}
