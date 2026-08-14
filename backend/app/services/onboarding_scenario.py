@@ -83,7 +83,7 @@ CHECKLIST = [
     "A real pullback follows (2 back-to-back red candles)",
     "Draw horizontal line at the swing high right before the pullback",
     "Buy on the close back above that line",
-    "Set stop at the Chandelier exit and target at 2x the stop distance",
+    "Set stop at the Chandelier and target an exit at 2x the stop distance",
 ]
 
 EMA_PERIOD = 50

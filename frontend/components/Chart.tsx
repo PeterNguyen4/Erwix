@@ -48,6 +48,7 @@ export interface BracketLevels {
   takeProfitPrice?: number | null;
   stopLossPrice?: number | null;
   entryTime: number;
+  exitTime?: number | null;
 }
 
 interface ChartProps {
@@ -694,9 +695,14 @@ export default function Chart({
     if (bracket && chartRef.current && seriesRef.current) {
       const series = seriesRef.current;
       const nowX = getBracketStartX();
+      const closedEndX =
+        bracket.exitTime != null
+          ? chartRef.current.timeScale().timeToCoordinate(bracket.exitTime as UTCTimestamp)
+          : null;
       if (nowX != null) {
         const startX = Math.max(0, Math.min(nowX, canvas.width));
-        const zoneWidth = canvas.width - startX;
+        const endX = closedEndX != null ? Math.max(startX, Math.min(closedEndX, canvas.width)) : canvas.width;
+        const zoneWidth = endX - startX;
         const entryY = series.priceToCoordinate(bracket.entryPrice);
         if (entryY != null && zoneWidth > 0) {
           if (bracket.takeProfitPrice != null) {
@@ -715,7 +721,7 @@ export default function Chart({
           }
         }
 
-        if (mousePos && mousePos.x >= startX && entryY != null) {
+        if (bracket.exitTime == null && mousePos && mousePos.x >= startX && entryY != null) {
           const drawLevelLine = (levelY: number | null, color: string, dashed: boolean) => {
             if (levelY == null) return;
             ctx.strokeStyle = color;

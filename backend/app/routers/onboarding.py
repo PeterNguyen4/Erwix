@@ -230,12 +230,12 @@ def _run_strategy(candles: list[Candle]) -> _StrategyResult:
         elif state == "in_trade":
             if candle.close <= stop_price:
                 signals.append(
-                    _signal(candle, i, "exit", "Chandelier stop hit — exit", EXIT_COLOR)
+                    _signal(candle, i, "exit", "Chandelier stop hit. Exit", EXIT_COLOR)
                 )
                 state, stage = "seek_breakout", 0
             elif candle.close >= take_profit_price:
                 signals.append(
-                    _signal(candle, i, "exit", "Take-profit hit (2x risk) — exit", EXIT_COLOR)
+                    _signal(candle, i, "exit", "Take-profit hit (2x risk). Exit", EXIT_COLOR)
                 )
                 state, stage = "seek_breakout", 0
 

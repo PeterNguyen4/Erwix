@@ -9,6 +9,7 @@ import { useAccountPositions } from "@/lib/useAccountPositions";
 import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
+import AlpacaConnectModal from "@/components/AlpacaConnectModal";
 import type { BracketLevels } from "@/components/Chart";
 import { Search, ChevronDown } from "lucide-react";
 import { useRuleWatch } from "@/lib/useRuleWatch";
@@ -128,6 +129,9 @@ function ChartPage() {
   const [takeProfitPrice, setTakeProfitPrice] = useState(0);
   const [stopLossPrice, setStopLossPrice] = useState(0);
   const [quickOrderStatus, setQuickOrderStatus] = useState<string | null>(null);
+  const [alpacaConnected, setAlpacaConnected] = useState<boolean | null>(null);
+  const [showAlpacaConnectModal, setShowAlpacaConnectModal] = useState(false);
+  const [alpacaConnecting, setAlpacaConnecting] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const candleRequestIdRef = useRef(0);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,6 +205,19 @@ function ChartPage() {
   useEffect(() => { loadCandles(); }, [loadCandles]);
 
   useEffect(() => {
+    api.alpacaStatus().then((s) => setAlpacaConnected(s.connected)).catch(() => setAlpacaConnected(false));
+  }, []);
+
+  const handleAlpacaConnect = async () => {
+    setAlpacaConnecting(true);
+    try {
+      await api.connectAlpaca("paper");
+    } catch {
+      setAlpacaConnecting(false);
+    }
+  };
+
+  useEffect(() => {
     setLiveQuote(null);
     let cancelled = false;
     let ws: WebSocket;
@@ -231,6 +248,10 @@ function ChartPage() {
   };
 
   const handleQuickOrder = async (side: "buy" | "sell") => {
+    if (!alpacaConnected) {
+      setShowAlpacaConnectModal(true);
+      return;
+    }
     setQuickOrderStatus(null);
     try {
       const res = await api.submitOrder({ symbol: symbol.toUpperCase(), qty: 1, side, type: "market" });
@@ -420,10 +441,25 @@ function ChartPage() {
             onTakeProfitPriceChange={setTakeProfitPrice}
             stopLossPrice={stopLossPrice}
             onStopLossPriceChange={setStopLossPrice}
+            onRequireAlpacaConnect={() => {
+              if (alpacaConnected) return false;
+              setShowAlpacaConnectModal(true);
+              return true;
+            }}
           />
           <PositionsTable positions={positions} loading={positionsLoading} />
         </div>
       </div>
+
+      {showAlpacaConnectModal && (
+        <AlpacaConnectModal
+          title="Connect Alpaca to trade"
+          subtitle="Link your Alpaca paper account before placing an order"
+          onCancel={() => setShowAlpacaConnectModal(false)}
+          onConnect={handleAlpacaConnect}
+          connecting={alpacaConnecting}
+        />
+      )}
     </main>
   );
 }
