@@ -718,7 +718,7 @@ export default function OnboardingPage() {
 
         {scenario && stage === "story" && (
           <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-6">
-            <div className="text-sm font-medium text-muted">{scenario.playbook.title}</div>
+            {/* <div className="text-sm font-medium text-muted">{scenario.playbook.title}</div> */}
 
             <div className="flex min-h-[240px] flex-col justify-center rounded-xl border border-border bg-bg p-8">
               <div key={storyIndex} className="animate-slide-in-right">

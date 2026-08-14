@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { Triangle } from "lucide-react";
-import { api, DebriefRequest, PnLSummary, PnLTrend, PortfolioHistory } from "@/lib/api";
+import { api, PnLSummary, PnLTrend, PortfolioHistory } from "@/lib/api";
 import { useAccountPositions } from "@/lib/useAccountPositions";
 import PortfolioChart, { Period } from "@/components/journal/PortfolioChart";
 import AllocationChart from "@/components/journal/AllocationChart";
@@ -10,8 +10,6 @@ import TotalAssets from "@/components/journal/TotalAssets";
 import RecentTransactions from "@/components/journal/RecentTransactions";
 import Watchlist from "@/components/journal/Watchlist";
 import Sparkline from "@/components/journal/Sparkline";
-import AnalystDebrief from "@/components/journal/AnalystDebrief";
-import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 
 function WeekDelta({ value }: { value: number | null }) {
   if (value == null || Number.isNaN(value) || value === 0) return null;
@@ -69,8 +67,6 @@ export default function PortfolioPage() {
   const [prevWeekPnl, setPrevWeekPnl] = useState<PnLSummary | null>(null);
   const [trend, setTrend] = useState<PnLTrend | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [spotlight, setSpotlight] = useState<string | null>(null);
-  const [debriefRequest, setDebriefRequest] = useState<DebriefRequest | null>(null);
 
   useEffect(() => {
     api
@@ -185,7 +181,7 @@ export default function PortfolioPage() {
         </div>
 
         <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
-          <RecentTransactions onDebriefTrade={setDebriefRequest} />
+          <RecentTransactions />
 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -205,17 +201,6 @@ export default function PortfolioPage() {
           </div>
         </div>
       </div>
-
-      <SpotlightOverlay targetSelector={spotlight} />
-
-      {debriefRequest && (
-        <AnalystDebrief
-          request={debriefRequest}
-          onClose={() => { setDebriefRequest(null); setSpotlight(null); }}
-          onSpotlight={setSpotlight}
-        />
-      )}
-
     </main>
   );
 }

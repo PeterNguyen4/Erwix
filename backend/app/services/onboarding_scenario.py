@@ -7,8 +7,6 @@ DATA_START = datetime(2021, 3, 3, tzinfo=UTC)
 TRIAL_START = datetime(2021, 5, 25, tzinfo=UTC)
 WINDOW_END = datetime(2021, 7, 24, tzinfo=UTC)
 
-TITLE = "The Pulldown-Breakout Strategy"
-
 STORY: list[dict[str, str | None]] = [
     {
         "heading": "The 50 EMA",
