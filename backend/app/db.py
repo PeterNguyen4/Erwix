@@ -12,7 +12,13 @@ class Base(DeclarativeBase):
 
 _settings = get_settings()
 _async_url = _settings.database_url.replace("postgresql://", "postgresql+psycopg://", 1)
-engine = create_async_engine(_async_url, pool_pre_ping=True, future=True)
+engine = create_async_engine(
+    _async_url,
+    pool_pre_ping=True,
+    future=True,
+    pool_size=10,
+    max_overflow=10,
+)
 SessionLocal = async_sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

@@ -3,8 +3,9 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
-import { api, Account, Candle, Position, Quote, SymbolResult, UserPreference } from "@/lib/api";
+import { api, Candle, Quote, SymbolResult, UserPreference } from "@/lib/api";
 import { getCached, setCached } from "@/lib/candleCache";
+import { useAccountPositions } from "@/lib/useAccountPositions";
 import OrderPanel from "@/components/OrderPanel";
 import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
@@ -110,9 +111,7 @@ function ChartPage() {
   const [candles, setCandles] = useState<Candle[]>(() => getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day") ?? []);
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [liveQuote, setLiveQuote] = useState<Quote | null>(null);
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [positionsLoading, setPositionsLoading] = useState(true);
-  const [account, setAccount] = useState<Account | null>(null);
+  const { account, positions, positionsLoading, refresh: loadAccount } = useAccountPositions();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day"));
   const [prefsResolved, setPrefsResolved] = useState(() => !!searchParams.get("symbol"));
@@ -154,11 +153,6 @@ function ChartPage() {
         setLoading(false);
       });
   }, [symbol, timeframe]);
-
-  const loadAccount = useCallback(() => {
-    api.positions().then(setPositions).catch(() => {}).finally(() => setPositionsLoading(false));
-    api.account().then(setAccount).catch(() => {});
-  }, []);
 
   // Load saved symbol/timeframe from DB on first mount
   useEffect(() => {
@@ -205,12 +199,6 @@ function ChartPage() {
   }, []);
 
   useEffect(() => { loadCandles(); }, [loadCandles]);
-
-  useEffect(() => {
-    loadAccount();
-    const id = setInterval(loadAccount, 15000);
-    return () => clearInterval(id);
-  }, [loadAccount]);
 
   useEffect(() => {
     setLiveQuote(null);

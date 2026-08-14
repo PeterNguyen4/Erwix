@@ -25,7 +25,7 @@ export default function QuoteCard({ symbol, symbolName, candles, liveQuote }: Qu
       api.quote(symbol).then((q) => { if (!cancelled) setPolledQuote(q); }).catch(() => {});
     };
     load();
-    const id = setInterval(load, 10000);
+    const id = setInterval(load, 20000);
     return () => { cancelled = true; clearInterval(id); };
   }, [symbol]);
 
