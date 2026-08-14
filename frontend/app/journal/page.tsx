@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { ArrowRight, RefreshCw, Sparkles } from "lucide-react";
 import { api, DebriefRequest, PortfolioPoint } from "@/lib/api";
 import JournalCalendar from "@/components/journal/JournalCalendar";
-import AnalystDebrief from "@/components/journal/AnalystDebrief";
-import DebriefReportView from "@/components/journal/DebriefReportView";
 import DebriefScheduleSettings from "@/components/journal/DebriefScheduleSettings";
 import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import { useDebriefReport } from "@/lib/useDebriefReport";
 import { useAuth } from "@/components/AuthProvider";
+
+const AnalystDebrief = dynamic(() => import("@/components/journal/AnalystDebrief"), { ssr: false });
+const DebriefReportView = dynamic(() => import("@/components/journal/DebriefReportView"), { ssr: false });
 
 export default function JournalPage() {
   const { isAdmin } = useAuth();

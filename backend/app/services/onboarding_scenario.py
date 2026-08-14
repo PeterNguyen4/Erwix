@@ -7,8 +7,6 @@ DATA_START = datetime(2021, 3, 3, tzinfo=UTC)
 TRIAL_START = datetime(2021, 5, 25, tzinfo=UTC)
 WINDOW_END = datetime(2021, 7, 24, tzinfo=UTC)
 
-TITLE = "The Pulldown-Breakout Strategy"
-
 STORY: list[dict[str, str | None]] = [
     {
         "heading": "The 50 EMA",
@@ -17,7 +15,7 @@ STORY: list[dict[str, str | None]] = [
             "last 50 days. More weight is given to recent candles, so it reacts fast to sudden "
             "price changes."
         ),
-        "image": "/slides/the-50-ema.png",
+        "image": "/slides/the-50-ema.webp",
     },
     {
         "heading": "Breaking above",
@@ -26,7 +24,7 @@ STORY: list[dict[str, str | None]] = [
             "and the **candle closes above it**. Notice how the top of the candle's body sits "
             "above the line."
         ),
-        "image": "/slides/break-above.png",
+        "image": "/slides/break-above.webp",
     },
     {
         "heading": "Pullback",
@@ -35,7 +33,7 @@ STORY: list[dict[str, str | None]] = [
             "coming down). Then draw a horizontal line at the top wick just before "
             "those red candles. That's the swing high."
         ),
-        "image": "/slides/pullback.png",
+        "image": "/slides/pullback.webp",
     },
     {
         "heading": "Entry",
@@ -43,7 +41,7 @@ STORY: list[dict[str, str | None]] = [
             "Buy when price breaks back above that horizontal line, right at the breakout candle's "
             "close. But how do know when and how much to buy/sell?"
         ),
-        "image": "/slides/entry.png",
+        "image": "/slides/entry.webp",
     },
     {
         "heading": "Helping hands",
@@ -52,7 +50,7 @@ STORY: list[dict[str, str | None]] = [
             "widens in volatile markets and tightens in calm ones. When combining the right tools "
             "and signals, we are able to form strong confluences that help us trade."
         ),
-        "image": "/slides/helping-hands.png",
+        "image": "/slides/helping-hands.webp",
     },
     {
         "heading": "Guidance",
@@ -60,7 +58,7 @@ STORY: list[dict[str, str | None]] = [
             "Set stop-loss at the Chandelier stop and **take-profit at 2x** the stop distance. "
             "In a real trade, that would mean that we aim to make $100 for every $50 we risk. "
         ),
-        "image": "/slides/guidance.png",
+        "image": "/slides/guidance.webp",
     },
     {
         "heading": "Invalidation: Broken EMA",
@@ -68,7 +66,7 @@ STORY: list[dict[str, str | None]] = [
             "The setup is void if the pullback breaks back below the 50 EMA. The pullback was "
             "too strong and not clean, so skip the trade."
         ),
-        "image": "/slides/invalid-1.png",
+        "image": "/slides/invalid-1.webp",
     },
     {
         "heading": "Invalidation: oversized candle",
@@ -76,7 +74,7 @@ STORY: list[dict[str, str | None]] = [
             "It's is also void if the breakout candle is 3-4x the size of an average candle. "
             "Price may reverse back down."
         ),
-        "image": "/slides/invalid-2.png",
+        "image": "/slides/invalid-2.webp",
     },
 ]
 

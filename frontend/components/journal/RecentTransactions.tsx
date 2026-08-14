@@ -164,22 +164,24 @@ export default function RecentTransactions({ onDebriefTrade }: RecentTransaction
               className="h-24 w-full resize-y rounded-md border border-border bg-field px-2 py-1.5 text-sm text-fg placeholder:text-muted outline-none focus:border-accent"
             />
             <div className="mt-3 flex items-center justify-between">
-              <button
-                onClick={() => {
-                  const t = detail;
-                  const filled = new Date(t.filled_at!);
-                  onDebriefTrade?.({
-                    from: new Date(filled.getTime() - 3 * 86400000).toISOString(),
-                    to: new Date(filled.getTime() + 86400000).toISOString(),
-                    symbol: t.symbol,
-                    query: `Reflect specifically on my ${t.side} of ${t.symbol} filled at $${t.fill_price} on ${filled.toLocaleDateString()}.`,
-                  });
-                  setDetail(null);
-                }}
-                className="rounded-md bg-accent/20 px-3 py-1 text-xs font-semibold text-accent hover:bg-accent/30"
-              >
-                Debrief this trade
-              </button>
+              {onDebriefTrade && (
+                <button
+                  onClick={() => {
+                    const t = detail;
+                    const filled = new Date(t.filled_at!);
+                    onDebriefTrade({
+                      from: new Date(filled.getTime() - 3 * 86400000).toISOString(),
+                      to: new Date(filled.getTime() + 86400000).toISOString(),
+                      symbol: t.symbol,
+                      query: `Reflect specifically on my ${t.side} of ${t.symbol} filled at $${t.fill_price} on ${filled.toLocaleDateString()}.`,
+                    });
+                    setDetail(null);
+                  }}
+                  className="rounded-md bg-accent/20 px-3 py-1 text-xs font-semibold text-accent hover:bg-accent/30"
+                >
+                  Debrief this trade
+                </button>
+              )}
               <button
                 onClick={saveNote}
                 className="rounded-md bg-accent px-3 py-1 text-xs font-semibold text-on-accent transition-colors hover:bg-accent/80"

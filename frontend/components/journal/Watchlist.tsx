@@ -68,7 +68,7 @@ export default function Watchlist() {
       });
     };
     fetchQuotes();
-    const id = setInterval(fetchQuotes, 15000);
+    const id = setInterval(fetchQuotes, 30000);
     return () => {
       cancelled = true;
       clearInterval(id);
