@@ -43,7 +43,7 @@ services:
     mem_limit: 100m
 
   backend:
-    build: ./backend
+    image: ghcr.io/peternguyen4/erwix-backend:latest
     container_name: erwix-backend
     restart: always
     env_file: .env
