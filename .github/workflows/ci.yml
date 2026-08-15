@@ -90,8 +90,8 @@ jobs:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/erwix-backend:latest
-            ghcr.io/${{ github.repository_owner }}/erwix-backend:${{ github.sha }}
+            ghcr.io/peternguyen4/erwix-backend:latest
+            ghcr.io/peternguyen4/erwix-backend:${{ github.sha }}
 
   deploy:
     needs: [build-and-push]
