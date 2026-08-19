@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 SYMBOL = "AAPL"
 TIMEFRAME = "1Day"
+TITLE = "The 50 EMA Pullback"
 
 DATA_START = datetime(2021, 3, 3, tzinfo=UTC)
 TRIAL_START = datetime(2021, 5, 25, tzinfo=UTC)
