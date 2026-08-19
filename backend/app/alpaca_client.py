@@ -5,29 +5,37 @@ Wrapper around alpaca-py for data, paper trading, and live streaming.
 import logging
 from datetime import UTC, datetime
 
-# Suppress all Alpaca websocket noise — auth failures and retries are handled by
-# _guarded_start_ws and surfaced once through erwix.market instead.
 logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
 
-from alpaca.common.enums import Sort  # noqa: E402
-from alpaca.data.historical import StockHistoricalDataClient  # noqa: E402
-from alpaca.data.live import StockDataStream  # noqa: E402
-from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest  # noqa: E402
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit  # noqa: E402
-from alpaca.trading.client import TradingClient  # noqa: E402
-from alpaca.trading.enums import OrderClass, OrderSide, TimeInForce  # noqa: E402
-from alpaca.trading.requests import (  # noqa: E402
+from alpaca.common.enums import Sort
+from alpaca.data.historical import StockHistoricalDataClient
+from alpaca.data.live import StockDataStream
+from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit 
+from alpaca.trading.client import TradingClient
+from alpaca.trading.enums import (
+    ContractType,
+    OrderClass,
+    OrderSide,
+    PositionIntent,
+    TimeInForce,
+)
+from alpaca.trading.requests import (
+    GetOptionContractsRequest,
     LimitOrderRequest,
     MarketOrderRequest,
     StopLossRequest,
     TakeProfitRequest,
 )
-from alpaca.trading.stream import TradingStream  # noqa: E402
+from alpaca.trading.stream import TradingStream
 
-from app.config import get_settings  # noqa: E402
-from app.schemas import (  # noqa: E402
+from app.config import get_settings
+from app.schemas import ( 
     Account,
     Candle,
+    OptionContractOut,
+    OptionOrderRequest,
+    OptionOrderResponse,
     OrderLegOut,
     OrderRequest,
     OrderResponse,
@@ -255,9 +263,91 @@ def get_positions() -> list[Position]:
                 market_value=float(p.market_value),
                 unrealized_pl=float(p.unrealized_pl),
                 current_price=float(p.current_price) if p.current_price else None,
+                asset_class=(
+                    p.asset_class.value if hasattr(p.asset_class, "value") else str(p.asset_class)
+                ),
             )
         )
     return out
+
+
+def get_option_chain(
+    underlying_symbol: str,
+    expiration_date: str | None = None,
+    option_type: str | None = None,
+) -> list[OptionContractOut]:
+    client = _trading_client()
+    req = GetOptionContractsRequest(
+        underlying_symbols=[underlying_symbol.upper()],
+        expiration_date=expiration_date,
+        type=ContractType(option_type) if option_type else None,
+        status=None,
+        limit=1000,
+    )
+    res = client.get_option_contracts(req)
+    contracts = (
+        res.option_contracts
+        if hasattr(res, "option_contracts")
+        else res.get("option_contracts", [])
+    )
+    return [
+        OptionContractOut(
+            symbol=c.symbol,
+            underlying_symbol=c.underlying_symbol,
+            expiration_date=c.expiration_date,
+            strike_price=float(c.strike_price),
+            type=c.type.value if hasattr(c.type, "value") else str(c.type),
+            style=c.style.value if hasattr(c.style, "value") else str(c.style),
+            open_interest=int(c.open_interest) if c.open_interest is not None else None,
+            close_price=float(c.close_price) if c.close_price is not None else None,
+            tradable=bool(c.tradable),
+        )
+        for c in contracts
+    ]
+
+
+def submit_option_order(order: OptionOrderRequest, user_id: int) -> OptionOrderResponse:
+    import uuid
+
+    client = _trading_client()
+    side = OrderSide.BUY if order.position_intent.startswith("buy") else OrderSide.SELL
+    intent = PositionIntent(order.position_intent)
+    tif = TimeInForce.DAY if order.time_in_force == "day" else TimeInForce.GTC
+    client_order_id = f"{user_id}{_CLIENT_ORDER_ID_SEP}{uuid.uuid4()}"
+
+    if order.type == "limit":
+        if order.limit_price is None:
+            raise ValueError("limit_price is required for limit orders")
+        req = LimitOrderRequest(
+            symbol=order.symbol.upper(),
+            qty=order.qty,
+            side=side,
+            time_in_force=tif,
+            limit_price=order.limit_price,
+            client_order_id=client_order_id,
+            position_intent=intent,
+        )
+    else:
+        req = MarketOrderRequest(
+            symbol=order.symbol.upper(),
+            qty=order.qty,
+            side=side,
+            time_in_force=tif,
+            client_order_id=client_order_id,
+            position_intent=intent,
+        )
+    o = client.submit_order(req)
+    return OptionOrderResponse(
+        id=str(o.id),
+        client_order_id=o.client_order_id,
+        symbol=o.symbol,
+        qty=float(o.qty),
+        side=o.side.value if hasattr(o.side, "value") else str(o.side),
+        position_intent=order.position_intent,
+        type=o.order_type.value if hasattr(o.order_type, "value") else str(o.order_type),
+        status=o.status.value if hasattr(o.status, "value") else str(o.status),
+        submitted_at=o.submitted_at,
+    )
 
 
 def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None] | None:
