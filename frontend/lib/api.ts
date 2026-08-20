@@ -622,6 +622,16 @@ export type DebriefAskEvent =
   | { type: "done" }
   | { type: "error"; detail: string };
 
+async function parseErrorMessage(res: Response): Promise<string> {
+  const text = await res.text();
+  try {
+    const parsed = JSON.parse(text);
+    if (typeof parsed?.detail === "string") return parsed.detail;
+  } catch {
+  }
+  return text || res.statusText || "Something went wrong";
+}
+
 let _refreshInFlight: Promise<boolean> | null = null;
 
 async function tryRefresh(): Promise<boolean> {
@@ -645,8 +655,7 @@ async function getJSON<T>(path: string, _retried = false): Promise<T> {
     return getJSON<T>(path, true);
   }
   if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`${res.status}: ${detail}`);
+    throw new Error(await parseErrorMessage(res));
   }
   return res.json();
 }
@@ -662,8 +671,7 @@ async function postJSON<T>(path: string, body: unknown, method = "POST", _retrie
     return postJSON<T>(path, body, method, true);
   }
   if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`${res.status}: ${detail}`);
+    throw new Error(await parseErrorMessage(res));
   }
   return res.json();
 }
@@ -674,8 +682,7 @@ async function deleteRequest(path: string, _retried = false): Promise<void> {
     return deleteRequest(path, true);
   }
   if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`${res.status}: ${detail}`);
+    throw new Error(await parseErrorMessage(res));
   }
 }
 
@@ -685,8 +692,7 @@ async function postNoContent(path: string, _retried = false): Promise<void> {
     return postNoContent(path, true);
   }
   if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`${res.status}: ${detail}`);
+    throw new Error(await parseErrorMessage(res));
   }
 }
 
@@ -701,8 +707,7 @@ async function login(email: string, password: string): Promise<UserPrivate> {
     body: body.toString(),
   });
   if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`${res.status}: ${detail}`);
+    throw new Error(await parseErrorMessage(res));
   }
   return res.json();
 }

@@ -147,16 +147,18 @@ function StrategyCard({
             className="w-full rounded border border-violet-400 bg-field px-1.5 py-0.5 text-center text-sm font-semibold text-fg outline-none"
           />
         ) : (
-          <div
-            onDoubleClick={(e) => {
+          <button
+            type="button"
+            onClick={(e) => {
               e.stopPropagation();
               setRenaming(true);
             }}
-            title="Double-click to rename"
-            className="truncate text-sm font-semibold text-fg"
+            title="Rename"
+            className="flex max-w-full items-center gap-1.5 truncate rounded px-1.5 py-0.5 text-sm font-semibold text-fg transition-colors hover:bg-fg/10"
           >
-            {s.name}
-          </div>
+            <span className="truncate">{s.name}</span>
+            <Pencil size={11} strokeWidth={2} className="shrink-0 text-muted opacity-0 transition-opacity group-hover:opacity-100" />
+          </button>
         )}
 
         <div className="flex items-center justify-center gap-1.5 text-xs text-muted">
