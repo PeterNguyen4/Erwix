@@ -43,7 +43,7 @@ describe("api client 401-refresh retry", () => {
       .mockResolvedValueOnce(new Response(null, { status: 200 })) // refresh succeeds
       .mockResolvedValueOnce(new Response("still unauthorized", { status: 401 })); // retry still fails
 
-    await expect(api.me()).rejects.toThrow("401");
+    await expect(api.me()).rejects.toThrow("still unauthorized");
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
@@ -53,15 +53,15 @@ describe("api client 401-refresh retry", () => {
       .mockResolvedValueOnce(new Response(null, { status: 401 }))
       .mockResolvedValueOnce(new Response(null, { status: 401 })); // refresh fails too
 
-    await expect(api.me()).rejects.toThrow("401");
+    await expect(api.me()).rejects.toThrow("Something went wrong");
     expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("propagates a non-401 error without attempting a refresh", async () => {
     const mockFetch = fetch as ReturnType<typeof vi.fn>;
-    mockFetch.mockResolvedValueOnce(new Response("server exploded", { status: 500 }));
+    mockFetch.mockResolvedValueOnce(new Response("internal server error", { status: 500 }));
 
-    await expect(api.me()).rejects.toThrow("500");
+    await expect(api.me()).rejects.toThrow("internal server error");
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });
