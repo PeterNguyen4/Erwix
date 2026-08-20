@@ -80,6 +80,11 @@ def _trading_client() -> TradingClient:
     )
 
 
+def trading_client_for_token(oauth_token: str, env: str) -> TradingClient:
+    """Trading client for user's linked Alpaca account."""
+    return TradingClient(oauth_token=oauth_token, paper=env != "live")
+
+
 async def search_assets(q: str, limit: int = 10) -> list[dict]:
     """Search tickers via Yahoo Finance's public suggest API — no API key required."""
     from app.services.yahoo_finance import yahoo_search
@@ -251,8 +256,8 @@ def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
     )
 
 
-def get_positions() -> list[Position]:
-    client = _trading_client()
+def get_positions(client: TradingClient | None = None) -> list[Position]:
+    client = client or _trading_client()
     out: list[Position] = []
     for p in client.get_all_positions():
         out.append(
@@ -392,8 +397,8 @@ def get_recent_filled_orders(after: datetime) -> list:
     return [o for o in client.get_orders(req) if o.filled_at is not None]
 
 
-def get_account() -> Account:
-    a = _trading_client().get_account()
+def get_account(client: TradingClient | None = None) -> Account:
+    a = (client or _trading_client()).get_account()
     return Account(
         buying_power=float(a.buying_power),
         cash=float(a.cash),
@@ -404,15 +409,17 @@ def get_account() -> Account:
     )
 
 
-def get_portfolio_history(period: str = "1M", timeframe: str | None = None) -> PortfolioHistory:
-    """Equity curve for the (shared paper) account over `period`.
+def get_portfolio_history(
+    period: str = "1M", timeframe: str | None = None, client: TradingClient | None = None
+) -> PortfolioHistory:
+    """Equity curve for the user's linked account (or the shared fallback account) over `period`.
 
     `timeframe` defaults to a resolution Alpaca picks for the period when None.
     """
     from alpaca.trading.requests import GetPortfolioHistoryRequest
 
     req = GetPortfolioHistoryRequest(period=period, timeframe=timeframe)
-    h = _trading_client().get_portfolio_history(req)
+    h = (client or _trading_client()).get_portfolio_history(req)
     timestamps = h.timestamp or []
     equities = h.equity or []
     pls = h.profit_loss or []

@@ -57,7 +57,7 @@ function StatChip({ chip }: { chip: Chip }) {
 }
 
 export default function PortfolioPage() {
-  const { account, positions, positionsLoading, error: accountError } = useAccountPositions();
+  const { account, positions, positionsLoading, linked } = useAccountPositions();
   const [history, setHistory] = useState<PortfolioHistory | null>(null);
   const [period, setPeriod] = useState<Period>("1M");
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -66,7 +66,6 @@ export default function PortfolioPage() {
   const [weekPnl, setWeekPnl] = useState<PnLSummary | null>(null);
   const [prevWeekPnl, setPrevWeekPnl] = useState<PnLSummary | null>(null);
   const [trend, setTrend] = useState<PnLTrend | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -91,7 +90,7 @@ export default function PortfolioPage() {
     api
       .portfolioHistory(period)
       .then(setHistory)
-      .catch((e) => setError((e as Error).message))
+      .catch(() => setHistory(null))
       .finally(() => setHistoryLoading(false));
   }, [period]);
 
@@ -153,16 +152,20 @@ export default function PortfolioPage() {
       <header className="sticky top-0 z-10 flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div className="text-xl font-normal text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
-          <div className="text-xs text-muted">Paper account</div>
+          {linked === false ? (
+            <a
+              href="/settings"
+              className="rounded-md border border-accent/40 bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent transition-colors hover:bg-accent/20"
+            >
+              Connect Alpaca
+            </a>
+          ) : (
+            <div className="text-xs text-muted">Paper account</div>
+          )}
         </div>
       </header>
 
       <div className="flex-1 p-3 space-y-3">
-        {(error || accountError) && (
-          <div className="rounded-lg border border-down/40 bg-down/10 px-4 py-2 text-sm text-down">
-            {error ?? accountError}
-          </div>
-        )}
 
         {/* Portfolio value graph (2/3) + total assets (1/3) */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
