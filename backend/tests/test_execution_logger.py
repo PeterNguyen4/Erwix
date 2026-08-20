@@ -220,6 +220,7 @@ async def test_handle_trade_update_skips_non_fill_event_with_no_intent_row(
 @pytest.mark.asyncio
 async def test_reconcile_recent_fills_adds_unlogged_fills(_use_test_db, db_session):
     db_session.add(make_user(1))
+    await db_session.commit()
     db_session.add(make_alpaca_account(1))
     await db_session.commit()
 
@@ -246,6 +247,7 @@ async def test_reconcile_recent_fills_adds_unlogged_fills(_use_test_db, db_sessi
 @pytest.mark.asyncio
 async def test_reconcile_recent_fills_updates_stale_intent_row(_use_test_db, db_session):
     db_session.add(make_user(1))
+    await db_session.commit()
     db_session.add(make_alpaca_account(1))
     await db_session.commit()
     db_session.add(
