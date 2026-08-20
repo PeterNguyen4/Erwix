@@ -43,6 +43,7 @@ from app.services.agent_graph import (
     exit_guidance,
     run_review,
 )
+from app.services.alpaca_accounts import get_linked_client
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services.guardrails import scan_output
 from app.services.reference_resolver import resolve_references
@@ -51,7 +52,6 @@ from app.services.rule_engine import (
     rules_just_fired,
     signal_price_level,
 )
-from app.services.alpaca_accounts import get_linked_client
 from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
 
