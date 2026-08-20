@@ -69,6 +69,15 @@ def make_user(user_id: int, username: str | None = None):
     )
 
 
+def make_alpaca_account(user_id: int, env: str = "paper"):
+    from app.models import AlpacaAccount
+    from app.services.token_crypto import encrypt_token
+
+    return AlpacaAccount(
+        user_id=user_id, access_token=encrypt_token(f"fake-token-{user_id}"), env=env
+    )
+
+
 class _AlwaysAllowRateLimiter:
     async def check(self, key: str, limit: int, window_ms: int):
         from app.services.rate_limiter import RateLimitResult
@@ -89,7 +98,8 @@ async def client(db_session, monkeypatch):
 
     # Mock background jobs
     monkeypatch.setattr(main, "reconcile_recent_fills", _noop)
-    monkeypatch.setattr(main, "run_execution_logger", _noop)
+    monkeypatch.setattr(main, "start_all_user_streams", _noop)
+    monkeypatch.setattr(main, "stop_all_user_streams", _noop)
     monkeypatch.setattr(main, "fail_orphaned_reports", _noop)
 
     # Stub rate limiting to not hit the real Redis DB 429.
@@ -126,7 +136,8 @@ async def unauthenticated_client(db_session, monkeypatch):
         return None
 
     monkeypatch.setattr(main, "reconcile_recent_fills", _noop)
-    monkeypatch.setattr(main, "run_execution_logger", _noop)
+    monkeypatch.setattr(main, "start_all_user_streams", _noop)
+    monkeypatch.setattr(main, "stop_all_user_streams", _noop)
     monkeypatch.setattr(main, "fail_orphaned_reports", _noop)
 
     fake_limiter = _AlwaysAllowRateLimiter()
