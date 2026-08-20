@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -29,7 +28,11 @@ from app.services.debrief_jobs import (
     start_scheduler,
     stop_scheduler,
 )
-from app.services.execution_logger import reconcile_recent_fills, run_execution_logger
+from app.services.execution_logger import (
+    reconcile_recent_fills,
+    start_all_user_streams,
+    stop_all_user_streams,
+)
 from app.services.rate_limiter import close_rate_limiter
 
 logging.basicConfig(level=logging.INFO)
@@ -40,16 +43,13 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task: asyncio.Task | None = None
-    if settings.has_alpaca_creds:
-        await reconcile_recent_fills()
-        task = asyncio.create_task(run_execution_logger())
-        logger.info("Started execution logger background task")
-    else:
+    if not settings.has_alpaca_creds:
         logger.warning(
-            "Alpaca credentials not set. Execution logger disabled. "
-            "Market/trading endpoints will return 503 until configured."
+            "Alpaca credentials not set. Market data endpoints will return 503 until configured."
         )
+    await reconcile_recent_fills()
+    await start_all_user_streams()
+    logger.info("Started per-user execution logger streams")
     await fail_orphaned_reports()
     start_scheduler()
     try:
@@ -57,12 +57,7 @@ async def lifespan(app: FastAPI):
     finally:
         stop_scheduler()
         cancel_stream_task()
-        if task:
-            task.cancel()
-            try:
-                await task
-            except (asyncio.CancelledError, Exception):
-                pass
+        await stop_all_user_streams()
         await close_rate_limiter()
         await engine.dispose()
 

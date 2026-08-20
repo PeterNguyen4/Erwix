@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from "react";
 import { Triangle } from "lucide-react";
-import { api, PnLSummary, PnLTrend, PortfolioHistory } from "@/lib/api";
+import { api, PnLSummary, PnLTrend, PortfolioHistory, PortfolioPoint } from "@/lib/api";
 import { useAccountPositions } from "@/lib/useAccountPositions";
 import PortfolioChart, { Period } from "@/components/journal/PortfolioChart";
 import AllocationChart from "@/components/journal/AllocationChart";
@@ -10,6 +10,12 @@ import TotalAssets from "@/components/journal/TotalAssets";
 import RecentTransactions from "@/components/journal/RecentTransactions";
 import Watchlist from "@/components/journal/Watchlist";
 import Sparkline from "@/components/journal/Sparkline";
+import AlpacaConnectModal from "@/components/AlpacaConnectModal";
+
+const ZERO_HISTORY: PortfolioPoint[] = [
+  { time: Math.floor(Date.now() / 1000) - 86400, equity: 0, profit_loss: 0 },
+  { time: Math.floor(Date.now() / 1000), equity: 0, profit_loss: 0 },
+];
 
 function WeekDelta({ value }: { value: number | null }) {
   if (value == null || Number.isNaN(value) || value === 0) return null;
@@ -57,7 +63,18 @@ function StatChip({ chip }: { chip: Chip }) {
 }
 
 export default function PortfolioPage() {
-  const { account, positions, positionsLoading, error: accountError } = useAccountPositions();
+  const { account, positions, positionsLoading, linked } = useAccountPositions();
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    setConnecting(true);
+    try {
+      await api.connectAlpaca("paper");
+    } catch {
+      setConnecting(false);
+    }
+  };
   const [history, setHistory] = useState<PortfolioHistory | null>(null);
   const [period, setPeriod] = useState<Period>("1M");
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -66,7 +83,6 @@ export default function PortfolioPage() {
   const [weekPnl, setWeekPnl] = useState<PnLSummary | null>(null);
   const [prevWeekPnl, setPrevWeekPnl] = useState<PnLSummary | null>(null);
   const [trend, setTrend] = useState<PnLTrend | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -91,7 +107,7 @@ export default function PortfolioPage() {
     api
       .portfolioHistory(period)
       .then(setHistory)
-      .catch((e) => setError((e as Error).message))
+      .catch(() => setHistory(null))
       .finally(() => setHistoryLoading(false));
   }, [period]);
 
@@ -153,22 +169,35 @@ export default function PortfolioPage() {
       <header className="sticky top-0 z-10 flex items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 shrink-0">
         <div className="text-xl font-normal text-fg">Portfolio</div>
         <div className="flex items-center gap-3">
-          <div className="text-xs text-muted">Paper account</div>
+          {linked === false ? (
+            <button
+              type="button"
+              onClick={() => setShowConnectModal(true)}
+              className="rounded-md bg-accent px-3 py-2 text-sm font-semibold text-on-accent transition-colors hover:bg-accent/80"
+            >
+              Connect Alpaca
+            </button>
+          ) : (
+            <div className="text-xs text-muted">Paper account</div>
+          )}
         </div>
       </header>
 
+      {showConnectModal && (
+        <AlpacaConnectModal
+          onCancel={() => setShowConnectModal(false)}
+          onConnect={handleConnect}
+          connecting={connecting}
+        />
+      )}
+
       <div className="flex-1 p-3 space-y-3">
-        {(error || accountError) && (
-          <div className="rounded-lg border border-down/40 bg-down/10 px-4 py-2 text-sm text-down">
-            {error ?? accountError}
-          </div>
-        )}
 
         {/* Portfolio value graph (2/3) + total assets (1/3) */}
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <PortfolioChart
-              points={history?.points ?? []}
+              points={history?.points ?? (linked === false ? ZERO_HISTORY : [])}
               baseValue={history?.base_value ?? 0}
               period={period}
               onPeriodChange={setPeriod}
@@ -180,7 +209,7 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <RecentTransactions />
 
           <div className="space-y-3">
@@ -194,7 +223,7 @@ export default function PortfolioPage() {
                   ))
                 : chips.map((c) => <StatChip key={c.key} chip={c} />)}
             </div>
-            <div className="grid grid-cols-2 items-start gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
               <Watchlist />
             </div>

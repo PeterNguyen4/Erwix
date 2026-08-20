@@ -3,6 +3,7 @@ import sys
 
 import pytest
 import pytest_asyncio
+from cryptography.fernet import Fernet
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from testcontainers.community.postgres import PostgresContainer
@@ -12,6 +13,30 @@ TEST_USER_ID = 1
 if sys.platform == "win32":
     # psycopg's async driver refuses to run under the default ProactorEventLoop.
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+@pytest.fixture(autouse=True)
+def _token_encryption_key(monkeypatch):
+    """Inject a sample Fernet key."""
+    from app.services import token_crypto
+
+    class _FakeSecret:
+        def __init__(self, value: str):
+            self._value = value
+
+        def get_secret_value(self) -> str:
+            return self._value
+
+    class _FakeSettings:
+        def __init__(self, key: str):
+            self.token_encryption_key = _FakeSecret(key)
+
+    monkeypatch.setattr(
+        token_crypto, "get_settings", lambda: _FakeSettings(Fernet.generate_key().decode())
+    )
+    token_crypto._fernet.cache_clear()
+    yield
+    token_crypto._fernet.cache_clear()
 
 
 @pytest.fixture(scope="session")
@@ -69,6 +94,15 @@ def make_user(user_id: int, username: str | None = None):
     )
 
 
+def make_alpaca_account(user_id: int, env: str = "paper"):
+    from app.models import AlpacaAccount
+    from app.services.token_crypto import encrypt_token
+
+    return AlpacaAccount(
+        user_id=user_id, access_token=encrypt_token(f"fake-token-{user_id}"), env=env
+    )
+
+
 class _AlwaysAllowRateLimiter:
     async def check(self, key: str, limit: int, window_ms: int):
         from app.services.rate_limiter import RateLimitResult
@@ -89,7 +123,8 @@ async def client(db_session, monkeypatch):
 
     # Mock background jobs
     monkeypatch.setattr(main, "reconcile_recent_fills", _noop)
-    monkeypatch.setattr(main, "run_execution_logger", _noop)
+    monkeypatch.setattr(main, "start_all_user_streams", _noop)
+    monkeypatch.setattr(main, "stop_all_user_streams", _noop)
     monkeypatch.setattr(main, "fail_orphaned_reports", _noop)
 
     # Stub rate limiting to not hit the real Redis DB 429.
@@ -126,7 +161,8 @@ async def unauthenticated_client(db_session, monkeypatch):
         return None
 
     monkeypatch.setattr(main, "reconcile_recent_fills", _noop)
-    monkeypatch.setattr(main, "run_execution_logger", _noop)
+    monkeypatch.setattr(main, "start_all_user_streams", _noop)
+    monkeypatch.setattr(main, "stop_all_user_streams", _noop)
     monkeypatch.setattr(main, "fail_orphaned_reports", _noop)
 
     fake_limiter = _AlwaysAllowRateLimiter()

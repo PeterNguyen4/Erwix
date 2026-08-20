@@ -114,7 +114,7 @@ export default function Watchlist() {
   }));
 
   return (
-    <div className="rounded-lg border border-border bg-panel p-4">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-panel p-4">
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold tracking-wide text-muted">Watchlist</h2>
         <button
@@ -177,7 +177,9 @@ export default function Watchlist() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-xs text-muted">No symbols yet. Add one to track it here.</p>
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-center text-xs text-muted">No symbols yet. Add one to track it here.</p>
+        </div>
       ) : (
         <div className="flex-1 divide-y divide-border overflow-auto">
           {rows.map((r) => {

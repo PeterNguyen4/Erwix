@@ -43,6 +43,7 @@ from app.services.agent_graph import (
     exit_guidance,
     run_review,
 )
+from app.services.alpaca_accounts import get_linked_client
 from app.services.debrief_jobs import create_pending_report, run_debrief_job_by_id
 from app.services.guardrails import scan_output
 from app.services.reference_resolver import resolve_references
@@ -226,8 +227,13 @@ async def watch(
         "take_profit_price": None,
     }
     try:
-        open_levels = await asyncio.to_thread(
-            alpaca_client.get_open_bracket_levels, symbol, user_id
+        linked_client = await get_linked_client(db, user_id)
+        open_levels = (
+            await asyncio.to_thread(
+                alpaca_client.get_open_bracket_levels, symbol, user_id, linked_client
+            )
+            if linked_client is not None
+            else None
         )
     except Exception:
         logger.exception(

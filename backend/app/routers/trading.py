@@ -1,10 +1,12 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import alpaca_client
 from app.auth import get_current_user_id
+from app.db import get_db
 from app.dependencies.rate_limit import rate_limit
 from app.error_handling import alpaca_errors
 from app.schemas import (
@@ -17,6 +19,7 @@ from app.schemas import (
     PortfolioHistory,
     Position,
 )
+from app.services.alpaca_accounts import get_linked_client
 from app.services.execution_logger import log_order_intent
 
 logger = logging.getLogger("erwix.trading")
@@ -32,9 +35,14 @@ _read_rate_limit = rate_limit("trading-reads", limit=120, window_ms=60_000, fail
 @router.post("/orders", response_model=OrderResponse, dependencies=[Depends(_order_rate_limit)])
 @alpaca_errors(logger)
 async def create_order(
-    order: OrderRequest, user_id: int = Depends(get_current_user_id)
+    order: OrderRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ) -> OrderResponse:
-    response = await asyncio.to_thread(alpaca_client.submit_order, order, user_id)
+    client = await get_linked_client(db, user_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="No Alpaca account linked")
+    response = await asyncio.to_thread(alpaca_client.submit_order, order, user_id, client)
     await log_order_intent(response, order, user_id)
     return response
 
@@ -45,14 +53,24 @@ async def create_order(
     dependencies=[Depends(_read_rate_limit)],
 )
 @alpaca_errors(logger)
-def positions() -> list[Position]:
-    return alpaca_client.get_positions()
+async def positions(
+    db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)
+) -> list[Position]:
+    client = await get_linked_client(db, user_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="No Alpaca account linked")
+    return await asyncio.to_thread(alpaca_client.get_positions, client)
 
 
 @router.get("/account", response_model=Account, dependencies=[Depends(_read_rate_limit)])
 @alpaca_errors(logger)
-def account() -> Account:
-    return alpaca_client.get_account()
+async def account(
+    db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)
+) -> Account:
+    client = await get_linked_client(db, user_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="No Alpaca account linked")
+    return await asyncio.to_thread(alpaca_client.get_account, client)
 
 
 @router.get(
@@ -61,11 +79,16 @@ def account() -> Account:
     dependencies=[Depends(_read_rate_limit)],
 )
 @alpaca_errors(logger)
-def portfolio_history(
+async def portfolio_history(
     period: str = Query("1M", description="1D, 1W, 1M, 3M, 1A, all"),
     timeframe: str | None = Query(None, description="1Min, 5Min, 15Min, 1H, 1D"),
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ) -> PortfolioHistory:
-    return alpaca_client.get_portfolio_history(period, timeframe)
+    client = await get_linked_client(db, user_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="No Alpaca account linked")
+    return await asyncio.to_thread(alpaca_client.get_portfolio_history, period, timeframe, client)
 
 
 @router.get(
@@ -89,6 +112,11 @@ def options_chain(
 )
 @alpaca_errors(logger)
 async def create_option_order(
-    order: OptionOrderRequest, user_id: int = Depends(get_current_user_id)
+    order: OptionOrderRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ) -> OptionOrderResponse:
-    return await asyncio.to_thread(alpaca_client.submit_option_order, order, user_id)
+    client = await get_linked_client(db, user_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="No Alpaca account linked")
+    return await asyncio.to_thread(alpaca_client.submit_option_order, order, user_id, client)

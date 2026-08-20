@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
 from app.schemas import (
     Account,
     OrderResponse,
@@ -8,6 +10,23 @@ from app.schemas import (
     PortfolioPoint,
     Position,
 )
+
+_FAKE_CLIENT = object()
+
+
+@pytest.fixture()
+def _linked(monkeypatch):
+    """Sample alpaca linked-account."""
+    mock = AsyncMock(return_value=_FAKE_CLIENT)
+    monkeypatch.setattr("app.routers.trading.get_linked_client", mock)
+    return mock
+
+
+@pytest.fixture()
+def _unlinked(monkeypatch):
+    mock = AsyncMock(return_value=None)
+    monkeypatch.setattr("app.routers.trading.get_linked_client", mock)
+    return mock
 
 
 def _order_response() -> OrderResponse:
@@ -23,7 +42,7 @@ def _order_response() -> OrderResponse:
     )
 
 
-def test_create_order_submits_and_logs_intent(client):
+def test_create_order_submits_and_logs_intent(client, _linked):
     with (
         patch(
             "app.routers.trading.alpaca_client.submit_order",
@@ -41,7 +60,15 @@ def test_create_order_submits_and_logs_intent(client):
     mock_log.assert_awaited_once()
 
 
-def test_create_order_maps_runtime_error_to_503(client):
+def test_create_order_requires_linked_account(client, _unlinked):
+    resp = client.post(
+        "/api/trading/orders",
+        json={"symbol": "AAPL", "qty": 10, "side": "buy", "type": "market"},
+    )
+    assert resp.status_code == 404
+
+
+def test_create_order_maps_runtime_error_to_503(client, _linked):
     with patch(
         "app.routers.trading.alpaca_client.submit_order",
         side_effect=RuntimeError("no creds"),
@@ -53,7 +80,7 @@ def test_create_order_maps_runtime_error_to_503(client):
     assert resp.status_code == 503
 
 
-def test_create_order_maps_value_error_to_400(client):
+def test_create_order_maps_value_error_to_400(client, _linked):
     with patch(
         "app.routers.trading.alpaca_client.submit_order",
         side_effect=ValueError("bad order"),
@@ -65,7 +92,7 @@ def test_create_order_maps_value_error_to_400(client):
     assert resp.status_code == 400
 
 
-def test_create_order_rejects_non_positive_qty(client):
+def test_create_order_rejects_non_positive_qty(client, _linked):
     resp = client.post(
         "/api/trading/orders",
         json={"symbol": "AAPL", "qty": 0, "side": "buy", "type": "market"},
@@ -73,7 +100,7 @@ def test_create_order_rejects_non_positive_qty(client):
     assert resp.status_code == 422
 
 
-def test_positions_returns_alpaca_positions(client):
+def test_positions_returns_alpaca_positions(client, _linked):
     position = Position(
         symbol="AAPL",
         qty=10,
@@ -87,7 +114,12 @@ def test_positions_returns_alpaca_positions(client):
     assert resp.json()[0]["symbol"] == "AAPL"
 
 
-def test_account_returns_alpaca_account(client):
+def test_positions_requires_linked_account(client, _unlinked):
+    resp = client.get("/api/trading/positions")
+    assert resp.status_code == 404
+
+
+def test_account_returns_alpaca_account(client, _linked):
     account = Account(buying_power=1000.0, cash=1000.0, portfolio_value=5000.0, equity=5000.0)
     with patch("app.routers.trading.alpaca_client.get_account", return_value=account):
         resp = client.get("/api/trading/account")
@@ -95,7 +127,12 @@ def test_account_returns_alpaca_account(client):
     assert resp.json()["equity"] == 5000.0
 
 
-def test_account_maps_runtime_error_to_503(client):
+def test_account_requires_linked_account(client, _unlinked):
+    resp = client.get("/api/trading/account")
+    assert resp.status_code == 404
+
+
+def test_account_maps_runtime_error_to_503(client, _linked):
     with patch(
         "app.routers.trading.alpaca_client.get_account",
         side_effect=RuntimeError("no creds"),
@@ -104,7 +141,7 @@ def test_account_maps_runtime_error_to_503(client):
     assert resp.status_code == 503
 
 
-def test_portfolio_history_returns_points(client):
+def test_portfolio_history_returns_points(client, _linked):
     history = PortfolioHistory(
         base_value=100_000.0,
         points=[PortfolioPoint(time=1, equity=101_000.0, profit_loss=1000.0)],

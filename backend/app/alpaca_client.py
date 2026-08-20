@@ -80,6 +80,16 @@ def _trading_client() -> TradingClient:
     )
 
 
+def trading_client_for_token(oauth_token: str, env: str) -> TradingClient:
+    """Trading client for user's linked Alpaca account."""
+    return TradingClient(oauth_token=oauth_token, paper=env != "live")
+
+
+def trading_stream_for_token(oauth_token: str, env: str) -> TradingStream:
+    """Trade-update stream for user's linked Alpaca account."""
+    return TradingStream(oauth_token=oauth_token, paper=env != "live")
+
+
 async def search_assets(q: str, limit: int = 10) -> list[dict]:
     """Search tickers via Yahoo Finance's public suggest API — no API key required."""
     from app.services.yahoo_finance import yahoo_search
@@ -167,9 +177,6 @@ def get_quote(symbol: str) -> Quote:
     )
 
 
-# `client_order_id` is how we attribute an Alpaca fill back to the Erwix user
-# who placed it, since all users currently share one Alpaca account. Format:
-# "<user_id>:<uuid4>" — parsed by `user_id_from_client_order_id` below.
 _CLIENT_ORDER_ID_SEP = ":"
 
 
@@ -183,10 +190,9 @@ def user_id_from_client_order_id(client_order_id: str | None) -> int | None:
         return None
 
 
-def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
+def submit_order(order: OrderRequest, user_id: int, client: TradingClient) -> OrderResponse:
     import uuid
 
-    client = _trading_client()
     side = OrderSide.BUY if order.side == "buy" else OrderSide.SELL
     tif = TimeInForce.DAY if order.time_in_force == "day" else TimeInForce.GTC
     client_order_id = f"{user_id}{_CLIENT_ORDER_ID_SEP}{uuid.uuid4()}"
@@ -251,8 +257,8 @@ def submit_order(order: OrderRequest, user_id: int) -> OrderResponse:
     )
 
 
-def get_positions() -> list[Position]:
-    client = _trading_client()
+def get_positions(client: TradingClient | None = None) -> list[Position]:
+    client = client or _trading_client()
     out: list[Position] = []
     for p in client.get_all_positions():
         out.append(
@@ -306,10 +312,11 @@ def get_option_chain(
     ]
 
 
-def submit_option_order(order: OptionOrderRequest, user_id: int) -> OptionOrderResponse:
+def submit_option_order(
+    order: OptionOrderRequest, user_id: int, client: TradingClient
+) -> OptionOrderResponse:
     import uuid
 
-    client = _trading_client()
     side = OrderSide.BUY if order.position_intent.startswith("buy") else OrderSide.SELL
     intent = PositionIntent(order.position_intent)
     tif = TimeInForce.DAY if order.time_in_force == "day" else TimeInForce.GTC
@@ -350,12 +357,13 @@ def submit_option_order(order: OptionOrderRequest, user_id: int) -> OptionOrderR
     )
 
 
-def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None] | None:
+def get_open_bracket_levels(
+    symbol: str, user_id: int, client: TradingClient
+) -> dict[str, float | None] | None:
     """Entry price from the user's open position. None if no open position."""
     from alpaca.trading.enums import QueryOrderStatus
     from alpaca.trading.requests import GetOrdersRequest
 
-    client = _trading_client()
     symbol = symbol.upper()
 
     position = next((p for p in client.get_all_positions() if p.symbol == symbol), None)
@@ -381,19 +389,18 @@ def get_open_bracket_levels(symbol: str, user_id: int) -> dict[str, float | None
     }
 
 
-def get_recent_filled_orders(after: datetime) -> list:
+def get_recent_filled_orders(after: datetime, client: TradingClient) -> list:
     """Raw Alpaca orders with a fill, submitted after `after` (UTC). Used to
     reconcile the trades table against fills the live stream may have missed."""
     from alpaca.trading.enums import QueryOrderStatus
     from alpaca.trading.requests import GetOrdersRequest
 
-    client = _trading_client()
     req = GetOrdersRequest(status=QueryOrderStatus.CLOSED, after=after, limit=500, nested=False)
     return [o for o in client.get_orders(req) if o.filled_at is not None]
 
 
-def get_account() -> Account:
-    a = _trading_client().get_account()
+def get_account(client: TradingClient | None = None) -> Account:
+    a = (client or _trading_client()).get_account()
     return Account(
         buying_power=float(a.buying_power),
         cash=float(a.cash),
@@ -404,15 +411,17 @@ def get_account() -> Account:
     )
 
 
-def get_portfolio_history(period: str = "1M", timeframe: str | None = None) -> PortfolioHistory:
-    """Equity curve for the (shared paper) account over `period`.
+def get_portfolio_history(
+    period: str = "1M", timeframe: str | None = None, client: TradingClient | None = None
+) -> PortfolioHistory:
+    """Equity curve for the user's linked account (or the shared fallback account) over `period`.
 
     `timeframe` defaults to a resolution Alpaca picks for the period when None.
     """
     from alpaca.trading.requests import GetPortfolioHistoryRequest
 
     req = GetPortfolioHistoryRequest(period=period, timeframe=timeframe)
-    h = _trading_client().get_portfolio_history(req)
+    h = (client or _trading_client()).get_portfolio_history(req)
     timestamps = h.timestamp or []
     equities = h.equity or []
     pls = h.profit_loss or []
@@ -429,16 +438,6 @@ def get_portfolio_history(period: str = "1M", timeframe: str | None = None) -> P
             )
         )
     return PortfolioHistory(base_value=float(h.base_value or 0.0), points=points)
-
-
-def make_trading_stream() -> TradingStream:
-    """Live stream of order/trade updates (fills) for auto-logging."""
-    _require_creds()
-    return TradingStream(
-        _settings.alpaca_api_key,
-        _settings.alpaca_secret_key,
-        paper=_settings.alpaca_paper,
-    )
 
 
 _data_stream: StockDataStream | None = None

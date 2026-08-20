@@ -7,15 +7,22 @@ export function useAccountPositions() {
   const [account, setAccount] = useState<Account | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [positionsLoading, setPositionsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [linked, setLinked] = useState<boolean | null>(null);
 
   const refresh = useCallback(() => {
-    api.account().then(setAccount).catch((e) => setError((e as Error).message));
+    api
+      .account()
+      .then(setAccount)
+      .catch(() => setAccount(null));
     api
       .positions()
       .then(setPositions)
       .catch(() => {})
       .finally(() => setPositionsLoading(false));
+    api
+      .alpacaStatus()
+      .then((s) => setLinked(s.connected))
+      .catch(() => setLinked(false));
   }, []);
 
   useEffect(() => {
@@ -24,5 +31,5 @@ export function useAccountPositions() {
     return () => clearInterval(id);
   }, [refresh]);
 
-  return { account, positions, positionsLoading, error, refresh };
+  return { account, positions, positionsLoading, linked, refresh };
 }
