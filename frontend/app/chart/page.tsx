@@ -7,6 +7,7 @@ import { api, Candle, Quote, SymbolResult, UserPreference } from "@/lib/api";
 import { getCached, setCached } from "@/lib/candleCache";
 import { useAccountPositions } from "@/lib/useAccountPositions";
 import OrderPanel from "@/components/OrderPanel";
+import OptionsOrderPanel from "@/components/OptionsOrderPanel";
 import PositionsTable from "@/components/PositionsTable";
 import QuoteCard from "@/components/QuoteCard";
 import AlpacaConnectModal from "@/components/AlpacaConnectModal";
@@ -113,6 +114,7 @@ function ChartPage() {
   const [liveCandle, setLiveCandle] = useState<Candle | null>(null);
   const [liveQuote, setLiveQuote] = useState<Quote | null>(null);
   const { account, positions, positionsLoading, refresh: loadAccount } = useAccountPositions();
+  const [orderTab, setOrderTab] = useState<"stock" | "options">("stock");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(() => !getCached(searchParams.get("symbol") ?? "AAPL", searchParams.get("tf") ?? "1Day"));
   const [prefsResolved, setPrefsResolved] = useState(() => !!searchParams.get("symbol"));
@@ -430,23 +432,57 @@ function ChartPage() {
           ) : (
             <QuoteCardSkeleton />
           )}
-          <OrderPanel
-            symbol={symbol}
-            onOrderPlaced={onOrderPlaced}
-            buyingPower={account?.buying_power ?? null}
-            price={liveQuote?.price ?? candles[candles.length - 1]?.close ?? null}
-            currentTime={liveCandle?.time ?? candles[candles.length - 1]?.time ?? null}
-            onBracketChange={setBracketPreview}
-            takeProfitPrice={takeProfitPrice}
-            onTakeProfitPriceChange={setTakeProfitPrice}
-            stopLossPrice={stopLossPrice}
-            onStopLossPriceChange={setStopLossPrice}
-            onRequireAlpacaConnect={() => {
-              if (alpacaConnected) return false;
-              setShowAlpacaConnectModal(true);
-              return true;
-            }}
-          />
+          <div className="flex rounded-lg border border-border bg-field p-1">
+            <button
+              type="button"
+              onClick={() => setOrderTab("stock")}
+              className={`flex-1 rounded-md py-1.5 text-sm font-semibold transition-colors ${
+                orderTab === "stock" ? "bg-accent/20 text-fg" : "text-muted hover:text-fg"
+              }`}
+            >
+              Stock
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrderTab("options")}
+              className={`flex-1 rounded-md py-1.5 text-sm font-semibold transition-colors ${
+                orderTab === "options" ? "bg-accent/20 text-fg" : "text-muted hover:text-fg"
+              }`}
+            >
+              Options
+            </button>
+          </div>
+          {orderTab === "stock" ? (
+            <OrderPanel
+              symbol={symbol}
+              onOrderPlaced={onOrderPlaced}
+              buyingPower={account?.buying_power ?? null}
+              price={liveQuote?.price ?? candles[candles.length - 1]?.close ?? null}
+              currentTime={liveCandle?.time ?? candles[candles.length - 1]?.time ?? null}
+              onBracketChange={setBracketPreview}
+              takeProfitPrice={takeProfitPrice}
+              onTakeProfitPriceChange={setTakeProfitPrice}
+              stopLossPrice={stopLossPrice}
+              onStopLossPriceChange={setStopLossPrice}
+              onRequireAlpacaConnect={() => {
+                if (alpacaConnected) return false;
+                setShowAlpacaConnectModal(true);
+                return true;
+              }}
+            />
+          ) : (
+            <OptionsOrderPanel
+              symbol={symbol}
+              onOrderPlaced={onOrderPlaced}
+              buyingPower={account?.buying_power ?? null}
+              underlyingPrice={liveQuote?.price ?? candles[candles.length - 1]?.close ?? null}
+              onRequireAlpacaConnect={() => {
+                if (alpacaConnected) return false;
+                setShowAlpacaConnectModal(true);
+                return true;
+              }}
+            />
+          )}
           <PositionsTable positions={positions} loading={positionsLoading} />
         </div>
       </div>
