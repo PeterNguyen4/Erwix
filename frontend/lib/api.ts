@@ -32,6 +32,7 @@ export interface Position {
   market_value: number;
   unrealized_pl: number;
   current_price: number | null;
+  asset_class: "us_equity" | "us_option";
 }
 
 export interface Account {
@@ -271,6 +272,45 @@ export interface OrderResponse {
   status: string;
   submitted_at: string | null;
   legs: OrderLeg[];
+}
+
+export interface OptionContract {
+  symbol: string;
+  underlying_symbol: string;
+  expiration_date: string; // YYYY-MM-DD
+  strike_price: number;
+  type: "call" | "put";
+  style: "american" | "european";
+  open_interest: number | null;
+  close_price: number | null;
+  tradable: boolean;
+}
+
+export type OptionPositionIntent =
+  | "buy_to_open"
+  | "buy_to_close"
+  | "sell_to_open"
+  | "sell_to_close";
+
+export interface OptionOrderRequest {
+  symbol: string; // OCC option symbol
+  qty: number;
+  position_intent: OptionPositionIntent;
+  type: "market" | "limit";
+  limit_price?: number | null;
+  time_in_force?: "day" | "gtc";
+}
+
+export interface OptionOrderResponse {
+  id: string;
+  client_order_id: string;
+  symbol: string;
+  qty: number;
+  side: string;
+  position_intent: string;
+  type: string;
+  status: string;
+  submitted_at: string | null;
 }
 
 // Phase-2: the analyst agent emits these; the chart draws them as overlays.
@@ -694,6 +734,14 @@ export const api = {
     getJSON<PortfolioHistory>(`/api/trading/portfolio/history?period=${encodeURIComponent(period)}`),
   submitOrder: (order: OrderRequest) =>
     postJSON<OrderResponse>("/api/trading/orders", order),
+  optionsChain: (underlyingSymbol: string, expirationDate?: string, optionType?: "call" | "put") => {
+    const q = new URLSearchParams({ underlying_symbol: underlyingSymbol });
+    if (expirationDate) q.set("expiration_date", expirationDate);
+    if (optionType) q.set("option_type", optionType);
+    return getJSON<OptionContract[]>(`/api/trading/options/chain?${q.toString()}`);
+  },
+  submitOptionOrder: (order: OptionOrderRequest) =>
+    postJSON<OptionOrderResponse>("/api/trading/options/orders", order),
   trades: (params: { symbol?: string; from?: string; to?: string } = {}) => {
     const q = new URLSearchParams();
     if (params.symbol) q.set("symbol", params.symbol);

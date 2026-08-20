@@ -120,6 +120,40 @@ class Position(BaseModel):
     market_value: float
     unrealized_pl: float
     current_price: float | None = None
+    asset_class: Literal["us_equity", "us_option"] = "us_equity"
+
+
+class OptionContractOut(BaseModel):
+    symbol: str
+    underlying_symbol: str
+    expiration_date: date
+    strike_price: float
+    type: Literal["call", "put"]
+    style: Literal["american", "european"]
+    open_interest: int | None = None
+    close_price: float | None = None
+    tradable: bool = True
+
+
+class OptionOrderRequest(BaseModel):
+    symbol: str  # OCC option symbol, e.g. AAPL240119C00150000
+    qty: float = Field(gt=0)
+    position_intent: Literal["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]
+    type: Literal["market", "limit"] = "market"
+    limit_price: float | None = None
+    time_in_force: Literal["day", "gtc"] = "day"
+
+
+class OptionOrderResponse(BaseModel):
+    id: str
+    client_order_id: str
+    symbol: str
+    qty: float
+    side: str
+    position_intent: str
+    type: str
+    status: str
+    submitted_at: datetime | None = None
 
 
 class Account(BaseModel):
@@ -142,7 +176,6 @@ class PortfolioHistory(BaseModel):
     points: list[PortfolioPoint]
 
 
-# ---- Journal ----
 class TradeOut(BaseModel):
     id: int
     symbol: str

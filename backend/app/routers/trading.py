@@ -7,7 +7,16 @@ from app import alpaca_client
 from app.auth import get_current_user_id
 from app.dependencies.rate_limit import rate_limit
 from app.error_handling import alpaca_errors
-from app.schemas import Account, OrderRequest, OrderResponse, PortfolioHistory, Position
+from app.schemas import (
+    Account,
+    OptionContractOut,
+    OptionOrderRequest,
+    OptionOrderResponse,
+    OrderRequest,
+    OrderResponse,
+    PortfolioHistory,
+    Position,
+)
 from app.services.execution_logger import log_order_intent
 
 logger = logging.getLogger("erwix.trading")
@@ -57,3 +66,29 @@ def portfolio_history(
     timeframe: str | None = Query(None, description="1Min, 5Min, 15Min, 1H, 1D"),
 ) -> PortfolioHistory:
     return alpaca_client.get_portfolio_history(period, timeframe)
+
+
+@router.get(
+    "/options/chain",
+    response_model=list[OptionContractOut],
+    dependencies=[Depends(_read_rate_limit)],
+)
+@alpaca_errors(logger)
+def options_chain(
+    underlying_symbol: str = Query(...),
+    expiration_date: str | None = Query(None, description="YYYY-MM-DD"),
+    option_type: str | None = Query(None, description="call or put"),
+) -> list[OptionContractOut]:
+    return alpaca_client.get_option_chain(underlying_symbol, expiration_date, option_type)
+
+
+@router.post(
+    "/options/orders",
+    response_model=OptionOrderResponse,
+    dependencies=[Depends(_order_rate_limit)],
+)
+@alpaca_errors(logger)
+async def create_option_order(
+    order: OptionOrderRequest, user_id: int = Depends(get_current_user_id)
+) -> OptionOrderResponse:
+    return await asyncio.to_thread(alpaca_client.submit_option_order, order, user_id)
