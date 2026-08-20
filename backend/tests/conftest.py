@@ -3,6 +3,7 @@ import sys
 
 import pytest
 import pytest_asyncio
+from cryptography.fernet import Fernet
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from testcontainers.community.postgres import PostgresContainer
@@ -12,6 +13,30 @@ TEST_USER_ID = 1
 if sys.platform == "win32":
     # psycopg's async driver refuses to run under the default ProactorEventLoop.
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+@pytest.fixture(autouse=True)
+def _token_encryption_key(monkeypatch):
+    """Inject a sample Fernet key."""
+    from app.services import token_crypto
+
+    class _FakeSecret:
+        def __init__(self, value: str):
+            self._value = value
+
+        def get_secret_value(self) -> str:
+            return self._value
+
+    class _FakeSettings:
+        def __init__(self, key: str):
+            self.token_encryption_key = _FakeSecret(key)
+
+    monkeypatch.setattr(
+        token_crypto, "get_settings", lambda: _FakeSettings(Fernet.generate_key().decode())
+    )
+    token_crypto._fernet.cache_clear()
+    yield
+    token_crypto._fernet.cache_clear()
 
 
 @pytest.fixture(scope="session")
