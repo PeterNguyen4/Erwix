@@ -2,7 +2,6 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import alpaca_client
@@ -10,7 +9,6 @@ from app.auth import get_current_user_id
 from app.db import get_db
 from app.dependencies.rate_limit import rate_limit
 from app.error_handling import alpaca_errors
-from app.models import AlpacaAccount
 from app.schemas import (
     Account,
     OptionContractOut,
@@ -21,8 +19,8 @@ from app.schemas import (
     PortfolioHistory,
     Position,
 )
+from app.services.alpaca_accounts import get_linked_client
 from app.services.execution_logger import log_order_intent
-from app.services.token_crypto import decrypt_token
 
 logger = logging.getLogger("erwix.trading")
 router = APIRouter(
@@ -37,20 +35,16 @@ _read_rate_limit = rate_limit("trading-reads", limit=120, window_ms=60_000, fail
 @router.post("/orders", response_model=OrderResponse, dependencies=[Depends(_order_rate_limit)])
 @alpaca_errors(logger)
 async def create_order(
-    order: OrderRequest, user_id: int = Depends(get_current_user_id)
+    order: OrderRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ) -> OrderResponse:
-    response = await asyncio.to_thread(alpaca_client.submit_order, order, user_id)
+    client = await get_linked_client(db, user_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="No Alpaca account linked")
+    response = await asyncio.to_thread(alpaca_client.submit_order, order, user_id, client)
     await log_order_intent(response, order, user_id)
     return response
-
-
-async def _linked_client(db: AsyncSession, user_id: int):
-    """The trading client for Alpaca account, or None if unlinked."""
-    account = await db.scalar(select(AlpacaAccount).where(AlpacaAccount.user_id == user_id))
-    if account is None:
-        return None
-    token = decrypt_token(account.access_token)
-    return alpaca_client.trading_client_for_token(token, account.env)
 
 
 @router.get(
@@ -62,7 +56,7 @@ async def _linked_client(db: AsyncSession, user_id: int):
 async def positions(
     db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)
 ) -> list[Position]:
-    client = await _linked_client(db, user_id)
+    client = await get_linked_client(db, user_id)
     if client is None:
         raise HTTPException(status_code=404, detail="No Alpaca account linked")
     return await asyncio.to_thread(alpaca_client.get_positions, client)
@@ -73,7 +67,7 @@ async def positions(
 async def account(
     db: AsyncSession = Depends(get_db), user_id: int = Depends(get_current_user_id)
 ) -> Account:
-    client = await _linked_client(db, user_id)
+    client = await get_linked_client(db, user_id)
     if client is None:
         raise HTTPException(status_code=404, detail="No Alpaca account linked")
     return await asyncio.to_thread(alpaca_client.get_account, client)
@@ -91,7 +85,7 @@ async def portfolio_history(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user_id),
 ) -> PortfolioHistory:
-    client = await _linked_client(db, user_id)
+    client = await get_linked_client(db, user_id)
     if client is None:
         raise HTTPException(status_code=404, detail="No Alpaca account linked")
     return await asyncio.to_thread(alpaca_client.get_portfolio_history, period, timeframe, client)
@@ -118,6 +112,11 @@ def options_chain(
 )
 @alpaca_errors(logger)
 async def create_option_order(
-    order: OptionOrderRequest, user_id: int = Depends(get_current_user_id)
+    order: OptionOrderRequest,
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user_id),
 ) -> OptionOrderResponse:
-    return await asyncio.to_thread(alpaca_client.submit_option_order, order, user_id)
+    client = await get_linked_client(db, user_id)
+    if client is None:
+        raise HTTPException(status_code=404, detail="No Alpaca account linked")
+    return await asyncio.to_thread(alpaca_client.submit_option_order, order, user_id, client)

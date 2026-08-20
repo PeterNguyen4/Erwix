@@ -21,12 +21,14 @@ from sqlalchemy import select
 
 from app.alpaca_client import (
     get_recent_filled_orders,
-    make_trading_stream,
+    trading_client_for_token,
+    trading_stream_for_token,
     user_id_from_client_order_id,
 )
 from app.db import SessionLocal
-from app.models import Trade
+from app.models import AlpacaAccount, Trade
 from app.schemas import OrderRequest, OrderResponse
+from app.services.token_crypto import decrypt_token
 from app.services.trade_retrieval import embed_trade_best_effort
 
 logger = logging.getLogger("erwix.execution_logger")
@@ -225,15 +227,13 @@ async def _handle_trade_update(data) -> None:
             logger.exception("Failed to log trade update")
 
 
-async def reconcile_recent_fills() -> None:
-    """Backfill any fills Alpaca reports that we don't already have logged, and
-    update the fill fields on any existing intent row that hasn't caught up
-    yet. Covers gaps where the live stream missed an event (e.g. backend was
-    down or reconnecting when the fill happened)."""
+async def _reconcile_account_fills(user_id: int, oauth_token: str, env: str) -> None:
+    """Backfill fills for a single user."""
     since = datetime.now(UTC) - _RECONCILE_LOOKBACK
+    client = trading_client_for_token(oauth_token, env)
     async with SessionLocal() as db:
         try:
-            orders = await asyncio.to_thread(get_recent_filled_orders, since)
+            orders = await asyncio.to_thread(get_recent_filled_orders, since, client)
             if not orders:
                 return
             existing = {
@@ -285,14 +285,77 @@ async def reconcile_recent_fills() -> None:
             logger.exception("Fill reconciliation failed")
 
 
-async def run_execution_logger() -> None:
-    """Connect to Alpaca's trade-update stream and log fills until cancelled."""
-    stream = make_trading_stream()
+async def _linked_accounts() -> list[AlpacaAccount]:
+    async with SessionLocal() as db:
+        return list((await db.scalars(select(AlpacaAccount))).all())
+
+
+async def reconcile_recent_fills() -> None:
+    """Backfill fills for every linked account."""
+    for account in await _linked_accounts():
+        try:
+            token = decrypt_token(account.access_token)
+        except ValueError:
+            logger.exception("Failed to decrypt Alpaca token for user %s", account.user_id)
+            continue
+        await _reconcile_account_fills(account.user_id, token, account.env)
+
+
+# One live trade-update stream per linked user, keyed by user_id.
+_user_stream_tasks: dict[int, asyncio.Task] = {}
+
+
+async def _run_user_stream(user_id: int, oauth_token: str, env: str) -> None:
+    stream = trading_stream_for_token(oauth_token, env)
     stream.subscribe_trade_updates(_handle_trade_update)
-    logger.info("Execution logger connected to Alpaca trade-update stream")
+    logger.info("Execution logger connected to Alpaca trade-update stream for user %s", user_id)
     try:
         await stream._run_forever()
     except asyncio.CancelledError:
-        logger.info("Execution logger shutting down")
         await stream.close()
         raise
+    except Exception:
+        logger.exception("Execution logger stream for user %s crashed", user_id)
+
+
+def start_user_stream(user_id: int, oauth_token: str, env: str) -> None:
+    """Start/restart the trade-update stream for one linked user."""
+    existing = _user_stream_tasks.get(user_id)
+    if existing is not None and not existing.done():
+        existing.cancel()
+    _user_stream_tasks[user_id] = asyncio.create_task(_run_user_stream(user_id, oauth_token, env))
+
+
+async def stop_user_stream(user_id: int) -> None:
+    """Stop the trade-update stream for one user."""
+    task = _user_stream_tasks.pop(user_id, None)
+    if task is None:
+        return
+    task.cancel()
+    try:
+        await task
+    except (asyncio.CancelledError, Exception):
+        pass
+
+
+async def start_all_user_streams() -> None:
+    """Start a trade-update stream for every linked account."""
+    for account in await _linked_accounts():
+        try:
+            token = decrypt_token(account.access_token)
+        except ValueError:
+            logger.exception("Failed to decrypt Alpaca token for user %s", account.user_id)
+            continue
+        start_user_stream(account.user_id, token, account.env)
+
+
+async def stop_all_user_streams() -> None:
+    tasks = list(_user_stream_tasks.values())
+    _user_stream_tasks.clear()
+    for task in tasks:
+        task.cancel()
+    for task in tasks:
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass

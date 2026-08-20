@@ -51,6 +51,7 @@ from app.services.rule_engine import (
     rules_just_fired,
     signal_price_level,
 )
+from app.services.alpaca_accounts import get_linked_client
 from app.services.rule_watch import ENTRY_COLOR, EXIT_COLOR, load_rule_set
 from app.services.trade_retrieval import count_trades_since
 
@@ -226,8 +227,13 @@ async def watch(
         "take_profit_price": None,
     }
     try:
-        open_levels = await asyncio.to_thread(
-            alpaca_client.get_open_bracket_levels, symbol, user_id
+        linked_client = await get_linked_client(db, user_id)
+        open_levels = (
+            await asyncio.to_thread(
+                alpaca_client.get_open_bracket_levels, symbol, user_id, linked_client
+            )
+            if linked_client is not None
+            else None
         )
     except Exception:
         logger.exception(

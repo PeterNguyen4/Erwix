@@ -13,6 +13,7 @@ from app.db import get_db
 from app.dependencies.rate_limit import check_ip_rate_limit
 from app.models import AlpacaAccount
 from app.schemas import AlpacaConnectUrlOut, AlpacaStatusOut
+from app.services.execution_logger import start_user_stream, stop_user_stream
 from app.services.token_crypto import encrypt_token
 
 logger = logging.getLogger("erwix.alpaca_oauth")
@@ -98,6 +99,8 @@ async def callback(
         account.env = env
     await db.commit()
 
+    start_user_stream(user_id, access_token, env)
+
     return RedirectResponse(f"{settings_url}?alpaca=connected")
 
 
@@ -121,4 +124,5 @@ async def disconnect(
     if account is not None:
         await db.delete(account)
         await db.commit()
+        await stop_user_stream(user_id)
     return {"success": True}
