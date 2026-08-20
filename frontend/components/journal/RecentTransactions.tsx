@@ -55,7 +55,7 @@ export default function RecentTransactions({ onDebriefTrade }: RecentTransaction
   };
 
   return (
-    <div className="relative rounded-lg border border-border bg-panel p-4">
+    <div className="relative flex h-full flex-col rounded-lg border border-border bg-panel p-4">
       <h2 className="mb-3 text-sm font-semibold tracking-wide text-muted">Recent Transactions</h2>
       {loading ? (
         <div className="space-y-2.5">
@@ -69,7 +69,9 @@ export default function RecentTransactions({ onDebriefTrade }: RecentTransaction
           ))}
         </div>
       ) : trades.length === 0 ? (
-        <p className="py-8 text-center text-xs text-muted">No fills in the last 90 days.</p>
+        <div className="flex flex-1 items-center justify-center">
+          <p className="text-center text-xs text-muted">No fills in the last 90 days.</p>
+        </div>
       ) : (
         <>
           <div className="overflow-x-auto">

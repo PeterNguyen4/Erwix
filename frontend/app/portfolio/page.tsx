@@ -180,7 +180,7 @@ export default function PortfolioPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
           <RecentTransactions />
 
           <div className="space-y-3">
@@ -194,7 +194,7 @@ export default function PortfolioPage() {
                   ))
                 : chips.map((c) => <StatChip key={c.key} chip={c} />)}
             </div>
-            <div className="grid grid-cols-2 items-start gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <AllocationChart positions={positions} cash={account?.cash ?? 0} loading={positionsLoading} />
               <Watchlist />
             </div>
