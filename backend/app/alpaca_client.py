@@ -5,13 +5,11 @@ Wrapper around alpaca-py for data, paper trading, and live streaming.
 import logging
 from datetime import UTC, datetime
 
-logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
-
 from alpaca.common.enums import Sort
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.live import StockDataStream
 from alpaca.data.requests import StockBarsRequest, StockLatestQuoteRequest
-from alpaca.data.timeframe import TimeFrame, TimeFrameUnit 
+from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import (
     ContractType,
@@ -30,7 +28,7 @@ from alpaca.trading.requests import (
 from alpaca.trading.stream import TradingStream
 
 from app.config import get_settings
-from app.schemas import ( 
+from app.schemas import (
     Account,
     Candle,
     OptionContractOut,
@@ -44,6 +42,8 @@ from app.schemas import (
     Position,
     Quote,
 )
+
+logging.getLogger("alpaca.data.live.websocket").setLevel(logging.CRITICAL)
 
 _settings = get_settings()
 
