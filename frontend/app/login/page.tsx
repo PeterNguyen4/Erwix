@@ -38,7 +38,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center w-full h-screen bg-auth-bg p-4 gap-4 2xl:p-6 2xl:gap-6">
+    <div className="flex items-center w-full min-h-[100dvh] bg-auth-bg p-4 gap-4 2xl:p-6 2xl:gap-6">
       <div className="hidden lg:flex relative w-1/2 h-full flex-col justify-between p-6 2xl:p-10 overflow-hidden rounded-3xl">
         <Image
           src="/image-card.jpg"
@@ -60,7 +60,14 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <div className="flex flex-1 items-center justify-center px-6">
+      <div className="flex flex-1 flex-col items-center justify-center px-6">
+        <div className="mb-6 flex flex-col items-center gap-2 lg:hidden">
+          <div className="flex items-center gap-2">
+            <Image src="/erwix-white.svg" alt="Erwix" width={30} height={30} />
+            <span className="text-3xl font-normal text-zinc-100 leading-tight">Erwix</span>
+          </div>
+          <span className="text-base text-gray-400">Strategize, Test, Trade</span>
+        </div>
         <form
             onSubmit={handleSubmit}
             className="flex flex-col gap-3 2xl:gap-4 w-full max-w-xs 2xl:max-w-sm"

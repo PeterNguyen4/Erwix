@@ -5,8 +5,13 @@ import Sidebar from "@/components/Sidebar";
 
 const AUTH_PATHS = ["/login", "/onboarding"];
 
-export default function ConditionalSidebar() {
+export function useShowSidebar() {
   const pathname = usePathname();
-  if (AUTH_PATHS.some((p) => pathname.startsWith(p))) return null;
+  return !AUTH_PATHS.some((p) => pathname.startsWith(p));
+}
+
+export default function ConditionalSidebar() {
+  const showSidebar = useShowSidebar();
+  if (!showSidebar) return null;
   return <Sidebar />;
 }

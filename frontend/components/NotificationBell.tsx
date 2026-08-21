@@ -6,7 +6,7 @@ import { Bell, X } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
-export default function NotificationBell() {
+export default function NotificationBell({ mobile = false }: { mobile?: boolean }) {
   const router = useRouter();
   const { items, unseenCount, markRead, dismiss } = useNotifications();
   const [open, setOpen] = useState(false);
@@ -58,12 +58,23 @@ export default function NotificationBell() {
           )}
         </span>
       </button>
-      {!open && <ToolbarTooltip label="Notifications" hover={hover} placement="right" anchorRef={buttonRef} />}
+      {!open && (
+        <ToolbarTooltip
+          label="Notifications"
+          hover={hover}
+          placement={mobile ? "top" : "right"}
+          anchorRef={buttonRef}
+        />
+      )}
 
       {open && (
         <div
           ref={panelRef}
-          className="absolute bottom-0 left-full ml-3 w-80 rounded-lg border border-auth-field/40 bg-panel shadow-xl z-40 overflow-hidden"
+          className={
+            mobile
+              ? "absolute bottom-full right-0 mb-3 w-80 max-w-[90vw] rounded-lg border border-auth-field/40 bg-panel shadow-xl z-40 overflow-hidden"
+              : "absolute bottom-0 left-full ml-3 w-80 rounded-lg border border-auth-field/40 bg-panel shadow-xl z-40 overflow-hidden"
+          }
         >
           <div className="px-4 py-3 border-b border-auth-field/40 text-sm font-semibold text-fg">
             Notifications

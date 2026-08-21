@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 import NotificationBell from "@/components/NotificationBell";
@@ -30,10 +30,21 @@ export default function Sidebar() {
   const [settingsHover, setSettingsHover] = useState(false);
   const navButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 767px)");
+    setIsMobile(mql.matches);
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+
+  const tooltipPlacement = isMobile ? "top" : "right";
 
   return (
-    <nav className="flex flex-col items-center gap-1 border-r border-auth-field/40 bg-panel w-16 py-4 z-30 shrink-0">
-      <div className="mb-6 px-2">
+    <nav className="fixed bottom-0 left-0 right-0 md:relative flex flex-row md:flex-col items-center justify-around md:justify-start gap-1 border-t md:border-t-0 md:border-r border-auth-field/40 bg-panel w-full md:w-16 py-2 md:py-4 z-30 shrink-0">
+      <div className="hidden md:block mb-6 px-2">
         <img src="/erwix.svg" alt="Erwix" className="w-8 h-8" />
       </div>
       {NAV_ITEMS.map(({ label, href, Icon }) => {
@@ -61,16 +72,16 @@ export default function Sidebar() {
             <ToolbarTooltip
               label={label}
               hover={hoveredHref === href}
-              placement="right"
+              placement={tooltipPlacement}
               anchorRef={{ current: navButtonRefs.current[href] ?? null }}
             />
           </div>
         );
       })}
-      <div className="flex-1" />
-      <NotificationBell />
+      <div className="hidden md:block md:flex-1" />
+      <NotificationBell mobile={isMobile} />
       <div
-        className="relative mb-2"
+        className="relative md:mb-2"
         onMouseEnter={() => setSettingsHover(true)}
         onMouseLeave={() => setSettingsHover(false)}
       >
@@ -85,7 +96,7 @@ export default function Sidebar() {
         >
           <Settings size={20} strokeWidth={2} />
         </button>
-        <ToolbarTooltip label="Settings" hover={settingsHover} placement="right" anchorRef={settingsButtonRef} />
+        <ToolbarTooltip label="Settings" hover={settingsHover} placement={tooltipPlacement} anchorRef={settingsButtonRef} />
       </div>
     </nav>
   );
