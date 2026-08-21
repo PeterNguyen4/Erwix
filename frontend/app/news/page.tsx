@@ -110,19 +110,32 @@ export default function NewsPage() {
               <div className="mt-1.5 h-3.5 w-4/5 animate-pulse rounded bg-border/40" />
             </div>
           ) : insight ? (
-            <div className="relative overflow-hidden rounded-lg border border-accent/30 bg-panel p-4">
-              <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-accent/20 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-10 -left-10 h-40 w-40 rounded-full bg-fuchsia-500/15 blur-3xl" />
-              <div className="relative mb-2 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
-                <span className="text-sm font-semibold text-violet-600 dark:text-violet-300">Insights</span>
+            <div className="rounded-lg border border-border bg-panel p-4">
+              <div className="mb-2 flex items-center gap-2">
+                <Sparkles
+                  className="h-4 w-4 shrink-0"
+                  stroke="url(#insights-twinkle-grad)"
+                  strokeWidth={1.25}
+                  fill="url(#insights-twinkle-grad)"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient id="insights-twinkle-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#6d54b5" />
+                      <stop offset="100%" stopColor="#c1487f" />
+                    </linearGradient>
+                  </defs>
+                </Sparkles>
+                <span className="bg-gradient-to-r from-[#6d54b5] to-[#c1487f] bg-clip-text text-sm font-semibold text-transparent">
+                  Insights
+                </span>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold uppercase ${SENTIMENT_STYLE[insight.sentiment]}`}>
                   {insight.sentiment}
                 </span>
               </div>
-              <p className="relative mb-2 text-sm text-fg">{insight.advice}</p>
+              <p className="mb-2 text-sm text-fg">{insight.advice}</p>
               {insight.rationale.length > 0 && (
-                <ul className="relative list-disc pl-5 text-xs text-muted">
+                <ul className="list-disc pl-5 text-xs text-muted">
                   {insight.rationale.map((r, i) => (
                     <li key={i}>{r}</li>
                   ))}

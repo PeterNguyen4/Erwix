@@ -12,7 +12,24 @@ import { getDebriefChatDraft } from "@/lib/debriefChatDraft";
 import { getSessionOverride, setSessionOverride } from "@/lib/debriefChatSession";
 import { useClickOutside } from "@/lib/useClickOutside";
 
+const TOOL_LABELS: Record<string, { verb: string; rest: string }> = {
+  draw_annotations: { verb: "Draw", rest: "annotations" },
+  spotlight_day: { verb: "Spotlight", rest: "day" },
+  spotlight_trade: { verb: "Spotlight", rest: "trade" },
+  zoom_to_range: { verb: "Zoom", rest: "to range" },
+  quote_note: { verb: "Quote", rest: "note" },
+  strategy_context: { verb: "Search", rest: "strategy context" },
+  strategy_advice: { verb: "Get", rest: "strategy advice" },
+  compare_trade_windows: { verb: "Compare", rest: "trade windows" },
+  fetch_trades_window: { verb: "Fetch", rest: "trades window" },
+  search_trades: { verb: "Search", rest: "trades" },
+  fetch_symbol_news: { verb: "Fetch", rest: "symbol news" },
+  market_insight: { verb: "Get", rest: "market insight" },
+  backtest_results: { verb: "Get", rest: "backtest results" },
+};
+
 function toolLabelParts(tool: string): { verb: string; rest: string } {
+  if (TOOL_LABELS[tool]) return TOOL_LABELS[tool];
   const words = tool.split("_").map((w) => w[0]?.toUpperCase() + w.slice(1));
   return { verb: words[0] ?? "", rest: words.slice(1).join(" ") };
 }
@@ -23,7 +40,7 @@ function ToolCallBadge({ tool }: { tool: string }) {
   const Icon = CHART_TOOLS.has(tool) ? Wrench : Search;
   const { verb, rest } = toolLabelParts(tool);
   return (
-    <div className="my-2 flex items-center gap-1.5 text-xs font-medium text-muted">
+    <div className="my-4 flex items-center gap-1.5 pl-5 text-xs font-medium text-muted">
       <Icon size={12} strokeWidth={2.2} />
       <span className="font-extrabold">{verb}</span>
       {rest && <span>{rest}</span>}
@@ -58,14 +75,14 @@ const PLACEHOLDER_PROMPTS = [
 ];
 
 const MARKDOWN_COMPONENTS = {
-  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="mb-2 last:mb-0" {...props} />,
+  p: (props: React.HTMLAttributes<HTMLParagraphElement>) => <p className="mb-3 last:mb-0" {...props} />,
   ul: (props: React.HTMLAttributes<HTMLUListElement>) => (
-    <ul className="mb-2 list-disc space-y-0.5 pl-4 last:mb-0" {...props} />
+    <ul className="mb-3 list-disc space-y-1.5 pl-4 last:mb-0" {...props} />
   ),
   ol: (props: React.HTMLAttributes<HTMLOListElement>) => (
-    <ol className="mb-2 list-decimal space-y-0.5 pl-4 last:mb-0" {...props} />
+    <ol className="mb-3 list-decimal space-y-1.5 pl-4 last:mb-0" {...props} />
   ),
-  li: (props: React.HTMLAttributes<HTMLLIElement>) => <li {...props} />,
+  li: (props: React.HTMLAttributes<HTMLLIElement>) => <li className="[&>p]:mb-1 [&>p:last-child]:mb-0" {...props} />,
   h1: (props: React.HTMLAttributes<HTMLHeadingElement>) => (
     <h3 className="mb-1.5 mt-3 text-base font-semibold first:mt-0" {...props} />
   ),
@@ -76,7 +93,7 @@ const MARKDOWN_COMPONENTS = {
     <h4 className="mb-1 mt-2.5 text-[13px] font-semibold first:mt-0" {...props} />
   ),
   strong: (props: React.HTMLAttributes<HTMLElement>) => <strong className="font-semibold text-fg" {...props} />,
-  hr: () => <hr className="my-3 border-t border-muted/50" />,
+  hr: () => <div className="my-5" />,
   code: (props: React.HTMLAttributes<HTMLElement>) => (
     <code className="rounded bg-border/60 px-1 py-0.5 text-[0.85em]" {...props} />
   ),
@@ -536,19 +553,19 @@ export default function DebriefChat({ reportId }: { reportId?: number | null }) 
         onScroll={handleScroll}
         className="chat-scroll flex-1 space-y-2 overflow-y-auto overflow-x-hidden px-4 pb-32 pt-6"
       >
-        {messages.map((m) => (
+        {messages.map((m, idx) => (
           <div
             key={m.id}
             className={
               m.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-accent/20 px-3 py-2 text-sm text-fg"
-                : "text-sm text-fg"
+                ? `ml-auto max-w-[85%] rounded-2xl rounded-br-sm bg-accent/20 px-3 py-2 text-sm text-fg${idx > 0 ? " mt-6" : ""}`
+                : `text-sm text-fg${idx > 0 && messages[idx - 1].role === "user" ? " mt-6" : ""}`
             }
           >
             {m.role === "assistant" ? (
               m.parts ? (
                 m.parts.length === 0 ? (
-                  <div className="py-0.5 pl-[18px]">
+                  <div className="py-0.5">
                     <TypingIndicator />
                   </div>
                 ) : (
@@ -556,7 +573,7 @@ export default function DebriefChat({ reportId }: { reportId?: number | null }) 
                     part.type === "tool_call" ? (
                       <ToolCallBadge key={i} tool={part.tool} />
                     ) : (
-                      <div key={i} className="whitespace-pre-wrap py-0.5 pl-[18px]">
+                      <div key={i} className="px-2 py-0.5">
                         <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
                           {part.text}
                         </ReactMarkdown>
@@ -569,7 +586,7 @@ export default function DebriefChat({ reportId }: { reportId?: number | null }) 
                   {(m.tool_provenance ?? []).map((call, i) => (
                     <ToolCallBadge key={`${call.tool}-${i}`} tool={call.tool} />
                   ))}
-                  <div className="whitespace-pre-wrap py-0.5 pl-[18px]">
+                  <div className="px-2 py-0.5">
                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={MARKDOWN_COMPONENTS}>
                       {m.content}
                     </ReactMarkdown>

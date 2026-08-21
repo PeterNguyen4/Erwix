@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import ConditionalSidebar from "@/components/ConditionalSidebar";
+import ContentFrame from "@/components/ContentFrame";
 import AuthProvider from "@/components/AuthProvider";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import TitleTooltip from "@/components/TitleTooltip";
@@ -37,13 +38,11 @@ export default function RootLayout({
         <link rel="icon" href="/erwix.svg" />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body className="flex h-screen" suppressHydrationWarning>
+      <body className="flex flex-col md:flex-row h-screen" suppressHydrationWarning>
         <ThemeProvider>
           <AuthProvider>
             <ConditionalSidebar />
-            <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
-              {children}
-            </div>
+            <ContentFrame>{children}</ContentFrame>
             <TitleTooltip />
           </AuthProvider>
         </ThemeProvider>

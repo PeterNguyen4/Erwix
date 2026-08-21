@@ -10,6 +10,25 @@ import SpotlightOverlay from "@/components/journal/SpotlightOverlay";
 import { useDebriefReport } from "@/lib/useDebriefReport";
 import { useAuth } from "@/components/AuthProvider";
 
+function TwinkleIcon({ className }: { className?: string }) {
+  return (
+    <Sparkles
+      className={`h-4 w-4 ${className ?? ""}`}
+      stroke="url(#debrief-twinkle-grad)"
+      strokeWidth={1.25}
+      fill="url(#debrief-twinkle-grad)"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="debrief-twinkle-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#6d54b5" />
+          <stop offset="100%" stopColor="#c148af" />
+        </linearGradient>
+      </defs>
+    </Sparkles>
+  );
+}
+
 const AnalystDebrief = dynamic(() => import("@/components/journal/AnalystDebrief"), { ssr: false });
 const DebriefReportView = dynamic(() => import("@/components/journal/DebriefReportView"), { ssr: false });
 
@@ -98,12 +117,15 @@ export default function JournalPage() {
           leftPanelExtra={
             report &&
             !(report.status === "ready" && report.viewed_at) && (
-              <div className="relative flex min-h-[100px] flex-col overflow-hidden rounded-lg border border-accent/30 bg-violet-500/[0.03] px-3.5 py-4 animate-fade-in-up">
-                <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/20 blur-2xl" />
-                <div className="pointer-events-none absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-fuchsia-500/15 blur-2xl" />
-                <Sparkles className="relative h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
-                <span className="relative mt-2.5 flex-1 text-xs leading-relaxed text-fg">
-                  {report.status === "ready" && "Your scheduled debrief is ready."}
+              <div className="flex min-h-[100px] flex-col rounded-lg border border-border bg-panel px-3.5 py-4 animate-fade-in-up">
+                <div className="flex items-center gap-2">
+                  <TwinkleIcon className="shrink-0" />
+                  <span className="bg-gradient-to-r from-[#6d54b5] to-[#c1487f] bg-clip-text text-sm font-semibold text-transparent">
+                    Debrief
+                  </span>
+                </div>
+                <span className="mt-2.5 flex-1 text-xs leading-relaxed text-fg">
+                  {report.status === "ready" && "Your scheduled review is ready."}
                   {(report.status === "pending" || report.status === "running") &&
                     `${report.current_step}/${report.total_steps ?? "?"} trades reviewed` +
                       (report.eta_seconds != null ? ` ~ ${Math.ceil(report.eta_seconds / 60)} min left` : "")}
@@ -115,7 +137,7 @@ export default function JournalPage() {
                       setReportOpen(true);
                       if (report.status === "ready") api.markDebriefViewed(report.id).then(refresh).catch(() => {});
                     }}
-                    className="relative mt-3 flex items-center gap-1 self-end text-xs font-normal text-accent hover:underline dark:text-violet-400"
+                    className="mt-3 flex items-center gap-1 self-end text-xs font-normal text-accent hover:underline"
                   >
                     {report.status === "ready" ? "Open Report" : "View Progress"}
                     <ArrowRight size={12} strokeWidth={2.2} />
@@ -128,19 +150,19 @@ export default function JournalPage() {
             report &&
             report.status === "ready" &&
             report.viewed_at && (
-              <div className="relative flex min-h-[100px] flex-col overflow-hidden rounded-lg border border-accent/30 bg-violet-500/[0.03] px-3.5 py-4 animate-fade-in-up">
-                <div className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-accent/20 blur-2xl" />
-                <div className="pointer-events-none absolute -bottom-8 -left-8 h-24 w-24 rounded-full bg-fuchsia-500/15 blur-2xl" />
-                <div className="relative mb-2 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 shrink-0 text-violet-600 dark:text-violet-300" />
-                  <span className="text-sm font-semibold text-violet-600 dark:text-violet-300">Weekly Notes</span>
+              <div className="flex min-h-[100px] flex-col rounded-lg border border-border bg-panel px-3.5 py-4 animate-fade-in-up">
+                <div className="mb-2 flex items-center gap-2">
+                  <TwinkleIcon className="shrink-0" />
+                  <span className="bg-gradient-to-r from-[#6d54b5] to-[#c1487f] bg-clip-text text-sm font-semibold text-transparent">
+                    Weekly Notes
+                  </span>
                 </div>
-                <span className="relative flex-1 text-xs leading-relaxed text-fg">
-                  {report.summary || "Your scheduled debrief is ready."}
+                <span className="flex-1 text-xs leading-relaxed text-fg">
+                  {report.summary || "Your scheduled review is ready."}
                 </span>
                 <button
                   onClick={() => setReportOpen(true)}
-                  className="relative mt-3 flex items-center gap-1 self-end text-xs font-normal text-accent hover:underline dark:text-violet-400"
+                  className="mt-3 flex items-center gap-1 self-end text-xs font-normal text-accent hover:underline"
                 >
                   Open Report
                   <ArrowRight size={12} strokeWidth={2.2} />
