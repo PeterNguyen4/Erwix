@@ -1192,7 +1192,7 @@ function ActionBadge({ label }: { label: string }) {
   const verb = isBuild ? "Build" : "Edit";
   const rest = label.slice(verb.length);
   return (
-    <div className="flex items-center gap-1.5 text-xs font-medium text-muted">
+    <div className="my-4 flex items-center gap-1.5 pl-5 text-xs font-medium text-muted">
       <Icon size={12} strokeWidth={2.2} />
       <span className="font-extrabold">{verb}</span>
       {rest}
@@ -1856,47 +1856,51 @@ export default function BacktestChat({
         {error && (
           <div className="rounded-md border border-down/40 bg-down/10 px-3 py-2 text-sm text-down">{error}</div>
         )}
-        {messages.map((m) =>
-          m.kind === "config" ? (
-            <ConfigSummaryCard
-              key={m.id}
-              config={m.config}
-              onRemoveRule={removeRule}
-              onUpdateRule={updateRule}
-              onRename={renameStrategy}
-              onRun={handleRun}
-              running={running}
-              canRun={canRun}
-              onUpdateStopLoss={updateStopLoss}
-              onUpdateTakeProfit={updateTakeProfit}
-              onUpdateSizing={updateSizing}
-              onResetSizing={resetSizing}
-              onUpdateSymbol={updateSymbol}
-              onUpdateTimeframe={updateTimeframe}
-              onResetPreferences={resetPreferences}
-              windowStart={windowStart}
-              windowEnd={windowEnd}
-              onUpdateWindowStart={onUpdateWindowStart}
-              onUpdateWindowEnd={onUpdateWindowEnd}
-              onAddRule={addRuleTemplate}
-            />
-          ) : m.kind === "action" ? (
-            <ActionBadge key={m.id} label={m.label} />
-          ) : m.kind === "confirm" ? (
-            <RunConfirm key={m.id} message={m.message} resolved={m.resolved} onConfirm={() => resolveRunConfirm(m.id, true)} onCancel={() => resolveRunConfirm(m.id, false)} />
-          ) : (
-            <div
-              key={m.id}
-              className={
-                m.role === "user"
-                  ? "ml-auto max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-accent/20 px-3 py-2 text-sm text-fg"
-                  : "whitespace-pre-wrap py-0.5 pl-[18px] text-sm text-fg"
-              }
-            >
-              {m.text ? m.text : !m.done ? <TypingIndicator /> : null}
+        {messages.map((m, idx) => {
+          const afterUser = idx > 0 && messages[idx - 1].role === "user" && m.role === "assistant";
+          const extraSpace = m.kind === "text" && m.role === "user" ? "my-4" : afterUser ? "mt-4" : "";
+          return (
+            <div key={m.id} className={extraSpace || undefined}>
+              {m.kind === "config" ? (
+                <ConfigSummaryCard
+                  config={m.config}
+                  onRemoveRule={removeRule}
+                  onUpdateRule={updateRule}
+                  onRename={renameStrategy}
+                  onRun={handleRun}
+                  running={running}
+                  canRun={canRun}
+                  onUpdateStopLoss={updateStopLoss}
+                  onUpdateTakeProfit={updateTakeProfit}
+                  onUpdateSizing={updateSizing}
+                  onResetSizing={resetSizing}
+                  onUpdateSymbol={updateSymbol}
+                  onUpdateTimeframe={updateTimeframe}
+                  onResetPreferences={resetPreferences}
+                  windowStart={windowStart}
+                  windowEnd={windowEnd}
+                  onUpdateWindowStart={onUpdateWindowStart}
+                  onUpdateWindowEnd={onUpdateWindowEnd}
+                  onAddRule={addRuleTemplate}
+                />
+              ) : m.kind === "action" ? (
+                <ActionBadge label={m.label} />
+              ) : m.kind === "confirm" ? (
+                <RunConfirm message={m.message} resolved={m.resolved} onConfirm={() => resolveRunConfirm(m.id, true)} onCancel={() => resolveRunConfirm(m.id, false)} />
+              ) : (
+                <div
+                  className={
+                    m.role === "user"
+                      ? "ml-auto max-w-[90%] whitespace-pre-wrap rounded-2xl rounded-br-sm bg-accent/20 px-3 py-2 text-sm text-fg"
+                      : "whitespace-pre-wrap px-2 py-0.5 text-sm text-fg"
+                  }
+                >
+                  {m.text ? m.text : !m.done ? <TypingIndicator /> : null}
+                </div>
+              )}
             </div>
-          ),
-        )}
+          );
+        })}
         {waiting && <TypingIndicator />}
       </div>
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-16 bg-gradient-to-t from-panel to-transparent" />
