@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ConditionalSidebar from "@/components/ConditionalSidebar";
 import ContentFrame from "@/components/ContentFrame";
@@ -25,6 +25,11 @@ export const metadata: Metadata = {
     icon: "/erwix.svg",
     shortcut: "/erwix.svg",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({

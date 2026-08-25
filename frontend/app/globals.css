@@ -86,3 +86,11 @@ body {
   background: rgb(var(--color-muted));
   border-radius: 4px;
 }
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

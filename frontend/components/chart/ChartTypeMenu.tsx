@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { IconStar } from "@/components/chart/drawingTools";
-import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
+import { DropdownPanel, ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
 interface ChartTypeMenuProps {
   value: ChartTypeId;
@@ -13,9 +13,10 @@ interface ChartTypeMenuProps {
   align?: "left" | "right";
   pinned: Set<ChartTypeId>;
   onTogglePin: (id: ChartTypeId) => void;
+  showLabel?: boolean;
 }
 
-export default function ChartTypeMenu({ value, onChange, align = "left", pinned, onTogglePin }: ChartTypeMenuProps) {
+export default function ChartTypeMenu({ value, onChange, align = "left", pinned, onTogglePin, showLabel = false }: ChartTypeMenuProps) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -28,18 +29,19 @@ export default function ChartTypeMenu({ value, onChange, align = "left", pinned,
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="flex h-7 items-center gap-1 rounded px-1.5 text-muted transition-colors hover:bg-violet-500/20 hover:text-fg"
+        className={
+          showLabel
+            ? "flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-border bg-field px-3 text-muted transition-colors hover:bg-violet-500/10 hover:text-fg"
+            : "flex h-7 items-center gap-1 rounded px-1.5 text-muted transition-colors hover:bg-violet-500/20 hover:text-fg"
+        }
       >
         <current.icon />
+        {showLabel && <span className="whitespace-nowrap text-xs">{current.label}</span>}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
-      <ToolbarTooltip label={current.label} hover={hover && !open} anchorRef={buttonRef} />
-      {open && (
-        <div
-          className={`absolute top-full z-30 mt-1 w-40 rounded-md border border-border bg-panel py-1 shadow-lg ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
-        >
+      {!showLabel && <ToolbarTooltip label={current.label} hover={hover && !open} anchorRef={buttonRef} />}
+      <DropdownPanel open={open} anchorRef={buttonRef} align={align}>
+        <div className="w-40 rounded-md border border-border bg-panel py-1 shadow-lg">
           {CHART_TYPES.map((t) => (
             <div
               key={t.id}
@@ -74,7 +76,7 @@ export default function ChartTypeMenu({ value, onChange, align = "left", pinned,
             </div>
           ))}
         </div>
-      )}
+      </DropdownPanel>
     </div>
   );
 }

@@ -299,7 +299,7 @@ function ChartPage() {
       <header className="sticky top-0 z-50 flex flex-wrap items-center justify-between min-h-[60px] border-b border-auth-field/40 bg-panel px-4 py-3 gap-3 shrink-0">
         <div className="text-xl font-normal text-fg">Chart</div>
 
-        <div className="flex min-w-0 flex-1 items-center gap-3 sm:flex-none">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-3 sm:flex-none">
         <div className="relative flex items-center">
           <button
             type="button"
@@ -337,14 +337,14 @@ function ChartPage() {
           )}
         </div>
 
-        <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+        <div className="relative min-w-0 max-w-[120px] flex-1 sm:w-72 sm:max-w-none sm:flex-none">
           <div className="flex items-center gap-2 rounded border border-border bg-field px-3 py-2 focus-within:border-violet-400">
             <span className="text-muted">
               <IconSearch />
             </span>
             <input
               type="text"
-              placeholder="Search symbol/name"
+              placeholder={symbol}
               value={symbolSearch}
               onChange={(e) => handleSearchChange(e.target.value)}
               onFocus={() => {
@@ -389,13 +389,15 @@ function ChartPage() {
 
       <div className="grid flex-1 min-h-0 grid-cols-1 gap-3 p-3 lg:grid-rows-1 lg:grid-cols-[1fr_320px] lg:overflow-hidden">
         <div className="flex h-[480px] shrink-0 flex-col overflow-hidden lg:h-auto lg:min-h-0">
-          <div className="relative flex-1 min-h-0 rounded-lg border border-auth-field/40 bg-bg overflow-hidden">
+          <div className="relative flex-1 min-h-0">
             {error ? (
-              <div className="flex h-full items-center justify-center text-sm text-down">{error}</div>
+              <div className="flex h-full items-center justify-center rounded-lg border border-auth-field/40 bg-bg text-sm text-down">{error}</div>
             ) : !prefsResolved || (loading && candles.length === 0) ? (
-              <ChartSkeleton />
+              <div className="h-full overflow-hidden rounded-lg border border-auth-field/40 bg-bg">
+                <ChartSkeleton />
+              </div>
             ) : candles.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-center px-4">
+              <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-auth-field/40 bg-bg text-center px-4">
                 <div className="text-sm font-medium text-fg">No chart data for {symbol}</div>
                 <p className="max-w-xs text-xs text-muted">
                   We couldn&apos;t find any candles for this symbol/timeframe. Try a different symbol or timeframe.
@@ -415,6 +417,7 @@ function ChartPage() {
                   which === "tp" ? setTakeProfitPrice(newPrice) : setStopLossPrice(newPrice)
                 }
                 onQuickOrder={handleQuickOrder}
+                standaloneToolbar
               />
             )}
             <RuleSignalToastStack signals={ruleSignals} onDismiss={dismissRuleSignal} />

@@ -27,7 +27,7 @@ import ClearMenu from "@/components/chart/ClearMenu";
 import ChartContextMenu from "@/components/chart/ChartContextMenu";
 import { CHART_TYPES, ChartTypeId } from "@/components/chart/chartTypes";
 import { DRAWING_TOOLS, DrawingToolId } from "@/components/chart/drawingTools";
-import { INDICATORS, resolveIndicator } from "@/components/chart/indicators";
+import { resolveIndicator } from "@/components/chart/indicators";
 
 const COMPANY_NAMES: Record<string, string> = {
   AAPL: "Apple Inc.",
@@ -64,6 +64,8 @@ interface ChartProps {
   infoOverlay?: boolean;
   requiredIndicators?: string[];
   hideToolbar?: boolean;
+  /** Renders the toolbar as its own card above the chart canvas instead of fused flush against it. */
+  standaloneToolbar?: boolean;
   lockIndicators?: boolean;
   hideIndicatorBadges?: boolean;
   initialIndicators?: string[];
@@ -172,6 +174,7 @@ export default function Chart({
   infoOverlay = false,
   requiredIndicators,
   hideToolbar = false,
+  standaloneToolbar = false,
   lockIndicators = false,
   hideIndicatorBadges = false,
   initialIndicators,
@@ -1410,7 +1413,7 @@ export default function Chart({
     const valueColor = bull ? "text-up" : "text-down";
     const fmt = (v: number) => v.toFixed(2);
     return (
-      <span className="flex select-none gap-2 text-xs tabular-nums pointer-events-none">
+      <span className="flex flex-wrap select-none gap-x-2 gap-y-0.5 text-xs tabular-nums pointer-events-none">
         <span className="text-fg">O <span className={valueColor}>{fmt(hoveredCandle.open)}</span></span>
         <span className="text-fg">H <span className={valueColor}>{fmt(hoveredCandle.high)}</span></span>
         <span className="text-fg">L <span className={valueColor}>{fmt(hoveredCandle.low)}</span></span>
@@ -1426,19 +1429,26 @@ export default function Chart({
   })();
 
   return (
-    <div ref={wrapperRef} className="relative flex flex-col h-full w-full">
-      {/* Info bar + toolbar (single horizontal row) */}
+    <div ref={wrapperRef} className={`relative flex flex-col h-full w-full ${standaloneToolbar ? "gap-2" : ""}`}>
       {!hideToolbar && (
-      <div className="relative flex items-center gap-1 border-b border-border bg-panel px-4 py-1 z-30 shrink-0">
-        {(symbolBlock || !showInfoOverlay) && (
+      <div
+        className={`relative flex items-center overflow-x-auto z-30 shrink-0 ${
+          standaloneToolbar
+            ? showInfoOverlay
+              ? "no-scrollbar gap-2 py-2"
+              : "rounded-lg border border-auth-field/40 bg-panel gap-1 px-4 py-1"
+            : "border-b border-border bg-panel gap-1 px-4 py-1"
+        }`}
+      >
+        {!showInfoOverlay && symbolBlock && (
           <div className="mr-3 flex items-baseline gap-2">
             {symbolBlock}
-            {!showInfoOverlay && ohlcBlock}
+            {ohlcBlock}
           </div>
         )}
 
         {/* Everything else pushed to the right of the info bar, same row */}
-        <div className="ml-auto flex items-center gap-1">
+        <div className={`flex items-center ${showInfoOverlay ? "gap-2" : "ml-auto gap-1"}`}>
           {/* Chart type */}
           <ChartTypeMenu
             value={chartTypeId}
@@ -1446,19 +1456,20 @@ export default function Chart({
             align="right"
             pinned={pinnedChartTypes}
             onTogglePin={togglePinnedChartType}
+            showLabel={showInfoOverlay}
           />
           {/* Pinned chart types — starred in the dropdown, surfaced here for one-click access. */}
           {CHART_TYPES.filter((t) => pinnedChartTypes.has(t.id)).map((t) => (
-            <ToolbarButton key={t.id} label={t.label} active={chartTypeId === t.id} onClick={() => setChartTypeId(t.id)}>
+            <ToolbarButton key={t.id} label={t.label} active={chartTypeId === t.id} showLabel={showInfoOverlay} onClick={() => setChartTypeId(t.id)}>
               <t.icon />
             </ToolbarButton>
           ))}
 
           {/* Divider */}
-          <div className="h-5 w-px bg-border mx-1" />
+          {!showInfoOverlay && <div className="h-5 w-px bg-border mx-1" />}
 
           {/* Drawings */}
-          <ToolbarButton label="Cursor" active={drawingState.mode === "crosshair"} onClick={() => setMode("crosshair")}>
+          <ToolbarButton label="Cursor" active={drawingState.mode === "crosshair"} showLabel={showInfoOverlay} onClick={() => setMode("crosshair")}>
             <IconCursor />
           </ToolbarButton>
           <DrawingMenu
@@ -1471,16 +1482,17 @@ export default function Chart({
             align="right"
             pinned={pinnedDrawingTools}
             onTogglePin={togglePinnedDrawingTool}
+            showLabel={showInfoOverlay}
           />
           {/* Pinned drawing tools — starred in the dropdown, surfaced here for one-click access. */}
           {DRAWING_TOOLS.filter((t) => pinnedDrawingTools.has(t.id)).map((t) => (
-            <ToolbarButton key={t.id} label={t.label} active={drawingState.mode === t.id} onClick={() => setMode(t.id)}>
+            <ToolbarButton key={t.id} label={t.label} active={drawingState.mode === t.id} showLabel={showInfoOverlay} onClick={() => setMode(t.id)}>
               <t.icon />
             </ToolbarButton>
           ))}
 
           {/* Divider */}
-          <div className="h-5 w-px bg-border mx-1" />
+          {!showInfoOverlay && <div className="h-5 w-px bg-border mx-1" />}
 
           {/* Indicators — rendered from the registry, so adding one is just adding an entry there. */}
           <IndicatorsMenu
@@ -1489,13 +1501,23 @@ export default function Chart({
             onAdd={addIndicator}
             pinned={pinnedIndicators}
             onTogglePin={togglePinnedIndicator}
+            showLabel={showInfoOverlay}
           />
-          {/* Pinned indicators — starred in the dropdown, surfaced here for one-click access. */}
-          {INDICATORS.filter((ind) => pinnedIndicators.has(ind.id)).map((ind) => (
-            <ToolbarButton key={ind.id} label={ind.label} active={activeIndicators.has(ind.id)} onClick={() => toggleIndicator(ind.id)}>
-              <ind.icon />
-            </ToolbarButton>
-          ))}
+          {/* Pinned indicators (starred in the dropdown) plus, on mobile, any indicator the user has actively turned on. */}
+          {[...new Set([...pinnedIndicators, ...(showInfoOverlay ? activeIndicators : [])])]
+            .map((id) => resolveIndicator(id))
+            .filter((ind): ind is NonNullable<typeof ind> => ind != null)
+            .map((ind) => (
+              <ToolbarButton
+                key={ind.id}
+                label={ind.label}
+                active={activeIndicators.has(ind.id)}
+                showLabel={showInfoOverlay}
+                onClick={() => toggleIndicator(ind.id)}
+              >
+                <ind.icon />
+              </ToolbarButton>
+            ))}
 
           <ClearMenu
             drawingCount={drawingState.completedLines.length + fibDrawings.length + forecastDrawings.length}
@@ -1503,6 +1525,7 @@ export default function Chart({
             onClearDrawings={clearDrawings}
             onClearIndicators={clearIndicators}
             onClearAll={clearAll}
+            showLabel={showInfoOverlay}
           />
         </div>
       </div>
@@ -1510,7 +1533,7 @@ export default function Chart({
 
       {/* Chart area */}
       <div
-        className="relative flex-1 min-h-0"
+        className={`relative flex-1 min-h-0 ${standaloneToolbar ? "rounded-lg border border-auth-field/40 bg-bg overflow-hidden" : ""}`}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         onClick={handleMouseClick}
@@ -1529,9 +1552,9 @@ export default function Chart({
         }}
       >
         <div ref={containerRef} className="h-full w-full [&_a]:hidden" />
-        <div className="absolute left-2 top-2 z-20 flex flex-col items-start gap-1">
+        <div className="absolute left-2 right-20 top-2 z-20 flex flex-col items-start gap-1">
           {showInfoOverlay && ohlcBlock && (
-            <div className="rounded-md bg-panel/80 px-2 py-1 backdrop-blur-sm">{ohlcBlock}</div>
+            <div className="max-w-full rounded-md bg-panel/10 shadow-md px-2 py-1">{ohlcBlock}</div>
           )}
           {!hideIndicatorBadges && (
             <IndicatorBadges
