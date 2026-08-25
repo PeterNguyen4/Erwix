@@ -8,6 +8,7 @@ interface ToolbarButtonProps {
   active?: boolean;
   tone?: "default" | "danger";
   placement?: "top" | "bottom" | "left" | "right";
+  showLabel?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }
@@ -17,6 +18,36 @@ interface ToolbarTooltipProps {
   hover: boolean;
   placement?: "top" | "bottom" | "left" | "right";
   anchorRef: React.RefObject<HTMLElement | null>;
+}
+
+interface DropdownPanelProps {
+  open: boolean;
+  anchorRef: React.RefObject<HTMLElement | null>;
+  align?: "left" | "right";
+  children: React.ReactNode;
+}
+
+export function DropdownPanel({ open, anchorRef, align = "left", children }: DropdownPanelProps) {
+  const [rect, setRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (open && anchorRef.current) setRect(anchorRef.current.getBoundingClientRect());
+  }, [open, anchorRef]);
+
+  if (!open || !rect || typeof document === "undefined") return null;
+
+  const style: React.CSSProperties = {
+    position: "fixed",
+    top: rect.bottom + 4,
+    ...(align === "right" ? { right: window.innerWidth - rect.right } : { left: rect.left }),
+  };
+
+  return createPortal(
+    <div style={style} className="z-[70]">
+      {children}
+    </div>,
+    document.body,
+  );
 }
 
 const GAP = 8;
@@ -69,13 +100,20 @@ export function ToolbarTooltip({ label, hover, placement = "bottom", anchorRef }
   );
 }
 
-export default function ToolbarButton({ label, active, tone = "default", placement = "bottom", onClick, children }: ToolbarButtonProps) {
+export default function ToolbarButton({ label, active, tone = "default", placement = "bottom", showLabel = false, onClick, children }: ToolbarButtonProps) {
   const [hover, setHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const base = "flex h-7 w-7 items-center justify-center rounded transition-colors";
-  const palette =
-    tone === "danger"
+  const base = showLabel
+    ? "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 transition-colors"
+    : "flex h-7 w-7 items-center justify-center rounded transition-colors";
+  const palette = showLabel
+    ? tone === "danger"
+      ? "border-border text-muted hover:border-down/40 hover:bg-down/20 hover:text-down"
+      : active
+        ? "border-violet-500 bg-violet-500 text-on-accent"
+        : "border-border bg-field text-muted hover:bg-violet-500/10 hover:text-fg"
+    : tone === "danger"
       ? "text-muted hover:bg-down/20 hover:text-down"
       : active
         ? "bg-violet-500 text-on-accent"
@@ -85,8 +123,9 @@ export default function ToolbarButton({ label, active, tone = "default", placeme
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
       <button ref={buttonRef} type="button" onClick={onClick} className={`${base} ${palette}`}>
         {children}
+        {showLabel && <span className="whitespace-nowrap text-xs">{label}</span>}
       </button>
-      <ToolbarTooltip label={label} hover={hover} placement={placement} anchorRef={buttonRef} />
+      {!showLabel && <ToolbarTooltip label={label} hover={hover} placement={placement} anchorRef={buttonRef} />}
     </div>
   );
 }

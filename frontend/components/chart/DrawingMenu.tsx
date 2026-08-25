@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { DRAWING_TOOLS, DrawingToolId, IconDrawingTool, IconStar } from "@/components/chart/drawingTools";
-import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
+import { DropdownPanel, ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
 interface DrawingMenuProps {
   /** "crosshair" means no drawing tool is active. */
@@ -13,13 +13,15 @@ interface DrawingMenuProps {
   align?: "left" | "right";
   pinned: Set<DrawingToolId>;
   onTogglePin: (id: DrawingToolId) => void;
+  showLabel?: boolean;
 }
 
-export default function DrawingMenu({ value, onChange, align = "left", pinned, onTogglePin }: DrawingMenuProps) {
+export default function DrawingMenu({ value, onChange, align = "left", pinned, onTogglePin, showLabel = false }: DrawingMenuProps) {
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const active = DRAWING_TOOLS.find((t) => t.id === value) ?? null;
+  const activeTool = DRAWING_TOOLS.find((t) => t.id === value) ?? null;
+  const active = activeTool && !pinned.has(activeTool.id) ? activeTool : null;
 
   return (
     <div className="relative flex items-center" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
@@ -28,20 +30,23 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
         type="button"
         onClick={() => setOpen((o) => !o)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className={`flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
-          active ? "bg-violet-500 text-on-accent" : "text-muted hover:bg-violet-500/20 hover:text-fg"
-        }`}
+        className={
+          showLabel
+            ? `flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 transition-colors ${
+                active ? "border-violet-500 bg-violet-500 text-on-accent" : "border-border bg-field text-muted hover:bg-violet-500/10 hover:text-fg"
+              }`
+            : `flex h-7 items-center gap-1 rounded px-1.5 transition-colors ${
+                active ? "bg-violet-500 text-on-accent" : "text-muted hover:bg-violet-500/20 hover:text-fg"
+              }`
+        }
       >
         {active ? <active.icon /> : <IconDrawingTool />}
+        {showLabel && <span className="whitespace-nowrap text-xs">{active ? active.label : "Drawings"}</span>}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
-      <ToolbarTooltip label="Drawing tools" hover={hover && !open} anchorRef={buttonRef} />
-      {open && (
-        <div
-          className={`absolute top-full z-30 mt-1 w-56 rounded-md border border-border bg-panel py-1 shadow-lg ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
-        >
+      {!showLabel && <ToolbarTooltip label="Drawing tools" hover={hover && !open} anchorRef={buttonRef} />}
+      <DropdownPanel open={open} anchorRef={buttonRef} align={align}>
+        <div className="w-56 rounded-md border border-border bg-panel py-1 shadow-lg">
           {DRAWING_TOOLS.map((t) => (
             <div
               key={t.id}
@@ -76,7 +81,7 @@ export default function DrawingMenu({ value, onChange, align = "left", pinned, o
             </div>
           ))}
         </div>
-      )}
+      </DropdownPanel>
     </div>
   );
 }
