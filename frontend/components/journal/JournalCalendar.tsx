@@ -1,9 +1,10 @@
 "use client";
 
-import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { ReactNode, forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Clock, DollarSign, Plus, StickyNote, Trash2, TrendingDown, TrendingUp, X } from "lucide-react";
 import { api, DebriefRequest, JournalEntry, JournalEntryInput, PortfolioPoint, Trade } from "@/lib/api";
 import { useClickOutside } from "@/lib/useClickOutside";
+import { useIsMobile } from "@/lib/useIsMobile";
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 const toDateInput = (d: Date) =>
@@ -50,6 +51,13 @@ const WINDOWS = [
 ];
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const MOBILE_VIEW_OPTIONS: { id: ViewMode; label: string }[] = [
+  { id: "day", label: "Day" },
+  { id: "month", label: "Month" },
+  { id: "table", label: "Table" },
+];
+
 
 const HOUR_HEIGHT = 88;
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -247,7 +255,15 @@ function EventChip({ row, onClick }: { row: JournalRow; onClick: (e: React.Mouse
   );
 }
 
-function ViewDropdown({ view, onChange }: { view: ViewMode; onChange: (v: ViewMode) => void }) {
+function ViewDropdown({
+  view,
+  onChange,
+  options = VIEW_OPTIONS,
+}: {
+  view: ViewMode;
+  onChange: (v: ViewMode) => void;
+  options?: { id: ViewMode; label: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useClickOutside(ref, () => setOpen(false), open);
@@ -260,12 +276,12 @@ function ViewDropdown({ view, onChange }: { view: ViewMode; onChange: (v: ViewMo
           open ? "border-accent text-fg" : "border-border text-fg hover:bg-panel"
         }`}
       >
-        {VIEW_OPTIONS.find((o) => o.id === view)?.label}
+        {options.find((o) => o.id === view)?.label}
         <ChevronDown size={12} strokeWidth={2} className="opacity-70" />
       </button>
       {open && (
         <div className="absolute right-0 top-full z-30 mt-1 w-28 rounded-md border border-border bg-panel py-1 shadow-lg">
-          {VIEW_OPTIONS.map((o) => (
+          {options.map((o) => (
             <button
               key={o.id}
               type="button"
@@ -293,6 +309,7 @@ function MiniMonthPicker({
   todayKey,
   onSelect,
   dailyPl,
+  size = "sm",
 }: {
   month: Date;
   onMonthChange: (d: Date) => void;
@@ -300,31 +317,35 @@ function MiniMonthPicker({
   todayKey: string;
   onSelect: (d: Date) => void;
   dailyPl: Map<string, number>;
+  size?: "sm" | "lg";
 }) {
   const cells = monthCells(month.getFullYear(), month.getMonth());
+  const large = size === "lg";
   return (
-    <div className="w-52 shrink-0 rounded-lg border border-border bg-panel p-2.5">
+    <div className={`shrink-0 rounded-lg border border-border bg-panel ${large ? "w-full p-3" : "w-52 p-2.5"}`}>
       <div className="mb-2 flex items-center justify-between">
         <button
           onClick={() => onMonthChange(addMonths(month, -1))}
           className="rounded p-1 text-muted hover:bg-border/60 hover:text-fg"
         >
-          <ChevronLeft size={14} strokeWidth={2} />
+          <ChevronLeft size={large ? 16 : 14} strokeWidth={2} />
         </button>
-        <span className="text-xs font-semibold text-fg">{month.toLocaleString("en-US", { month: "long", year: "numeric" })}</span>
+        <span className={`font-semibold text-fg ${large ? "text-sm" : "text-xs"}`}>
+          {month.toLocaleString("en-US", { month: "long", year: "numeric" })}
+        </span>
         <button
           onClick={() => onMonthChange(addMonths(month, 1))}
           className="rounded p-1 text-muted hover:bg-border/60 hover:text-fg"
         >
-          <ChevronRight size={14} strokeWidth={2} />
+          <ChevronRight size={large ? 16 : 14} strokeWidth={2} />
         </button>
       </div>
-      <div className="grid grid-cols-7 gap-0.5 text-center text-[9px] text-muted">
+      <div className={`grid grid-cols-7 gap-1 text-center text-muted ${large ? "text-xs" : "text-[9px]"}`}>
         {WEEKDAY_LABELS.map((d) => (
-          <div key={d}>{d[0]}</div>
+          <div key={d}>{large ? d : d[0]}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-0.5">
+      <div className="grid grid-cols-7 gap-1">
         {cells.map((cell, i) => {
           if (!cell) return <div key={i} className="aspect-square" />;
           const k = dayKey(cell);
@@ -337,7 +358,9 @@ function MiniMonthPicker({
             <button
               key={i}
               onClick={() => onSelect(cell)}
-              className={`flex aspect-square items-center justify-center rounded-sm text-[10px] font-medium tabular-nums transition-colors ${
+              className={`flex aspect-square items-center justify-center rounded-sm font-medium tabular-nums transition-colors ${
+                large ? "text-sm" : "text-[10px]"
+              } ${
                 hasData ? (up ? "bg-up/25 text-up hover:bg-up/40" : "bg-down/25 text-down hover:bg-down/40") : "text-muted hover:bg-border/60"
               } ${isToday ? "ring-1 ring-accent" : ""} ${isSelected ? "ring-1 ring-fg/50" : ""}`}
             >
@@ -360,14 +383,20 @@ interface JournalCalendarProps {
 
 type DragTarget = { id: number; edge: "start" | "end" } | { id: "draft"; edge: "start" | "end" };
 
-export default function JournalCalendar({
-  onDebriefTrade,
-  points = [],
-  leftPanelExtra,
-  leftPanelBelow,
-  leftPanelTop,
-}: JournalCalendarProps) {
+export interface JournalCalendarHandle {
+  goToday: () => void;
+  openOverview: () => void;
+}
+
+const JournalCalendar = forwardRef<JournalCalendarHandle, JournalCalendarProps>(function JournalCalendar(
+  { onDebriefTrade, points = [], leftPanelExtra, leftPanelBelow, leftPanelTop }: JournalCalendarProps,
+  ref,
+) {
+  const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<ViewMode>("week");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  const appliedMobileDefault = useRef(false);
   const [anchor, setAnchor] = useState(() => new Date());
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(new Date()));
   const [rangeTrades, setRangeTrades] = useState<Trade[]>([]);
@@ -425,6 +454,28 @@ export default function JournalCalendar({
     }, 60000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    if (isMobile && !appliedMobileDefault.current) {
+      appliedMobileDefault.current = true;
+      setViewMode("day");
+    }
+  }, [isMobile]);
+
+  const openDrawer = () => {
+    setDrawerMounted(true);
+    requestAnimationFrame(() => setDrawerOpen(true));
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setTimeout(() => setDrawerMounted(false), 250);
+  };
+
+  useImperativeHandle(ref, () => ({
+    goToday: () => setAnchor(new Date()),
+    openOverview: openDrawer,
+  }));
 
   useEffect(() => {
     if (viewMode !== "day" && viewMode !== "week") return;
@@ -535,7 +586,7 @@ export default function JournalCalendar({
   const nextDisabled = viewMode !== "table" && periodStart(range.start, viewMode) >= periodStart(new Date(), viewMode);
 
   const label = useMemo(() => {
-    if (viewMode === "day") return anchor.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    if (viewMode === "day") return anchor.toLocaleDateString("en-US", { weekday: "short", month: "long", day: "numeric", year: "numeric" });
     if (viewMode === "week") {
       const start = range.start;
       const end = addDays(range.end, -1);
@@ -1106,14 +1157,16 @@ export default function JournalCalendar({
   return (
     <div className="relative flex h-full flex-col">
       <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-        <div className="flex w-52 shrink-0 items-center">{leftPanelTop}</div>
+        {!isMobile && <div className="flex w-52 shrink-0 items-center">{leftPanelTop}</div>}
         <div className="flex flex-1 items-center gap-2">
-          <button
-            onClick={() => setAnchor(new Date())}
-            className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-fg hover:bg-panel"
-          >
-            Today
-          </button>
+          {!isMobile && (
+            <button
+              onClick={() => setAnchor(new Date())}
+              className="rounded-md border border-border px-2.5 py-1.5 text-xs font-semibold text-fg hover:bg-panel"
+            >
+              Today
+            </button>
+          )}
           {viewMode !== "table" && (
             <div className="flex items-center gap-0.5">
               <button onClick={() => navDelta(-1)} className="rounded p-1 text-muted hover:bg-panel hover:text-fg">
@@ -1174,7 +1227,7 @@ export default function JournalCalendar({
               />
             </>
           )}
-          <ViewDropdown view={viewMode} onChange={setViewMode} />
+          <ViewDropdown view={viewMode} onChange={setViewMode} options={isMobile ? MOBILE_VIEW_OPTIONS : VIEW_OPTIONS} />
           <button
             onClick={(e) => openCreate(viewMode === "day" ? anchor : new Date(), undefined, e)}
             className="flex items-center gap-1 rounded-md bg-accent px-2.5 py-1.5 text-xs font-semibold text-on-accent hover:bg-accent/80"
@@ -1188,21 +1241,23 @@ export default function JournalCalendar({
       {error && <p className="mb-2 shrink-0 text-xs text-down">{error}</p>}
 
       <div className="flex min-h-0 flex-1 gap-3">
-        <div className="flex w-52 shrink-0 flex-col gap-3 overflow-y-auto">
-          {leftPanelExtra}
-          <MiniMonthPicker
-            month={pickerMonth}
-            onMonthChange={setPickerMonth}
-            selectedKey={dayKey(anchor)}
-            todayKey={todayKey}
-            dailyPl={dailyPl}
-            onSelect={(d) => {
-              setAnchor(d);
-              setPickerMonth(startOfMonth(d));
-            }}
-          />
-          {leftPanelBelow}
-        </div>
+        {!isMobile && (
+          <div className="flex w-52 shrink-0 flex-col gap-3 overflow-y-auto">
+            {leftPanelExtra}
+            <MiniMonthPicker
+              month={pickerMonth}
+              onMonthChange={setPickerMonth}
+              selectedKey={dayKey(anchor)}
+              todayKey={todayKey}
+              dailyPl={dailyPl}
+              onSelect={(d) => {
+                setAnchor(d);
+                setPickerMonth(startOfMonth(d));
+              }}
+            />
+            {leftPanelBelow}
+          </div>
+        )}
 
         <div className="flex min-h-0 flex-1 flex-col">
           {viewMode === "table" ? (
@@ -1396,17 +1451,60 @@ export default function JournalCalendar({
         </div>
       )}
 
+      {isMobile && drawerMounted && (
+        <div
+          className={`fixed inset-y-0 left-14 right-0 z-40 flex flex-col justify-end bg-bg/70 transition-opacity duration-[250ms] md:left-0 ${
+            drawerOpen ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={closeDrawer}
+        >
+          <div
+            className={`max-h-[80%] overflow-y-auto rounded-t-2xl border-t border-border bg-panel p-3 shadow-2xl transition-transform duration-[250ms] ease-out ${
+              drawerOpen ? "translate-y-0" : "translate-y-full"
+            }`}
+            style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm font-semibold text-fg">Overview</span>
+              <button onClick={closeDrawer} className="rounded p-1 text-muted hover:bg-border/60 hover:text-fg">
+                <X size={16} strokeWidth={2} />
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              {leftPanelTop}
+              {leftPanelExtra}
+              <MiniMonthPicker
+                month={pickerMonth}
+                onMonthChange={setPickerMonth}
+                selectedKey={dayKey(anchor)}
+                todayKey={todayKey}
+                dailyPl={dailyPl}
+                size="lg"
+                onSelect={(d) => {
+                  setAnchor(d);
+                  setPickerMonth(startOfMonth(d));
+                  closeDrawer();
+                }}
+              />
+              {leftPanelBelow}
+            </div>
+          </div>
+        </div>
+      )}
+
       {panelOpen &&
         panelAnchor &&
         typeof window !== "undefined" &&
         (() => {
-          const rawLeft = panelAnchor.side === "left" ? panelAnchor.x - PANEL_WIDTH - 10 : panelAnchor.x + 10;
-          const left = clamp(rawLeft, 8, window.innerWidth - PANEL_WIDTH - 8);
+          const panelWidth = Math.min(PANEL_WIDTH, window.innerWidth - 16);
+          const rawLeft = panelAnchor.side === "left" ? panelAnchor.x - panelWidth - 10 : panelAnchor.x + 10;
+          const left = clamp(rawLeft, 8, window.innerWidth - panelWidth - 8);
           const top = clamp(panelAnchor.y - 10, 8, window.innerHeight - PANEL_MAX_HEIGHT - 8);
           return (
             <div
               ref={panelRef}
-              style={{ position: "fixed", left, top, width: PANEL_WIDTH, maxHeight: PANEL_MAX_HEIGHT }}
+              style={{ position: "fixed", left, top, width: panelWidth, maxHeight: PANEL_MAX_HEIGHT }}
               className="z-50 overflow-y-auto rounded-xl border border-border bg-panel p-4 shadow-2xl"
             >
               {formPanelContent}
@@ -1416,4 +1514,6 @@ export default function JournalCalendar({
         })()}
     </div>
   );
-}
+});
+
+export default JournalCalendar;
