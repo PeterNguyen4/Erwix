@@ -61,22 +61,24 @@ export default function Sidebar() {
         />
       )}
       <nav
-        className={`fixed top-0 left-0 bottom-0 md:relative flex flex-col items-stretch md:items-center gap-1 border-r border-auth-field/40 bg-panel py-2 md:py-4 z-[60] shrink-0 transition-[width] duration-200 ease-out overflow-hidden md:w-16 ${
+        className={`fixed top-0 left-0 bottom-0 md:relative flex flex-col items-stretch md:items-center gap-1 border-r border-auth-field/40 bg-panel pt-0 pb-2 md:py-4 z-[60] shrink-0 transition-[width] duration-200 ease-out overflow-hidden md:w-16 ${
           expanded ? "w-56" : "w-14"
         }`}
       >
         {isMobile ? (
-          <div className="px-2 mb-2 shrink-0">
+          <div className="px-2 min-h-[60px] flex items-center shrink-0">
             {expanded ? (
-              <div className="flex h-10 items-center gap-3 px-2.5">
-                <img src="/erwix.svg" alt="Erwix" className="w-5 h-5 shrink-0" />
-                <span className="flex-1 text-left text-lg font-normal text-fg whitespace-nowrap">Erwix</span>
+              <div className="flex w-full h-10 items-center">
+                <div className="flex min-w-0 flex-1 items-center gap-3 px-2.5">
+                  <img src="/erwix.svg" alt="Erwix" className="w-5 h-5 shrink-0" />
+                  <span className="truncate text-left text-lg font-normal text-fg">Erwix</span>
+                </div>
                 <button
                   onClick={() => setExpanded(false)}
-                  className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-violet-500/10"
+                  className="shrink-0 flex h-10 w-10 items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-violet-500/10"
                   aria-label="Collapse sidebar"
                 >
-                  <PanelRight size={16} strokeWidth={2} className="rotate-180" />
+                  <PanelRight size={20} strokeWidth={2} className="rotate-180" />
                 </button>
               </div>
             ) : (
