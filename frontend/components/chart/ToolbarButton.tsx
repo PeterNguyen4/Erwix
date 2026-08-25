@@ -57,7 +57,7 @@ export function ToolbarTooltip({ label, hover, placement = "bottom", anchorRef }
 
   return createPortal(
     <div
-      className="pointer-events-none z-50 transition-all duration-150"
+      className="pointer-events-none z-[70] transition-all duration-150"
       style={{ ...wrapperStyle, opacity: hover ? 1 : 0, transform: hover ? wrapperStyle.transform : hiddenTransform }}
     >
       <div className={bubble}>

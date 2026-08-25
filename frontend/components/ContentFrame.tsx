@@ -7,7 +7,7 @@ export default function ContentFrame({ children }: { children: React.ReactNode }
   return (
     <div
       className={`flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden ${
-        showSidebar ? "pb-16 md:pb-0" : ""
+        showSidebar ? "pl-14 md:pl-0" : ""
       }`}
     >
       {children}

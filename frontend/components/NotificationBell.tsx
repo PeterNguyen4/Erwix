@@ -6,7 +6,15 @@ import { Bell, X } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
 import { ToolbarTooltip } from "@/components/chart/ToolbarButton";
 
-export default function NotificationBell({ mobile = false }: { mobile?: boolean }) {
+export default function NotificationBell({
+  mobile = false,
+  showLabel = false,
+  hideTooltip = false,
+}: {
+  mobile?: boolean;
+  showLabel?: boolean;
+  hideTooltip?: boolean;
+}) {
   const router = useRouter();
   const { items, unseenCount, markRead, dismiss } = useNotifications();
   const [open, setOpen] = useState(false);
@@ -45,20 +53,21 @@ export default function NotificationBell({ mobile = false }: { mobile?: boolean 
       <button
         ref={buttonRef}
         onClick={toggleOpen}
-        className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
+        className={`relative flex h-10 w-full md:w-10 items-center gap-3 px-2.5 md:px-0 md:justify-center rounded-lg transition-colors ${
           open
             ? "text-violet-700 dark:text-violet-400 bg-violet-500/20"
             : "text-muted hover:text-fg hover:bg-violet-500/10"
         }`}
       >
-        <span className="relative inline-flex">
+        <span className="relative inline-flex shrink-0">
           <Bell size={20} strokeWidth={2} />
           {unseenCount > 0 && (
             <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-red-500" />
           )}
         </span>
+        {showLabel && <span className="text-sm font-medium whitespace-nowrap">Notifications</span>}
       </button>
-      {!open && (
+      {!open && !hideTooltip && (
         <ToolbarTooltip
           label="Notifications"
           hover={hover}

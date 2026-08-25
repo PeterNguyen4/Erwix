@@ -12,6 +12,7 @@ import {
   FlaskConical,
   CalendarDays,
   Settings,
+  PanelRight,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -31,6 +32,7 @@ export default function Sidebar() {
   const navButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     const mql = window.matchMedia("(max-width: 767px)");
@@ -40,64 +42,118 @@ export default function Sidebar() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  const tooltipPlacement = isMobile ? "top" : "right";
+  useEffect(() => {
+    setExpanded(false);
+  }, [pathname]);
+
+  const showLabel = isMobile && expanded;
+  const navigate = (href: string) => {
+    router.push(href);
+    if (isMobile) setExpanded(false);
+  };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 md:relative flex flex-row md:flex-col items-center justify-around md:justify-start gap-1 border-t md:border-t-0 md:border-r border-auth-field/40 bg-panel w-full md:w-16 py-2 md:py-4 z-30 shrink-0">
-      <div className="hidden md:block mb-6 px-2">
-        <img src="/erwix.svg" alt="Erwix" className="w-8 h-8" />
-      </div>
-      {NAV_ITEMS.map(({ label, href, Icon }) => {
-        const active = pathname === href;
-        return (
-          <div
-            key={href}
-            className="relative"
-            onMouseEnter={() => setHoveredHref(href)}
-            onMouseLeave={() => setHoveredHref(null)}
-          >
-            <button
-              ref={(el) => { navButtonRefs.current[href] = el; }}
-              onClick={() => router.push(href)}
-              className={`relative flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
-                active
-                  ? "text-violet-700 dark:text-violet-400 bg-violet-500/20"
-                  : "text-muted hover:text-fg hover:bg-violet-500/10"
-              }`}
-            >
-              <span className="relative">
-                <Icon size={20} strokeWidth={2} />
-              </span>
-            </button>
-            <ToolbarTooltip
-              label={label}
-              hover={hoveredHref === href}
-              placement={tooltipPlacement}
-              anchorRef={{ current: navButtonRefs.current[href] ?? null }}
-            />
-          </div>
-        );
-      })}
-      <div className="hidden md:block md:flex-1" />
-      <NotificationBell mobile={isMobile} />
-      <div
-        className="relative md:mb-2"
-        onMouseEnter={() => setSettingsHover(true)}
-        onMouseLeave={() => setSettingsHover(false)}
+    <>
+      {isMobile && expanded && (
+        <div
+          className="fixed inset-0 bg-black/40 z-[55]"
+          onClick={() => setExpanded(false)}
+        />
+      )}
+      <nav
+        className={`fixed top-0 left-0 bottom-0 md:relative flex flex-col items-stretch md:items-center gap-1 border-r border-auth-field/40 bg-panel py-2 md:py-4 z-[60] shrink-0 transition-[width] duration-200 ease-out overflow-hidden md:w-16 ${
+          expanded ? "w-56" : "w-14"
+        }`}
       >
-        <button
-          ref={settingsButtonRef}
-          onClick={() => router.push("/settings")}
-          className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors ${
-            pathname === "/settings"
-              ? "text-violet-700 dark:text-violet-400 bg-violet-500/20"
-              : "text-muted hover:text-fg hover:bg-violet-500/10"
-          }`}
+        {isMobile ? (
+          <div className="px-2 mb-2 shrink-0">
+            {expanded ? (
+              <div className="flex h-10 items-center gap-3 px-2.5">
+                <img src="/erwix.svg" alt="Erwix" className="w-5 h-5 shrink-0" />
+                <span className="flex-1 text-left text-lg font-normal text-fg whitespace-nowrap">Erwix</span>
+                <button
+                  onClick={() => setExpanded(false)}
+                  className="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-muted hover:text-fg hover:bg-violet-500/10"
+                  aria-label="Collapse sidebar"
+                >
+                  <PanelRight size={16} strokeWidth={2} className="rotate-180" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setExpanded(true)}
+                className="flex h-10 w-full items-center gap-3 px-2.5 rounded-lg text-muted hover:text-fg hover:bg-violet-500/10"
+                aria-label="Expand sidebar"
+              >
+                <PanelRight size={20} strokeWidth={2} className="shrink-0" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="mb-6 px-2 flex items-center justify-center shrink-0">
+            <img src="/erwix.svg" alt="Erwix" className="w-8 h-8" />
+          </div>
+        )}
+        {NAV_ITEMS.map(({ label, href, Icon }) => {
+          const active = pathname === href;
+          return (
+            <div
+              key={href}
+              className="relative px-2 md:px-0"
+              onMouseEnter={() => setHoveredHref(href)}
+              onMouseLeave={() => setHoveredHref(null)}
+            >
+              <button
+                ref={(el) => { navButtonRefs.current[href] = el; }}
+                onClick={() => navigate(href)}
+                className={`relative flex h-10 w-full md:w-10 items-center gap-3 px-2.5 md:px-0 md:justify-center rounded-lg transition-colors ${
+                  active
+                    ? "text-violet-700 dark:text-violet-400 bg-violet-500/20"
+                    : "text-muted hover:text-fg hover:bg-violet-500/10"
+                }`}
+              >
+                <span className="relative shrink-0">
+                  <Icon size={20} strokeWidth={2} />
+                </span>
+                {showLabel && <span className="text-sm font-medium whitespace-nowrap">{label}</span>}
+              </button>
+              {!isMobile && (
+                <ToolbarTooltip
+                  label={label}
+                  hover={hoveredHref === href}
+                  placement="right"
+                  anchorRef={{ current: navButtonRefs.current[href] ?? null }}
+                />
+              )}
+            </div>
+          );
+        })}
+        <div className="flex-1" />
+        <div className="px-2 md:px-0">
+          <NotificationBell showLabel={showLabel} hideTooltip={isMobile} />
+        </div>
+        <div
+          className="relative mb-2 px-2 md:px-0"
+          onMouseEnter={() => setSettingsHover(true)}
+          onMouseLeave={() => setSettingsHover(false)}
         >
-          <Settings size={20} strokeWidth={2} />
-        </button>
-        <ToolbarTooltip label="Settings" hover={settingsHover} placement={tooltipPlacement} anchorRef={settingsButtonRef} />
-      </div>
-    </nav>
+          <button
+            ref={settingsButtonRef}
+            onClick={() => navigate("/settings")}
+            className={`flex h-10 w-full md:w-10 items-center gap-3 px-2.5 md:px-0 md:justify-center rounded-lg transition-colors ${
+              pathname === "/settings"
+                ? "text-violet-700 dark:text-violet-400 bg-violet-500/20"
+                : "text-muted hover:text-fg hover:bg-violet-500/10"
+            }`}
+          >
+            <Settings size={20} strokeWidth={2} className="shrink-0" />
+            {showLabel && <span className="text-sm font-medium whitespace-nowrap">Settings</span>}
+          </button>
+          {!isMobile && (
+            <ToolbarTooltip label="Settings" hover={settingsHover} placement="right" anchorRef={settingsButtonRef} />
+          )}
+        </div>
+      </nav>
+    </>
   );
 }
