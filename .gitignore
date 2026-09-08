@@ -228,4 +228,6 @@ CLAUDE.md
 .env.local
 
 
-docs
+docs/*
+!docs/architecture.drawio
+!docs/architecture.svg
