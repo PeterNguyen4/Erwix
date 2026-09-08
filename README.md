@@ -1,70 +1,39 @@
 # Erwix: Multi-Agent Trading System
 
 A TradingView-style charting + paper-trading terminal backed by Alpaca, with
-automatic logging of every execution. Architected so an AI analyst layer
-(reviewing trades against your strategy, drawing marked-up chart snippets, with
-RAG over past activity) drops in as Phase 2 without rework.
+automatic logging of every execution, an AI analyst that narrates trade windows
+and annotates the chart, a deterministic rule-watch engine for live alerts, and
+RAG-backed semantic search over trade history.
 
 ## Stack
 
-- **Frontend:** Next.js + TypeScript + Tailwind, `lightweight-charts` (TradingView's library)
-- **Backend:** Python + FastAPI, `alpaca-py` (data + paper trading)
-- **DB:** PostgreSQL + pgvector (Docker)
+- **Frontend:** Next.js (static export) + TypeScript + Tailwind, `lightweight-charts` deployed to Cloudflare Pages
+- **Backend:** Python + FastAPI, `alpaca-py` (market data + paper trading) deployed on AWS Lightsail behind a Cloudflare Tunnel
+- **Auth:** local username/password (argon2id + JWT, httpOnly cookies)
+- **AI agents:** LangGraph state graphs calling AI model
+- **Embeddings:** Voyage AI (`voyage-3.5-lite`) into pgvector for RAG over trade history
+- **DB / cache:** PostgreSQL + pgvector, Redis (rate limiting)
 
 ## Architecture
 
-```mermaid
-flowchart TB
-    Browser["Browser"]
-
-    subgraph Frontend["Next.js Frontend"]
-        Pages["app/ routes\nchart · journal · settings"]
-        Components["components/\nChart · OrderPanel · PositionsTable\nTradeJournal · AuthBridge"]
-        ApiClient["lib/api.ts\nREST + WebSocket client"]
-    end
-
-    Clerk["Clerk\n(auth / JWT issuer)"]
-
-    subgraph Backend["FastAPI Backend"]
-        Routers["routers/\nmarket · trading · journal · user"]
-        Auth["auth.py\nJWT verification via Clerk JWKS"]
-        AlpacaClient["alpaca_client.py"]
-        ExecLogger["services/execution_logger.py\n(background task)"]
-        DB_Layer["db.py / models.py\nSQLAlchemy"]
-    end
-
-    Alpaca["Alpaca API\n(market data + paper trading)"]
-    Postgres[("PostgreSQL + pgvector\ntrades · notes · preferences")]
-
-    Browser --> Pages --> Components --> ApiClient
-    ApiClient <-- "REST / WebSocket, /api/*" --> Routers
-    Components -. "sign-in / JWT" .-> Clerk
-    Auth -. "verify JWT via JWKS" .-> Clerk
-    Routers --> Auth
-    Routers --> AlpacaClient
-    AlpacaClient <-- "REST + WS streams" --> Alpaca
-    Alpaca -. "fill events" .-> ExecLogger
-    ExecLogger --> DB_Layer
-    Routers --> DB_Layer
-    DB_Layer <--> Postgres
-```
+![Erwix architecture](docs/architecture.svg)
 
 ## Setup
 
 ### 1. Database
 
 ```bash
-docker compose up -d        # postgres + pgvector on :5432
+docker compose up -d            # postgres + pgvector on :5432
 ```
 
 ### 2. Backend
 
 ```bash
 cd backend
-cp ../.env.example .env      # then fill in ALPACA_API_KEY / ALPACA_SECRET_KEY
-python -m venv .venv && source .venv/Scripts/activate   # Windows Git Bash
+cp ../.env.example .env
+python -m venv .venv && source .venv/Scripts/activate
 pip install -e ".[dev]"
-alembic upgrade head        # create tables + enable pgvector
+alembic upgrade head
 uvicorn app.main:app --reload   # http://localhost:8000/docs
 ```
 
@@ -75,23 +44,31 @@ Get free paper-trading keys at <https://alpaca.markets>.
 ```bash
 cd frontend
 npm install
-npm run dev                 # http://localhost:3000
+npm run dev                     # http://localhost:3000
 ```
 
-## Features (Phase 1)
+## Features
 
-- Real-time candlestick charts (Alpaca historical + live bar WebSocket)
-- Paper order placement (market / limit, buy / sell)
-- Positions + account summary
-- **Automatic trade logging** — every fill is persisted to the `trades` table
-- Trade journal with date-window filter (1D / 7D / 30D / All)
+**Charting and paper trading**
+- Live candlestick charts, fed by Alpaca's historical and streaming data
+- Place market or limit orders, buy or sell, against a paper account
+- See open positions and account balance at a glance
+- Every fill gets logged automatically, no manual entry
+- Trade journal you can filter by day, week, month, or all time
 
-## Phase 2 (designed for, not yet built)
+**AI trade analyst**
+- Ask Model to review a stretch of trades against your stated strategy
+- It draws directly on the chart, arrows and circles marking entries and exits
+- Chat with it about your history; it can pull up any past trade to answer
+- Trade notes are searchable by meaning, not just keyword, so "that breakout I chased too late" actually finds something
+- Backtest a strategy against historical data, and browse a library of saved strategies
+- News feed with AI-written sentiment takes
 
-- Analyst agent (`claude-opus-4-8`) reviews a trade window vs. your strategy
-- Chart annotations (arrows / circles / entry-exit markers) emitted as JSON and
-  drawn on the live chart — see `ChartAnnotation` in `frontend/lib/api.ts`
-- RAG over past trades/events using pgvector (already enabled)
+**Live monitoring** (in progress)
+- Price rules run against every live quote in plain code, no AI in the loop, so alerts fire instantly
+- Model only gets called in when a stop-loss or take-profit line actually gets crossed, to explain what happened
+- Link your own Alpaca account instead of using the shared one
+- Guided onboarding walks new users through a sample scenario
 
 ## Tests
 
