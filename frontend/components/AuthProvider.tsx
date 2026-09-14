@@ -17,7 +17,6 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const PUBLIC_PATHS = ["/login", "/legal"];
-// Paths logged-in users may still view without being bounced to "/" (unlike /login).
 const ALWAYS_ALLOWED_PATHS = ["/legal"];
 const ONBOARDING_PATH = "/onboarding";
 

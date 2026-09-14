@@ -31,7 +31,7 @@ export default function LegalPage() {
             <h3 className="font-medium text-fg">1. Nature of the service</h3>
             <p className="mt-1 text-muted">
               Erwix is a personal, non-commercial project. It is not an investment advisor and
-              is not affiliated with any broker.
+              is not affiliated with any brokerage.
             </p>
           </div>
 
@@ -77,8 +77,7 @@ export default function LegalPage() {
           <div>
             <h3 className="font-medium text-fg">2. Use of information</h3>
             <p className="mt-1 text-muted">
-              Information is used solely to operate the app: authenticating the user, displaying
-              paper account data, and persisting user-created content between sessions.
+              Information is used solely to operate the app, including user authentication, portfolio display, and data persistence.
             </p>
           </div>
 
