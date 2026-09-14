@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ColorType,
   IChartApi,
@@ -395,7 +395,7 @@ export default function Chart({
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const chart = chartRef.current;
     if (!chart || !chartReady) return;
     chart.applyOptions({

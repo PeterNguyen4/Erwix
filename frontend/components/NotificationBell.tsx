@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Bell, X } from "lucide-react";
 import { useNotifications } from "@/lib/useNotifications";
@@ -19,8 +20,13 @@ export default function NotificationBell({
   const { items, unseenCount, markRead, dismiss } = useNotifications();
   const [open, setOpen] = useState(false);
   const [hover, setHover] = useState(false);
+  const [rect, setRect] = useState<DOMRect | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (open && buttonRef.current) setRect(buttonRef.current.getBoundingClientRect());
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,13 +82,14 @@ export default function NotificationBell({
         />
       )}
 
-      {open && (
+      {open && rect && typeof document !== "undefined" && createPortal(
         <div
           ref={panelRef}
-          className={
+          className="fixed w-80 max-w-[90vw] rounded-lg border border-auth-field/40 bg-panel shadow-xl z-[70] overflow-hidden"
+          style={
             mobile
-              ? "absolute bottom-full right-0 mb-3 w-80 max-w-[90vw] rounded-lg border border-auth-field/40 bg-panel shadow-xl z-40 overflow-hidden"
-              : "absolute bottom-0 left-full ml-3 w-80 rounded-lg border border-auth-field/40 bg-panel shadow-xl z-40 overflow-hidden"
+              ? { bottom: window.innerHeight - rect.top + 12, right: window.innerWidth - rect.right }
+              : { bottom: window.innerHeight - rect.bottom, left: rect.right + 12 }
           }
         >
           <div className="px-4 py-3 border-b border-auth-field/40 text-sm font-semibold text-fg">
@@ -122,7 +129,8 @@ export default function NotificationBell({
               ))}
             </ul>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
