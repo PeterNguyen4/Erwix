@@ -16,7 +16,9 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/legal"];
+// Paths logged-in users may still view without being bounced to "/" (unlike /login).
+const ALWAYS_ALLOWED_PATHS = ["/legal"];
 const ONBOARDING_PATH = "/onboarding";
 
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -26,6 +28,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   const router = useRouter();
   const pathname = usePathname();
   const isPublicPath = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isAlwaysAllowedPath = ALWAYS_ALLOWED_PATHS.some((p) => pathname.startsWith(p));
   const isOnboardingPath = pathname.startsWith(ONBOARDING_PATH);
 
   useEffect(() => {
@@ -58,9 +61,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (isLoading) return;
     if (!user && !isPublicPath) router.replace("/login");
-    if (user && isPublicPath) router.replace("/");
+    if (user && isPublicPath && !isAlwaysAllowedPath) router.replace("/");
     if (user && needsOnboarding && !isOnboardingPath && !isPublicPath) router.replace(ONBOARDING_PATH);
-  }, [isLoading, user, needsOnboarding, isPublicPath, isOnboardingPath, router]);
+  }, [isLoading, user, needsOnboarding, isPublicPath, isAlwaysAllowedPath, isOnboardingPath, router]);
 
   async function login(email: string, password: string) {
     const me = await api.login(email, password);
@@ -99,7 +102,9 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
         startOnboarding,
       }}
     >
-      {isLoading || (!user && !isPublicPath) || blockedByOnboardingRedirect ? null : children}
+      {isLoading || (!user && !isPublicPath) || (user && isPublicPath && !isAlwaysAllowedPath) || blockedByOnboardingRedirect
+        ? null
+        : children}
     </AuthContext.Provider>
   );
 }

@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
 
-const AUTH_PATHS = ["/login", "/onboarding"];
+const AUTH_PATHS = ["/login", "/onboarding", "/legal"];
 
 export function useShowSidebar() {
   const pathname = usePathname();

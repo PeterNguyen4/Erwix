@@ -69,8 +69,12 @@ export default function AlpacaConnectModal({
           <p className="mt-2 text-[11px] leading-relaxed text-muted">
             By allowing Erwix to access your Alpaca account, you are granting Erwix access to your account
             information and authorization to place transactions in your account at your direction. Alpaca does
-            not warrant or guarantee that Erwix will work as advertised or expected. Before authorizing, learn
-            more about Erwix.
+            not warrant or guarantee that Erwix will work as advertised or expected. Erwix connects only in paper
+            (simulated) trading mode. See {" "}
+            <a href="/legal" target="_blank" rel="noopener noreferrer" className="underline hover:text-fg">
+              Terms of Use &amp; Privacy Policy
+            </a>{" "}
+            before authorizing.
           </p>
         )}
       </div>
