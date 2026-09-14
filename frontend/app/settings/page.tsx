@@ -196,7 +196,10 @@ function SettingsPageInner() {
               </div>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-border flex justify-end">
+            <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+              <a href="/legal" className="text-xs font-medium text-muted hover:text-fg underline">
+                Terms of Use &amp; Privacy Policy
+              </a>
               <button
                 type="button"
                 onClick={logout}
