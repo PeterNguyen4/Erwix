@@ -48,7 +48,7 @@ export default function LegalPage() {
           <div>
             <h3 className="font-medium text-fg">3. Third-party accounts</h3>
             <p className="mt-1 text-muted">
-              A connected brokerage account remains subject to that provider's own terms. A user
+              A connected brokerage account remains subject to that provider&apos;s own terms. A user
               may disconnect their account at any time in settings.
             </p>
           </div>
@@ -85,7 +85,7 @@ export default function LegalPage() {
             <h3 className="font-medium text-fg">3. Sharing of information</h3>
             <p className="mt-1 text-muted">
               Information is not sold or shared for marketing purposes. Brokerage tokens are used
-              only to call that brokerage's API on the user's behalf.
+              only to call that brokerage&apos;s API on the user&apos;s behalf.
             </p>
           </div>
 
