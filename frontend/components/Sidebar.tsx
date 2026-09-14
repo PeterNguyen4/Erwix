@@ -61,7 +61,7 @@ export default function Sidebar() {
         />
       )}
       <nav
-        className={`fixed top-0 left-0 bottom-0 md:relative flex flex-col items-stretch md:items-center gap-1 border-r border-auth-field/40 bg-panel pt-0 pb-2 md:py-4 z-[60] shrink-0 transition-[width] duration-200 ease-out overflow-hidden md:w-16 ${
+        className={`fixed top-0 left-0 bottom-0 md:relative flex flex-col items-stretch md:items-center gap-1 border-r border-auth-field/40 bg-panel pt-0 pb-2 md:py-4 z-[60] shrink-0 transition-[width,background-color,border-color,color] duration-200 ease overflow-hidden md:w-16 ${
           expanded ? "w-56" : "w-14"
         }`}
       >

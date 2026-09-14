@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useLayoutEffect, useMemo, useState } from "react";
 
 type Theme = "dark" | "light";
 
@@ -18,11 +18,12 @@ function readInitialTheme(): Theme {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(readInitialTheme);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
   const setTheme = (t: Theme) => {
+    document.documentElement.dataset.theme = t;
     window.localStorage.setItem(STORAGE_KEY, t);
     setThemeState(t);
   };
